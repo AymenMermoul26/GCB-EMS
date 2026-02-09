@@ -35,7 +35,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { useRole } from '@/hooks/use-role'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
@@ -52,11 +51,10 @@ import { auditService } from '@/services/auditService'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useEmployeeQuery, useUpdateEmployeeMutation } from '@/services/employeesService'
 import {
-  notificationsService,
   useMarkNotificationReadMutation,
   useMyNotificationsQuery,
+  useUnreadNotificationsCountQuery,
 } from '@/services/notificationsService'
-import { roleService } from '@/services/role.service'
 import { useMyRequestsQuery, useSubmitModificationRequestMutation } from '@/services/requestsService'
 import { MODIFICATION_REQUEST_FIELD_OPTIONS } from '@/types/modification-request'
 import {
@@ -89,6 +87,7 @@ export function EmployeeProfilePage() {
   const departmentsQuery = useDepartmentsQuery()
   const myRequestsQuery = useMyRequestsQuery(employeId, 1, 20)
   const notificationsQuery = useMyNotificationsQuery(user?.id)
+  const unreadNotificationsCountQuery = useUnreadNotificationsCountQuery(user?.id)
 
   const departmentName = useMemo(() => {
     if (!employeeQuery.data || !departmentsQuery.data) {
@@ -175,6 +174,7 @@ export function EmployeeProfilePage() {
   const submitRequestMutation = useSubmitModificationRequestMutation({
     onSuccess: async (createdRequest) => {
       toast.success('Request submitted.')
+      requestForm.clearErrors()
       setIsRequestDialogOpen(false)
       requestForm.reset({
         champCible: 'poste',
@@ -182,20 +182,6 @@ export function EmployeeProfilePage() {
         nouvelleValeur: '',
         motif: '',
       })
-
-      try {
-        const adminUserIds = await roleService.listAdminUserIds()
-        await notificationsService.createNotifications(
-          adminUserIds.map((adminUserId) => ({
-            userId: adminUserId,
-            title: 'New modification request',
-            body: `Employee request for ${REQUEST_FIELD_LABELS[createdRequest.champCible]}.`,
-            link: ROUTES.ADMIN_REQUESTS,
-          })),
-        )
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Unable to notify admins')
-      }
 
       try {
         await auditService.insertAuditLog({
@@ -209,7 +195,7 @@ export function EmployeeProfilePage() {
           },
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Unable to write audit log')
+        console.error('Failed to write request submission audit log', error)
       }
 
       await myRequestsQuery.refetch()
@@ -520,6 +506,11 @@ export function EmployeeProfilePage() {
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Workflow Notifications
+            {(unreadNotificationsCountQuery.data ?? 0) > 0 ? (
+              <Badge className="border-transparent bg-red-600 text-white">
+                {unreadNotificationsCountQuery.data}
+              </Badge>
+            ) : null}
           </CardTitle>
         </CardHeader>
         <CardContent>

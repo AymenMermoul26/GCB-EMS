@@ -184,6 +184,19 @@ export async function submitModificationRequest(
   return mapRequest(data)
 }
 
+export async function countPendingRequests(): Promise<number> {
+  const { count, error } = await supabase
+    .from('DemandeModification')
+    .select('id', { count: 'exact', head: true })
+    .eq('statut_demande', 'EN_ATTENTE')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return count ?? 0
+}
+
 export async function listMyRequests(
   params: ListMyRequestsParams,
 ): Promise<RequestsListResponse> {
@@ -318,6 +331,7 @@ export function useSubmitModificationRequestMutation(
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['myRequests', variables.employeId] })
       await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
+      await queryClient.invalidateQueries({ queryKey: ['pendingRequestsCount'] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -341,6 +355,14 @@ export function useAdminRequestsQuery(filters: ListRequestsForAdminParams = {}) 
   })
 }
 
+export function usePendingRequestsCountQuery(enabled = true) {
+  return useQuery({
+    queryKey: ['pendingRequestsCount'],
+    queryFn: countPendingRequests,
+    enabled,
+  })
+}
+
 export function useApproveRequestMutation(
   options?: UseMutationOptions<ModificationRequest, Error, RequestDecisionPayload>,
 ) {
@@ -351,6 +373,7 @@ export function useApproveRequestMutation(
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
       await queryClient.invalidateQueries({ queryKey: ['myRequests', data.employeId] })
+      await queryClient.invalidateQueries({ queryKey: ['pendingRequestsCount'] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -367,6 +390,7 @@ export function useRejectRequestMutation(
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
       await queryClient.invalidateQueries({ queryKey: ['myRequests', data.employeId] })
+      await queryClient.invalidateQueries({ queryKey: ['pendingRequestsCount'] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -377,6 +401,7 @@ export const requestsService = {
   submitModificationRequest,
   listMyRequests,
   listRequestsForAdmin,
+  countPendingRequests,
   approveRequest,
   rejectRequest,
 }

@@ -26,6 +26,16 @@ export interface CreateNotificationPayload {
   link?: string | null
 }
 
+async function currentUserId(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data.user?.id ?? null
+}
+
 function mapNotification(row: NotificationRow): NotificationItem {
   return {
     id: row.id,
@@ -39,10 +49,21 @@ function mapNotification(row: NotificationRow): NotificationItem {
   }
 }
 
-export async function listMyNotifications(): Promise<NotificationItem[]> {
+export async function listMyNotifications(userId?: string | null): Promise<NotificationItem[]> {
+  const resolvedUserId = await currentUserId()
+
+  if (!resolvedUserId) {
+    return []
+  }
+
+  if (userId && userId !== resolvedUserId) {
+    console.warn('notificationsService.listMyNotifications received mismatched user id input.')
+  }
+
   const { data, error } = await supabase
     .from('notifications')
     .select('id, user_id, title, body, link, is_read, created_at, updated_at')
+    .eq('user_id', resolvedUserId)
     .order('created_at', { ascending: false })
     .returns<NotificationRow[]>()
 
@@ -51,6 +72,30 @@ export async function listMyNotifications(): Promise<NotificationItem[]> {
   }
 
   return (data ?? []).map(mapNotification)
+}
+
+export async function countUnreadMyNotifications(userId?: string | null): Promise<number> {
+  const resolvedUserId = await currentUserId()
+
+  if (!resolvedUserId) {
+    return 0
+  }
+
+  if (userId && userId !== resolvedUserId) {
+    console.warn('notificationsService.countUnreadMyNotifications received mismatched user id input.')
+  }
+
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', resolvedUserId)
+    .eq('is_read', false)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return count ?? 0
 }
 
 export async function createNotification(
@@ -98,10 +143,17 @@ export async function createNotifications(
 }
 
 export async function markNotificationRead(id: string): Promise<NotificationItem> {
+  const userId = await currentUserId()
+
+  if (!userId) {
+    throw new Error('User is not authenticated.')
+  }
+
   const { data, error } = await supabase
     .from('notifications')
     .update({ is_read: true })
     .eq('id', id)
+    .eq('user_id', userId)
     .select('id, user_id, title, body, link, is_read, created_at, updated_at')
     .single<NotificationRow>()
 
@@ -115,8 +167,18 @@ export async function markNotificationRead(id: string): Promise<NotificationItem
 export function useMyNotificationsQuery(userId?: string | null) {
   return useQuery({
     queryKey: ['notifications', userId ?? null],
-    queryFn: listMyNotifications,
+    queryFn: () => listMyNotifications(userId),
     enabled: Boolean(userId),
+    refetchInterval: 15000,
+  })
+}
+
+export function useUnreadNotificationsCountQuery(userId?: string | null) {
+  return useQuery({
+    queryKey: ['notificationsUnreadCount', userId ?? null],
+    queryFn: () => countUnreadMyNotifications(userId),
+    enabled: Boolean(userId),
+    refetchInterval: 15000,
   })
 }
 
@@ -130,6 +192,7 @@ export function useMarkNotificationReadMutation(
     mutationFn: markNotificationRead,
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['notifications', userId ?? null] })
+      await queryClient.invalidateQueries({ queryKey: ['notificationsUnreadCount', userId ?? null] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -138,6 +201,7 @@ export function useMarkNotificationReadMutation(
 
 export const notificationsService = {
   listMyNotifications,
+  countUnreadMyNotifications,
   createNotification,
   createNotifications,
   markNotificationRead,

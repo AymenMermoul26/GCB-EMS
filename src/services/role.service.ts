@@ -7,6 +7,10 @@ interface ProfilUtilisateurRoleRow {
   employe_id: string | null
 }
 
+interface ProfilUtilisateurUserRow {
+  user_id: string | null
+}
+
 function normalizeRole(value: string | null): AppRole | null {
   if (value === APP_ROLES.ADMIN_RH) {
     return APP_ROLES.ADMIN_RH
@@ -58,7 +62,32 @@ export async function listAdminUserIds(): Promise<string[]> {
   return (data ?? []) as string[]
 }
 
+export async function getUserIdByEmployeId(employeId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('ProfilUtilisateur')
+    .select('user_id')
+    .eq('employe_id', employeId)
+    .limit(2)
+    .returns<ProfilUtilisateurUserRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data || data.length === 0) {
+    return null
+  }
+
+  if (data.length > 1) {
+    console.error('Multiple ProfilUtilisateur rows found for employe_id', employeId)
+    throw new Error('Data integrity issue: duplicate ProfilUtilisateur mapping for employee.')
+  }
+
+  return data[0].user_id
+}
+
 export const roleService = {
   resolveRoleByUserId,
   listAdminUserIds,
+  getUserIdByEmployeId,
 }

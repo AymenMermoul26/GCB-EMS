@@ -52,7 +52,9 @@ import {
   notificationsService,
   useMarkNotificationReadMutation,
   useMyNotificationsQuery,
+  useUnreadNotificationsCountQuery,
 } from '@/services/notificationsService'
+import { roleService } from '@/services/role.service'
 import { requestsService, useAdminRequestsQuery } from '@/services/requestsService'
 import type { DemandeStatut, ModificationRequest } from '@/types/modification-request'
 import { REQUEST_FIELD_LABELS, toEmployeeUpdatePayload } from '@/utils/modification-requests'
@@ -94,6 +96,7 @@ export function AdminRequestsPage() {
 
   const departmentsQuery = useDepartmentsQuery()
   const notificationsQuery = useMyNotificationsQuery(user?.id)
+  const unreadNotificationsCountQuery = useUnreadNotificationsCountQuery(user?.id)
 
   const requestFilters = useMemo(
     () => ({
@@ -123,16 +126,24 @@ export function AdminRequestsPage() {
         toEmployeeUpdatePayload(payload.request.champCible, employeeUpdateValue),
       )
 
-      if (payload.request.demandeurUserId) {
+      let recipientUserId: string | null = null
+
+      try {
+        recipientUserId = await roleService.getUserIdByEmployeId(payload.request.employeId)
+      } catch (error) {
+        console.error('Failed to resolve recipient user id for approved request', error)
+      }
+
+      if (recipientUserId) {
         try {
           await notificationsService.createNotification({
-            userId: payload.request.demandeurUserId,
+            userId: recipientUserId,
             title: 'Modification request approved',
             body: `Your request for ${REQUEST_FIELD_LABELS[payload.request.champCible]} has been approved.`,
             link: ROUTES.EMPLOYEE_PROFILE,
           })
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Unable to notify employee')
+          console.error('Unable to notify employee for approved request', error)
         }
       }
 
@@ -153,9 +164,12 @@ export function AdminRequestsPage() {
         toast.error(error instanceof Error ? error.message : 'Unable to write audit log')
       }
 
-      return approvedRequest
+      return {
+        approvedRequest,
+        recipientUserId,
+      }
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (result, variables) => {
       toast.success('Request approved and employee updated.')
       setApproveTarget(null)
       setApproveComment('')
@@ -163,7 +177,13 @@ export function AdminRequestsPage() {
       await queryClient.invalidateQueries({ queryKey: ['myRequests', variables.request.employeId] })
       await queryClient.invalidateQueries({ queryKey: ['employee', variables.request.employeId] })
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
-      await queryClient.invalidateQueries({ queryKey: ['notifications', variables.request.demandeurUserId ?? null] })
+      await queryClient.invalidateQueries({ queryKey: ['pendingRequestsCount'] })
+      if (result.recipientUserId) {
+        await queryClient.invalidateQueries({ queryKey: ['notifications', result.recipientUserId] })
+        await queryClient.invalidateQueries({
+          queryKey: ['notificationsUnreadCount', result.recipientUserId],
+        })
+      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to approve request')
@@ -174,16 +194,24 @@ export function AdminRequestsPage() {
     mutationFn: async (payload: { request: ModificationRequest; comment: string }) => {
       const rejectedRequest = await requestsService.rejectRequest(payload.request.id, payload.comment)
 
-      if (payload.request.demandeurUserId) {
+      let recipientUserId: string | null = null
+
+      try {
+        recipientUserId = await roleService.getUserIdByEmployeId(payload.request.employeId)
+      } catch (error) {
+        console.error('Failed to resolve recipient user id for rejected request', error)
+      }
+
+      if (recipientUserId) {
         try {
           await notificationsService.createNotification({
-            userId: payload.request.demandeurUserId,
+            userId: recipientUserId,
             title: 'Modification request rejected',
             body: `Your request for ${REQUEST_FIELD_LABELS[payload.request.champCible]} was rejected.`,
             link: ROUTES.EMPLOYEE_PROFILE,
           })
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Unable to notify employee')
+          console.error('Unable to notify employee for rejected request', error)
         }
       }
 
@@ -204,15 +232,24 @@ export function AdminRequestsPage() {
         toast.error(error instanceof Error ? error.message : 'Unable to write audit log')
       }
 
-      return rejectedRequest
+      return {
+        rejectedRequest,
+        recipientUserId,
+      }
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (result, variables) => {
       toast.success('Request rejected.')
       setRejectTarget(null)
       setRejectComment('')
       await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
       await queryClient.invalidateQueries({ queryKey: ['myRequests', variables.request.employeId] })
-      await queryClient.invalidateQueries({ queryKey: ['notifications', variables.request.demandeurUserId ?? null] })
+      await queryClient.invalidateQueries({ queryKey: ['pendingRequestsCount'] })
+      if (result.recipientUserId) {
+        await queryClient.invalidateQueries({ queryKey: ['notifications', result.recipientUserId] })
+        await queryClient.invalidateQueries({
+          queryKey: ['notificationsUnreadCount', result.recipientUserId],
+        })
+      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to reject request')
@@ -419,6 +456,11 @@ export function AdminRequestsPage() {
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             My Notifications
+            {(unreadNotificationsCountQuery.data ?? 0) > 0 ? (
+              <Badge className="border-transparent bg-red-600 text-white">
+                {unreadNotificationsCountQuery.data}
+              </Badge>
+            ) : null}
           </CardTitle>
         </CardHeader>
         <CardContent>

@@ -32,6 +32,22 @@ interface EmployeeRow {
   updated_at: string
 }
 
+function normalizeSingleRowResult<T>(
+  rows: T[] | null,
+  context: string,
+): { row: T | null; hasMultiple: boolean } {
+  if (!rows || rows.length === 0) {
+    return { row: null, hasMultiple: false }
+  }
+
+  if (rows.length > 1) {
+    console.error(`[${context}] expected at most one row but received`, rows.length)
+    return { row: null, hasMultiple: true }
+  }
+
+  return { row: rows[0], hasMultiple: false }
+}
+
 function mapEmployee(row: EmployeeRow): Employee {
   return {
     id: row.id,
@@ -147,17 +163,24 @@ export async function getEmployee(id: string): Promise<Employee | null> {
     .from('Employe')
     .select(EMPLOYEE_SELECT)
     .eq('id', id)
-    .maybeSingle<EmployeeRow>()
+    .limit(2)
+    .returns<EmployeeRow[]>()
 
   if (error) {
     throw new Error(error.message)
   }
 
-  if (!data) {
+  const { row, hasMultiple } = normalizeSingleRowResult(data ?? null, 'employeesService.getEmployee')
+
+  if (hasMultiple) {
+    throw new Error('Data integrity issue: multiple employee rows matched this profile.')
+  }
+
+  if (!row) {
     return null
   }
 
-  return mapEmployee(data)
+  return mapEmployee(row)
 }
 
 export async function createEmployee(
@@ -185,13 +208,23 @@ export async function updateEmployee(
     .update(toUpdatePayload(payload))
     .eq('id', id)
     .select(EMPLOYEE_SELECT)
-    .single<EmployeeRow>()
+    .returns<EmployeeRow[]>()
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return mapEmployee(data)
+  const { row, hasMultiple } = normalizeSingleRowResult(data ?? null, 'employeesService.updateEmployee')
+
+  if (hasMultiple) {
+    throw new Error('Data integrity issue: multiple employee rows were updated.')
+  }
+
+  if (!row) {
+    throw new Error('Unable to update employee profile. Record not found or access denied.')
+  }
+
+  return mapEmployee(row)
 }
 
 export async function deactivateEmployee(id: string): Promise<Employee> {
