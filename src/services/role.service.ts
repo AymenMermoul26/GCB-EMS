@@ -48,6 +48,17 @@ export async function resolveRoleByUserId(
   }
 }
 
+export async function listAdminUserIds(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('get_admin_user_ids')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []) as string[]
+}
+
 export const roleService = {
   resolveRoleByUserId,
+  listAdminUserIds,
 }

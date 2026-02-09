@@ -9,6 +9,7 @@ import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { AdminEmployeeCreatePage } from '@/pages/admin/admin-employee-create-page'
 import { AdminEmployeeDetailPage } from '@/pages/admin/admin-employee-detail-page'
+import { AdminRequestsPage } from '@/pages/admin/admin-requests-page'
 import { EmployeesListPage } from '@/pages/admin/EmployeesList'
 import { LoginPage } from '@/pages/auth/login-page'
 import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
@@ -51,6 +52,7 @@ export function AppRouter() {
             <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
             <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
             <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
+            <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
           </Route>
 
           <Route element={<EmployeeRoute />}>

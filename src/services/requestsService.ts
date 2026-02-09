@@ -1,10 +1,19 @@
-import { useMutation, useQuery, useQueryClient, type UseMutationOptions } from '@tanstack/react-query'
+﻿import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationOptions,
+} from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
 import type {
   DemandeStatut,
+  ListMyRequestsParams,
   ListRequestsForAdminParams,
   ModificationRequest,
+  ModificationRequestField,
+  RequestDecisionPayload,
   RequestsListResponse,
   SubmitModificationRequestPayload,
 } from '@/types/modification-request'
@@ -16,7 +25,7 @@ interface ModificationRequestRow {
   id: string
   employe_id: string
   demandeur_user_id: string | null
-  champ_cible: string
+  champ_cible: ModificationRequestField
   ancienne_valeur: string | null
   nouvelle_valeur: string | null
   motif: string | null
@@ -26,6 +35,19 @@ interface ModificationRequestRow {
   commentaire_traitement: string | null
   created_at: string
   updated_at: string
+}
+
+interface EmployeeDirectoryRow {
+  id: string
+  nom: string
+  prenom: string
+  matricule: string
+  departement_id: string
+}
+
+interface DepartmentDirectoryRow {
+  id: string
+  nom: string
 }
 
 function mapRequest(row: ModificationRequestRow): ModificationRequest {
@@ -56,6 +78,87 @@ async function currentUserId() {
   return data.user?.id ?? null
 }
 
+async function resolveEmployeeIdsByDepartment(departementId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('Employe')
+    .select('id')
+    .eq('departement_id', departementId)
+    .returns<Array<{ id: string }>>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map((item) => item.id)
+}
+
+function paginate(page = 1, pageSize = 20) {
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  return { page, pageSize, from, to }
+}
+
+async function enrichRequestsWithEmployeeInfo(
+  requests: ModificationRequest[],
+): Promise<ModificationRequest[]> {
+  if (requests.length === 0) {
+    return []
+  }
+
+  const uniqueEmployeeIds = [...new Set(requests.map((request) => request.employeId))]
+
+  const { data: employeeRows, error: employeesError } = await supabase
+    .from('Employe')
+    .select('id, nom, prenom, matricule, departement_id')
+    .in('id', uniqueEmployeeIds)
+    .returns<EmployeeDirectoryRow[]>()
+
+  if (employeesError) {
+    throw new Error(employeesError.message)
+  }
+
+  const employeeMap = new Map((employeeRows ?? []).map((employee) => [employee.id, employee]))
+
+  const uniqueDepartmentIds = [
+    ...new Set((employeeRows ?? []).map((employee) => employee.departement_id)),
+  ]
+
+  const departmentMap = new Map<string, string>()
+
+  if (uniqueDepartmentIds.length > 0) {
+    const { data: departmentRows, error: departmentsError } = await supabase
+      .from('Departement')
+      .select('id, nom')
+      .in('id', uniqueDepartmentIds)
+      .returns<DepartmentDirectoryRow[]>()
+
+    if (departmentsError) {
+      throw new Error(departmentsError.message)
+    }
+
+    for (const department of departmentRows ?? []) {
+      departmentMap.set(department.id, department.nom)
+    }
+  }
+
+  return requests.map((request) => {
+    const employee = employeeMap.get(request.employeId)
+    if (!employee) {
+      return request
+    }
+
+    return {
+      ...request,
+      employeNom: employee.nom,
+      employePrenom: employee.prenom,
+      employeMatricule: employee.matricule,
+      employeDepartementId: employee.departement_id,
+      employeDepartementNom: departmentMap.get(employee.departement_id) ?? null,
+    }
+  })
+}
+
 export async function submitModificationRequest(
   payload: SubmitModificationRequestPayload,
 ): Promise<ModificationRequest> {
@@ -81,13 +184,61 @@ export async function submitModificationRequest(
   return mapRequest(data)
 }
 
+export async function listMyRequests(
+  params: ListMyRequestsParams,
+): Promise<RequestsListResponse> {
+  const { page, pageSize, from, to } = paginate(params.page, params.pageSize)
+
+  const { data, count, error } = await supabase
+    .from('DemandeModification')
+    .select(REQUEST_SELECT, { count: 'exact' })
+    .eq('employe_id', params.employeId)
+    .order('created_at', { ascending: false })
+    .range(from, to)
+    .returns<ModificationRequestRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const mapped = await enrichRequestsWithEmployeeInfo((data ?? []).map(mapRequest))
+
+  return {
+    items: mapped,
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}
+
 export async function listRequestsForAdmin(
   filters: ListRequestsForAdminParams = {},
 ): Promise<RequestsListResponse> {
-  const page = filters.page ?? 1
-  const pageSize = filters.pageSize ?? 20
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
+  const { page, pageSize, from, to } = paginate(filters.page, filters.pageSize)
+
+  let scopedEmployeeIds: string[] | null = null
+
+  if (filters.departementId) {
+    scopedEmployeeIds = await resolveEmployeeIdsByDepartment(filters.departementId)
+  }
+
+  if (filters.employeId) {
+    const manualScope = [filters.employeId]
+    if (scopedEmployeeIds) {
+      scopedEmployeeIds = scopedEmployeeIds.filter((id) => manualScope.includes(id))
+    } else {
+      scopedEmployeeIds = manualScope
+    }
+  }
+
+  if (scopedEmployeeIds && scopedEmployeeIds.length === 0) {
+    return {
+      items: [],
+      total: 0,
+      page,
+      pageSize,
+    }
+  }
 
   let query = supabase
     .from('DemandeModification')
@@ -98,8 +249,8 @@ export async function listRequestsForAdmin(
     query = query.eq('statut_demande', filters.statut)
   }
 
-  if (filters.employeId) {
-    query = query.eq('employe_id', filters.employeId)
+  if (scopedEmployeeIds) {
+    query = query.in('employe_id', scopedEmployeeIds)
   }
 
   const { data, count, error } = await query.range(from, to).returns<ModificationRequestRow[]>()
@@ -108,8 +259,10 @@ export async function listRequestsForAdmin(
     throw new Error(error.message)
   }
 
+  const mapped = await enrichRequestsWithEmployeeInfo((data ?? []).map(mapRequest))
+
   return {
-    items: (data ?? []).map(mapRequest),
+    items: mapped,
     total: count ?? 0,
     page,
     pageSize,
@@ -163,33 +316,41 @@ export function useSubmitModificationRequestMutation(
   return useMutation({
     mutationFn: submitModificationRequest,
     onSuccess: async (data, variables, onMutateResult, context) => {
-      await queryClient.invalidateQueries({ queryKey: ['requests'] })
+      await queryClient.invalidateQueries({ queryKey: ['myRequests', variables.employeId] })
+      await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
 }
 
+export function useMyRequestsQuery(employeId?: string | null, page = 1, pageSize = 20) {
+  return useQuery({
+    queryKey: ['myRequests', employeId ?? null, page, pageSize],
+    queryFn: () => listMyRequests({ employeId: employeId as string, page, pageSize }),
+    enabled: Boolean(employeId),
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function useAdminRequestsQuery(filters: ListRequestsForAdminParams = {}) {
   return useQuery({
-    queryKey: ['requests', 'admin', filters],
+    queryKey: ['adminRequests', filters],
     queryFn: () => listRequestsForAdmin(filters),
+    placeholderData: keepPreviousData,
   })
 }
 
 export function useApproveRequestMutation(
-  options?: UseMutationOptions<
-    ModificationRequest,
-    Error,
-    { id: string; comment?: string }
-  >,
+  options?: UseMutationOptions<ModificationRequest, Error, RequestDecisionPayload>,
 ) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({ id, comment }) => approveRequest(id, comment),
     onSuccess: async (data, variables, onMutateResult, context) => {
-      await queryClient.invalidateQueries({ queryKey: ['requests'] })
+      await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
+      await queryClient.invalidateQueries({ queryKey: ['myRequests', data.employeId] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -197,18 +358,15 @@ export function useApproveRequestMutation(
 }
 
 export function useRejectRequestMutation(
-  options?: UseMutationOptions<
-    ModificationRequest,
-    Error,
-    { id: string; comment?: string }
-  >,
+  options?: UseMutationOptions<ModificationRequest, Error, RequestDecisionPayload>,
 ) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({ id, comment }) => rejectRequest(id, comment),
     onSuccess: async (data, variables, onMutateResult, context) => {
-      await queryClient.invalidateQueries({ queryKey: ['requests'] })
+      await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
+      await queryClient.invalidateQueries({ queryKey: ['myRequests', data.employeId] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -217,7 +375,9 @@ export function useRejectRequestMutation(
 
 export const requestsService = {
   submitModificationRequest,
+  listMyRequests,
   listRequestsForAdmin,
   approveRequest,
   rejectRequest,
 }
+

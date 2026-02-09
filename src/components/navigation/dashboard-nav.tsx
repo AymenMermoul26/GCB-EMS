@@ -21,6 +21,9 @@ export function DashboardNav({ role }: DashboardNavProps) {
         <NavLink to={ROUTES.ADMIN_EMPLOYEES} className={linkClassName}>
           Employees
         </NavLink>
+        <NavLink to={ROUTES.ADMIN_REQUESTS} className={linkClassName}>
+          Requests
+        </NavLink>
       </nav>
     )
   }
