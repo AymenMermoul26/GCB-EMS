@@ -23,6 +23,18 @@ export function EmployeeProfilePage() {
       {employeeQuery.data ? (
         <Card className="max-w-2xl">
           <CardHeader>
+            {employeeQuery.data.photoUrl ? (
+              <img
+                src={employeeQuery.data.photoUrl}
+                alt={`${employeeQuery.data.nom} ${employeeQuery.data.prenom}`}
+                className="mb-4 h-24 w-24 rounded-full border object-cover"
+              />
+            ) : (
+              <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-full border bg-slate-100 text-xl font-semibold text-slate-500">
+                {employeeQuery.data.prenom.charAt(0)}
+                {employeeQuery.data.nom.charAt(0)}
+              </div>
+            )}
             <CardTitle>
               {employeeQuery.data.nom} {employeeQuery.data.prenom}
             </CardTitle>

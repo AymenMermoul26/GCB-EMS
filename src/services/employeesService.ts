@@ -15,7 +15,7 @@ import type {
 } from '@/types/employee'
 
 const EMPLOYEE_SELECT =
-  'id, departement_id, matricule, nom, prenom, poste, email, telephone, is_active, created_at, updated_at'
+  'id, departement_id, matricule, nom, prenom, poste, email, telephone, photo_url, is_active, created_at, updated_at'
 
 interface EmployeeRow {
   id: string
@@ -26,6 +26,7 @@ interface EmployeeRow {
   poste: string | null
   email: string | null
   telephone: string | null
+  photo_url: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -41,6 +42,7 @@ function mapEmployee(row: EmployeeRow): Employee {
     poste: row.poste,
     email: row.email,
     telephone: row.telephone,
+    photoUrl: row.photo_url,
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -56,6 +58,7 @@ function toInsertPayload(payload: CreateEmployeePayload) {
     poste: payload.poste ?? null,
     email: payload.email ?? null,
     telephone: payload.telephone ?? null,
+    photo_url: payload.photoUrl ?? null,
     is_active: payload.isActive ?? true,
   }
 }
@@ -83,6 +86,9 @@ function toUpdatePayload(payload: UpdateEmployeePayload) {
   }
   if (payload.telephone !== undefined) {
     updatePayload.telephone = payload.telephone
+  }
+  if (payload.photoUrl !== undefined) {
+    updatePayload.photo_url = payload.photoUrl
   }
   if (payload.isActive !== undefined) {
     updatePayload.is_active = payload.isActive
@@ -125,8 +131,11 @@ export async function listEmployees(
     throw new Error(error.message)
   }
 
+  const mappedEmployees = (data ?? []).map(mapEmployee)
+
   return {
-    items: (data ?? []).map(mapEmployee),
+    data: mappedEmployees,
+    items: mappedEmployees,
     total: count ?? 0,
     page,
     pageSize,

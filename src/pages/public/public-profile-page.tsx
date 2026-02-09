@@ -15,6 +15,7 @@ const PUBLIC_FIELD_LABELS: Record<string, string> = {
   email: 'Email',
   telephone: 'Telephone',
   departement: 'Departement',
+  photo_url: 'Photo',
 }
 
 export function PublicProfilePage() {
@@ -55,6 +56,11 @@ export function PublicProfilePage() {
 
   const entries = Object.entries(data)
   const fullName = [data.prenom, data.nom].filter(Boolean).join(' ').trim()
+  const photoUrl =
+    typeof data.photo_url === 'string' && data.photo_url.length > 0
+      ? data.photo_url
+      : null
+  const infoEntries = entries.filter(([key]) => key !== 'photo_url')
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
@@ -64,12 +70,19 @@ export function PublicProfilePage() {
             <Badge variant="secondary">Public Employee Profile</Badge>
             <CompanyLogo withName={false} imageClassName="h-10 w-10 rounded-none" />
           </div>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt={fullName || 'Employee photo'}
+              className="mb-2 h-24 w-24 rounded-full border object-cover"
+            />
+          ) : null}
           <CardTitle>{fullName || 'Employee Profile'}</CardTitle>
           <CardDescription>{env.VITE_APP_NAME}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          {entries.length ? (
-            entries.map(([key, value]) => (
+          {infoEntries.length ? (
+            infoEntries.map(([key, value]) => (
               <p key={key}>
                 <span className="font-medium">{PUBLIC_FIELD_LABELS[key] ?? key}:</span>{' '}
                 {value === null ? 'Not shared' : String(value)}

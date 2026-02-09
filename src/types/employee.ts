@@ -7,6 +7,7 @@ export interface Employee {
   poste: string | null
   email: string | null
   telephone: string | null
+  photoUrl: string | null
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -27,6 +28,7 @@ export interface EmployeesListParams {
 }
 
 export interface EmployeesListResponse {
+  data: Employee[]
   items: Employee[]
   total: number
   page: number
@@ -41,6 +43,7 @@ export interface CreateEmployeePayload {
   poste?: string | null
   email?: string | null
   telephone?: string | null
+  photoUrl?: string | null
   isActive?: boolean
 }
 
