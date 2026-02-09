@@ -3,6 +3,7 @@ export const ROUTES = {
   LOGIN: '/login',
   ADMIN: '/admin',
   ADMIN_EMPLOYEES: '/admin/employees',
+  ADMIN_EMPLOYEES_NEW: '/admin/employees/new',
   EMPLOYEE: '/employee',
   EMPLOYEE_PROFILE: '/employee/profile',
   PUBLIC_PROFILE_BASE: '/p',
@@ -10,3 +11,6 @@ export const ROUTES = {
 
 export const getPublicProfileRoute = (token: string) =>
   `${ROUTES.PUBLIC_PROFILE_BASE}/${token}`
+
+export const getAdminEmployeeRoute = (employeeId: string) =>
+  `${ROUTES.ADMIN_EMPLOYEES}/${employeeId}`

@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Eye, FileDown, Search, UserX } from 'lucide-react'
+import { Eye, FileDown, Plus, Search, UserX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ROUTES } from '@/constants/routes'
+import { ROUTES, getAdminEmployeeRoute } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { departmentsService, useDepartmentsQuery } from '@/services/departmentsService'
@@ -319,6 +319,11 @@ export function EmployeesListPage() {
             <FileDown className="mr-2 h-4 w-4" />
             {exporting ? 'Exporting...' : 'CSV Export'}
           </Button>
+
+          <Button type="button" onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Employee
+          </Button>
         </div>
       </div>
 
@@ -395,7 +400,7 @@ export function EmployeesListPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => navigate(`${ROUTES.ADMIN_EMPLOYEES}/${employee.id}`)}
+                        onClick={() => navigate(getAdminEmployeeRoute(employee.id))}
                       >
                         <Eye className="mr-1 h-4 w-4" />
                         View

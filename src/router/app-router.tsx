@@ -7,6 +7,8 @@ import { ProtectedRoute } from '@/components/guards/protected-route'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { AdminEmployeeCreatePage } from '@/pages/admin/admin-employee-create-page'
+import { AdminEmployeeDetailPage } from '@/pages/admin/admin-employee-detail-page'
 import { EmployeesListPage } from '@/pages/admin/EmployeesList'
 import { LoginPage } from '@/pages/auth/login-page'
 import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
@@ -46,6 +48,8 @@ export function AppRouter() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AdminRoute />}>
             <Route path={ROUTES.ADMIN} element={<Navigate to={ROUTES.ADMIN_EMPLOYEES} replace />} />
+            <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
+            <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
             <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
           </Route>
 
