@@ -4,10 +4,12 @@ import {
   ArrowLeft,
   Copy,
   Download,
+  Mail,
   Loader2,
   QrCode,
   RefreshCcw,
   Save,
+  Send,
   ShieldCheck,
   UserX,
 } from 'lucide-react'
@@ -50,6 +52,11 @@ import {
   useEmployeeQuery,
   useUpdateEmployeeMutation,
 } from '@/services/employeesService'
+import {
+  useEmployeeProfileQuery,
+  useInviteEmployeeAccountMutation,
+  useResendInviteMutation,
+} from '@/services/accountService'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import {
   useEmployeeCurrentTokenQuery,
@@ -88,6 +95,10 @@ function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString()
 }
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 const VISIBILITY_FIELDS: Array<{ key: EmployeeVisibilityFieldKey; label: string }> = [
   { key: 'nom', label: 'Nom' },
   { key: 'prenom', label: 'Prenom' },
@@ -104,8 +115,10 @@ export function AdminEmployeeDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [accountEmailInput, setAccountEmailInput] = useState<string | null>(null)
 
   const employeeQuery = useEmployeeQuery(id)
+  const employeeProfileQuery = useEmployeeProfileQuery(id)
   const departmentsQuery = useDepartmentsQuery()
   const visibilityQuery = useEmployeeVisibilityQuery(id)
   const employeeTokenQuery = useEmployeeCurrentTokenQuery(id)
@@ -181,16 +194,36 @@ export function AdminEmployeeDetailPage() {
 
   const generateTokenMutation = useGenerateOrRegenerateTokenMutation()
   const revokeTokenMutation = useRevokeActiveTokenMutation()
+  const inviteAccountMutation = useInviteEmployeeAccountMutation({
+    onSuccess: (result) => {
+      toast.success(`Invitation sent to ${result.email}.`)
+      setAccountEmailInput(result.email)
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+  const resendInviteMutation = useResendInviteMutation({
+    onSuccess: (result) => {
+      toast.success(`Invitation re-sent to ${result.email}.`)
+      setAccountEmailInput(result.email)
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
 
   const employee = employeeQuery.data
   const isInactive = Boolean(employee && !employee.isActive)
   const isFormDisabled = isInactive || updateMutation.isPending || employeeQuery.isPending
   const token = employeeTokenQuery.data
+  const employeeProfile = employeeProfileQuery.data
   const publicProfileUrl =
     token && token.statutToken === 'ACTIF'
       ? `${window.location.origin}${getPublicProfileRoute(token.token)}`
       : null
   const qrCanvasId = `employee-qr-${id ?? 'unknown'}`
+  const isInviting = inviteAccountMutation.isPending || resendInviteMutation.isPending
 
   const visibilityMap = useMemo(() => {
     const map = new Map<string, boolean>()
@@ -326,6 +359,42 @@ export function AdminEmployeeDetailPage() {
     }
   }
 
+  const onSendInvite = async () => {
+    if (!employee) {
+      return
+    }
+
+    const normalizedEmail = effectiveInviteEmail
+
+    if (!isValidEmail(normalizedEmail)) {
+      toast.error('Please enter a valid email address before sending an invite.')
+      return
+    }
+
+    await inviteAccountMutation.mutateAsync({
+      employeId: employee.id,
+      email: normalizedEmail,
+    })
+  }
+
+  const onResendInvite = async () => {
+    if (!employee) {
+      return
+    }
+
+    const normalizedEmail = effectiveInviteEmail
+
+    if (!isValidEmail(normalizedEmail)) {
+      toast.error('Please provide a valid email to resend the invite.')
+      return
+    }
+
+    await resendInviteMutation.mutateAsync({
+      employeId: employee.id,
+      email: normalizedEmail,
+    })
+  }
+
   const onSubmit = form.handleSubmit(async (values) => {
     if (!id) {
       return
@@ -351,6 +420,16 @@ export function AdminEmployeeDetailPage() {
   const currentPhotoUrl = useWatch({ control: form.control, name: 'photoUrl' })
   const currentPrenom = useWatch({ control: form.control, name: 'prenom' })
   const currentNom = useWatch({ control: form.control, name: 'nom' })
+  const currentEmail = useWatch({ control: form.control, name: 'email' })
+  const accountEmailSource = accountEmailInput ?? currentEmail ?? employee?.email ?? ''
+  const normalizedAccountEmail = accountEmailSource.trim().toLowerCase()
+  const fallbackProfileEmail = currentEmail?.trim().toLowerCase() ?? ''
+  const effectiveInviteEmail = normalizedAccountEmail || fallbackProfileEmail
+  const displayAccountEmail = normalizedAccountEmail || fallbackProfileEmail || 'Not available'
+  const canTriggerInvite =
+    !isInviting &&
+    effectiveInviteEmail.length > 0 &&
+    isValidEmail(effectiveInviteEmail)
 
   if (!id) {
     return (
@@ -613,6 +692,105 @@ export function AdminEmployeeDetailPage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Account
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {employeeProfileQuery.isPending ? (
+                <>
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </>
+              ) : null}
+
+              {employeeProfileQuery.isError ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-destructive">{employeeProfileQuery.error.message}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void employeeProfileQuery.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : null}
+
+              {!employeeProfileQuery.isPending && !employeeProfileQuery.isError ? (
+                <>
+                  {employeeProfile?.userId ? (
+                    <div className="space-y-2 rounded-md border p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">Linked account</p>
+                        <Badge variant="secondary">Linked</Badge>
+                      </div>
+                      <p>
+                        <span className="font-medium">Email:</span> {displayAccountEmail}
+                      </p>
+                      <p className="break-all text-xs text-muted-foreground">
+                        user_id: {employeeProfile.userId}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                      No linked auth account yet.
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="account-email-input">Invite Email</Label>
+                    <Input
+                      id="account-email-input"
+                      type="email"
+                      value={accountEmailSource}
+                      onChange={(event) => setAccountEmailInput(event.target.value)}
+                      placeholder="employee@company.com"
+                      disabled={isInviting}
+                    />
+                    {normalizedAccountEmail.length > 0 && !isValidEmail(normalizedAccountEmail) ? (
+                      <p className="text-xs text-destructive">Enter a valid email address.</p>
+                    ) : null}
+                  </div>
+
+                  {employeeProfile?.userId ? (
+                    <Button
+                      type="button"
+                      className="w-full"
+                      variant="outline"
+                      disabled={!canTriggerInvite}
+                      onClick={() => void onResendInvite()}
+                    >
+                      {isInviting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-2 h-4 w-4" />
+                      )}
+                      {isInviting ? 'Sending...' : 'Resend Invite'}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="w-full"
+                      disabled={!canTriggerInvite}
+                      onClick={() => void onSendInvite()}
+                    >
+                      {isInviting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-2 h-4 w-4" />
+                      )}
+                      {isInviting ? 'Sending...' : 'Send Invite'}
+                    </Button>
+                  )}
+                </>
+              ) : null}
             </CardContent>
           </Card>
 
