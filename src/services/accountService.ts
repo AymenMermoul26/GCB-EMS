@@ -85,6 +85,10 @@ async function mapFunctionInvokeError(error: unknown): Promise<Error> {
   if (error instanceof FunctionsHttpError) {
     try {
       const body = (await error.context.json()) as { error?: string; message?: string }
+      const bodyMessage = body.error ?? body.message ?? ''
+      if (bodyMessage.toLowerCase().includes('invalid jwt')) {
+        return new Error('Session token is invalid. Please sign out and sign in again.')
+      }
       if (body.error) {
         return new Error(body.error)
       }
@@ -129,20 +133,41 @@ export async function inviteEmployeeAccount(
     email: payload.email.trim().toLowerCase(),
   }
 
-  const { data, error } = await supabase.functions.invoke<InviteEmployeeAccountResponse>(
-    'invite-employee',
-    { body },
-  )
+  const invoke = () =>
+    supabase.functions.invoke<InviteEmployeeAccountResponse>('invite-employee', { body })
 
-  if (error) {
-    throw await mapFunctionInvokeError(error)
+  let result = await invoke()
+
+  if (result.error) {
+    const mappedError = await mapFunctionInvokeError(result.error)
+    const normalized = mappedError.message.toLowerCase()
+
+    const shouldRetryAfterRefresh =
+      normalized.includes('invalid jwt') ||
+      normalized.includes('session token is invalid') ||
+      normalized.includes('session expired')
+
+    if (shouldRetryAfterRefresh) {
+      const { data: refreshedSessionData, error: refreshError } = await supabase.auth.refreshSession()
+
+      if (refreshError || !refreshedSessionData.session?.access_token) {
+        throw new Error('Session token is invalid. Please sign out and sign in again.')
+      }
+
+      result = await invoke()
+      if (result.error) {
+        throw await mapFunctionInvokeError(result.error)
+      }
+    } else {
+      throw mappedError
+    }
   }
 
-  if (!data?.user_id) {
+  if (!result.data?.user_id) {
     throw new Error('Invite function returned an invalid response.')
   }
 
-  return data
+  return result.data
 }
 
 export async function resendInvite(
