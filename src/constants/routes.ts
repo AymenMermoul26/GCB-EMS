@@ -4,6 +4,7 @@ export const ROUTES = {
   ADMIN: '/admin',
   ADMIN_EMPLOYEES: '/admin/employees',
   ADMIN_EMPLOYEES_NEW: '/admin/employees/new',
+  ADMIN_DEPARTMENTS: '/admin/departments',
   ADMIN_REQUESTS: '/admin/requests',
   ADMIN_AUDIT: '/admin/audit',
   EMPLOYEE: '/employee',

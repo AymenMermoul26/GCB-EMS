@@ -12,6 +12,7 @@ import { AdminEmployeeCreatePage } from '@/pages/admin/admin-employee-create-pag
 import { AdminEmployeeDetailPage } from '@/pages/admin/admin-employee-detail-page'
 import { AdminRequestsPage } from '@/pages/admin/admin-requests-page'
 import { EmployeesListPage } from '@/pages/admin/EmployeesList'
+import { DepartmentsPage } from '@/pages/admin/DepartmentsPage'
 import { LoginPage } from '@/pages/auth/login-page'
 import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
 import { NotFoundPage } from '@/pages/not-found-page'
@@ -54,6 +55,7 @@ export function AppRouter() {
             <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
             <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
             <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
+            <Route path={ROUTES.ADMIN_DEPARTMENTS} element={<DepartmentsPage />} />
             <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
             <Route path={ROUTES.ADMIN_AUDIT} element={<AuditLogPage />} />
           </Route>

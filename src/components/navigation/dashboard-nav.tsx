@@ -26,6 +26,9 @@ export function DashboardNav({ role }: DashboardNavProps) {
         <NavLink to={ROUTES.ADMIN_EMPLOYEES} className={linkClassName}>
           Employees
         </NavLink>
+        <NavLink to={ROUTES.ADMIN_DEPARTMENTS} className={linkClassName}>
+          Departments
+        </NavLink>
         <NavLink
           to={ROUTES.ADMIN_REQUESTS}
           className={({ isActive }) => cn(linkClassName({ isActive }), 'inline-flex items-center gap-2')}
