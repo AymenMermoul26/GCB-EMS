@@ -7,7 +7,12 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { DownloadProfilePdfButton } from '@/components/employee/DownloadProfilePdfButton'
 import { MyQrCard } from '@/components/employee/MyQrCard'
+import {
+  ProfileCompletenessCard,
+  type CompletenessField,
+} from '@/components/employee/ProfileCompletenessCard'
 import { ChangePasswordCard } from '@/components/security/ChangePasswordCard'
 import {
   Dialog,
@@ -163,6 +168,23 @@ export function EmployeeProfilePage() {
     name: 'champCible',
   })
 
+  const watchedPoste = useWatch({
+    control: editForm.control,
+    name: 'poste',
+  })
+  const watchedEmail = useWatch({
+    control: editForm.control,
+    name: 'email',
+  })
+  const watchedTelephone = useWatch({
+    control: editForm.control,
+    name: 'telephone',
+  })
+  const watchedPhotoUrl = useWatch({
+    control: editForm.control,
+    name: 'photoUrl',
+  })
+
   useEffect(() => {
     if (!employeeQuery.data || !selectedRequestField) {
       return
@@ -246,6 +268,26 @@ export function EmployeeProfilePage() {
     })
   })
 
+  const handleFocusProfileField = (field: CompletenessField) => {
+    const fieldIdMap: Record<CompletenessField, string> = {
+      poste: 'employee-profile-poste',
+      email: 'employee-profile-email',
+      telephone: 'employee-profile-telephone',
+      photo_url: 'employee-profile-photo-url',
+    }
+
+    const targetId = fieldIdMap[field]
+    const element = document.getElementById(targetId) as HTMLInputElement | null
+    if (!element) {
+      return
+    }
+
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    window.setTimeout(() => {
+      element.focus()
+    }, 200)
+  }
+
   if (employeeQuery.isPending) {
     return (
       <DashboardLayout title="My Profile" subtitle="Loading your profile...">
@@ -291,6 +333,24 @@ export function EmployeeProfilePage() {
       title="My Profile"
       subtitle="View your information and submit profile change requests."
     >
+      <ProfileCompletenessCard
+        values={{
+          poste: watchedPoste ?? '',
+          email: watchedEmail ?? '',
+          telephone: watchedTelephone ?? '',
+          photoUrl: watchedPhotoUrl ?? '',
+        }}
+        onAddNow={handleFocusProfileField}
+      />
+
+      <div className="mt-4 flex justify-end">
+        <DownloadProfilePdfButton
+          employee={employee}
+          departementName={departmentName ?? employee.departementId}
+          employeId={employeId}
+        />
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -338,11 +398,16 @@ export function EmployeeProfilePage() {
           <CardContent>
             <form className="space-y-3" onSubmit={onSubmitSelfEdit}>
               <FormField label="Poste" error={editForm.formState.errors.poste?.message}>
-                <Input {...editForm.register('poste')} disabled={updateProfileMutation.isPending} />
+                <Input
+                  id="employee-profile-poste"
+                  {...editForm.register('poste')}
+                  disabled={updateProfileMutation.isPending}
+                />
               </FormField>
 
               <FormField label="Email" error={editForm.formState.errors.email?.message}>
                 <Input
+                  id="employee-profile-email"
                   type="email"
                   {...editForm.register('email')}
                   disabled={updateProfileMutation.isPending}
@@ -354,6 +419,7 @@ export function EmployeeProfilePage() {
                 error={editForm.formState.errors.telephone?.message}
               >
                 <Input
+                  id="employee-profile-telephone"
                   {...editForm.register('telephone')}
                   disabled={updateProfileMutation.isPending}
                 />
@@ -361,6 +427,7 @@ export function EmployeeProfilePage() {
 
               <FormField label="Photo URL" error={editForm.formState.errors.photoUrl?.message}>
                 <Input
+                  id="employee-profile-photo-url"
                   {...editForm.register('photoUrl')}
                   disabled={updateProfileMutation.isPending}
                 />
