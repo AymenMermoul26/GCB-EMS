@@ -1,6 +1,6 @@
 import { Bell, CheckCheck, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -16,13 +16,15 @@ import {
   useMyNotificationsQuery,
   useUnreadNotificationsCountQuery,
 } from '@/services/notificationsService'
+import { formatRelativeTime } from '@/utils/date'
 
 export function NotificationsMenu() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
 
-  const notificationsQuery = useMyNotificationsQuery(user?.id)
+  const notificationsQuery = useMyNotificationsQuery(user?.id, { limit: 5 })
   const unreadCountQuery = useUnreadNotificationsCountQuery(user?.id)
   const unreadCount = unreadCountQuery.data ?? 0
 
@@ -59,10 +61,23 @@ export function NotificationsMenu() {
     }
   }, [isOpen])
 
-  const latestNotifications = useMemo(
-    () => (notificationsQuery.data ?? []).slice(0, 5),
-    [notificationsQuery.data],
-  )
+  const latestNotifications = useMemo(() => notificationsQuery.data ?? [], [notificationsQuery.data])
+
+  const handleItemOpen = async (notificationId: string, link?: string | null) => {
+    try {
+      await markReadMutation.mutateAsync(notificationId)
+    } catch {
+      // Keep navigation responsive even if mark-as-read fails.
+    }
+
+    setIsOpen(false)
+    if (link) {
+      navigate(link)
+      return
+    }
+
+    navigate(ROUTES.NOTIFICATIONS)
+  }
 
   return (
     <div className="relative" ref={rootRef}>
@@ -129,22 +144,19 @@ export function NotificationsMenu() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
-                        <p className="truncate text-sm font-medium">{notification.title}</p>
+                        <button
+                          type="button"
+                          className="truncate text-left text-sm font-medium hover:underline"
+                          onClick={() => void handleItemOpen(notification.id, notification.link)}
+                        >
+                          {notification.title}
+                        </button>
                         <p className="line-clamp-2 text-xs text-muted-foreground">
                           {notification.body}
                         </p>
                         <p className="text-[11px] text-muted-foreground">
-                          {new Date(notification.createdAt).toLocaleString()}
+                          {formatRelativeTime(notification.createdAt)}
                         </p>
-                        {notification.link ? (
-                          <Link
-                            to={notification.link}
-                            onClick={() => setIsOpen(false)}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Open
-                          </Link>
-                        ) : null}
                       </div>
                       {!notification.isRead ? (
                         <Button

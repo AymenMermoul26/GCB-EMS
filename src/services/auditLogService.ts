@@ -30,6 +30,10 @@ interface EmployeeLookupRow {
   prenom: string
 }
 
+interface ModificationRequestLookupRow {
+  id: string
+}
+
 function paginate(page = 1, pageSize = 20) {
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -65,13 +69,22 @@ function formatEmployeeLabel(employee?: EmployeeLookupRow | null): string {
   return `${employee.prenom} ${employee.nom} (${employee.matricule})`
 }
 
+function toStartOfDay(date: string): string {
+  return `${date}T00:00:00`
+}
+
+function toEndOfDay(date: string): string {
+  return `${date}T23:59:59.999`
+}
+
 export async function listLogs(
   params: ListAuditLogsParams = {},
 ): Promise<AuditLogListResponse> {
   const { page, pageSize, from, to } = paginate(params.page, params.pageSize)
 
-  let scopedEmployeeIds: string[] | null = null
   const targetEmployeeSearch = params.targetEmployeeSearch?.trim()
+  let scopedTargetIds: string[] | null = null
+
   if (targetEmployeeSearch) {
     const ilikeValue = `%${targetEmployeeSearch}%`
     const { data: employeeScopeRows, error: employeeScopeError } = await supabase
@@ -84,10 +97,28 @@ export async function listLogs(
       throw new Error(employeeScopeError.message)
     }
 
-    scopedEmployeeIds = (employeeScopeRows ?? []).map((employee) => employee.id)
+    const scopedEmployeeIds = (employeeScopeRows ?? []).map((employee) => employee.id)
+
     if (scopedEmployeeIds.length === 0) {
       return { items: [], total: 0, page, pageSize }
     }
+
+    const { data: requestRows, error: requestRowsError } = await supabase
+      .from('DemandeModification')
+      .select('id')
+      .in('employe_id', scopedEmployeeIds)
+      .returns<ModificationRequestLookupRow[]>()
+
+    if (requestRowsError) {
+      throw new Error(requestRowsError.message)
+    }
+
+    scopedTargetIds = [
+      ...new Set([
+        ...scopedEmployeeIds,
+        ...(requestRows ?? []).map((request) => request.id),
+      ]),
+    ]
   }
 
   let query = supabase
@@ -97,12 +128,20 @@ export async function listLogs(
     })
     .order('created_at', { ascending: false })
 
-  if (params.actionFilter && params.actionFilter !== 'ALL') {
-    query = query.eq('action', params.actionFilter)
+  if (params.action && params.action !== 'ALL') {
+    query = query.eq('action', params.action)
   }
 
-  if (scopedEmployeeIds) {
-    query = query.in('target_id', scopedEmployeeIds)
+  if (params.dateFrom) {
+    query = query.gte('created_at', toStartOfDay(params.dateFrom))
+  }
+
+  if (params.dateTo) {
+    query = query.lte('created_at', toEndOfDay(params.dateTo))
+  }
+
+  if (scopedTargetIds) {
+    query = query.in('target_id', scopedTargetIds)
   }
 
   const { data, count, error } = await query.range(from, to).returns<AuditLogRow[]>()
@@ -174,6 +213,8 @@ export async function listLogs(
         }
       } else if (profile?.role) {
         actorLabel = `${profile.role} (${row.actor_user_id.slice(0, 8)})`
+      } else {
+        actorLabel = `User (${row.actor_user_id.slice(0, 8)})`
       }
     }
 
@@ -210,7 +251,7 @@ export async function listLogs(
 
 export function useAuditLogQuery(filters: ListAuditLogsParams = {}) {
   return useQuery({
-    queryKey: ['auditLog', filters],
+    queryKey: ['auditLog', filters, filters.page ?? 1],
     queryFn: () => listLogs(filters),
     placeholderData: keepPreviousData,
   })

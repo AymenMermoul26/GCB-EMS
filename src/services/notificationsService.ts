@@ -6,7 +6,7 @@
 } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
-import type { NotificationItem } from '@/types/notification'
+import type { NotificationItem, NotificationsFilter } from '@/types/notification'
 
 interface NotificationRow {
   id: string
@@ -24,6 +24,11 @@ export interface CreateNotificationPayload {
   title: string
   body: string
   link?: string | null
+}
+
+export interface ListMyNotificationsOptions {
+  filter?: NotificationsFilter
+  limit?: number
 }
 
 async function currentUserId(): Promise<string | null> {
@@ -49,7 +54,10 @@ function mapNotification(row: NotificationRow): NotificationItem {
   }
 }
 
-export async function listMyNotifications(userId?: string | null): Promise<NotificationItem[]> {
+async function listMyNotificationsInternal(
+  userId?: string | null,
+  options: ListMyNotificationsOptions = {},
+): Promise<NotificationItem[]> {
   const resolvedUserId = await currentUserId()
 
   if (!resolvedUserId) {
@@ -60,18 +68,34 @@ export async function listMyNotifications(userId?: string | null): Promise<Notif
     console.warn('notificationsService.listMyNotifications received mismatched user id input.')
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('notifications')
     .select('id, user_id, title, body, link, is_read, created_at, updated_at')
     .eq('user_id', resolvedUserId)
     .order('created_at', { ascending: false })
-    .returns<NotificationRow[]>()
+
+  if (options.filter === 'unread') {
+    query = query.eq('is_read', false)
+  }
+
+  if (typeof options.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0) {
+    query = query.limit(options.limit)
+  }
+
+  const { data, error } = await query.returns<NotificationRow[]>()
 
   if (error) {
     throw new Error(error.message)
   }
 
   return (data ?? []).map(mapNotification)
+}
+
+export async function listMyNotifications(
+  userId?: string | null,
+  options: ListMyNotificationsOptions = {},
+): Promise<NotificationItem[]> {
+  return listMyNotificationsInternal(userId, options)
 }
 
 export async function countUnreadMyNotifications(userId?: string | null): Promise<number> {
@@ -186,10 +210,16 @@ export async function markAllMyNotificationsRead(): Promise<number> {
   return (data ?? []).length
 }
 
-export function useMyNotificationsQuery(userId?: string | null) {
+export function useMyNotificationsQuery(
+  userId?: string | null,
+  options: ListMyNotificationsOptions = {},
+) {
+  const filter = options.filter ?? 'all'
+  const limit = options.limit ?? null
+
   return useQuery({
-    queryKey: ['notifications', userId ?? null],
-    queryFn: () => listMyNotifications(userId),
+    queryKey: ['notifications', userId ?? null, filter, limit],
+    queryFn: () => listMyNotificationsInternal(userId, options),
     enabled: Boolean(userId),
     refetchInterval: 15000,
   })

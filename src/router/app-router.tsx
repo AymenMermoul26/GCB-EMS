@@ -7,9 +7,9 @@ import { ProtectedRoute } from '@/components/guards/protected-route'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { AuditLogPage } from '@/pages/admin/AuditLogPage'
 import { AdminEmployeeCreatePage } from '@/pages/admin/admin-employee-create-page'
 import { AdminEmployeeDetailPage } from '@/pages/admin/admin-employee-detail-page'
-import { AdminAuditPage } from '@/pages/admin/admin-audit-page'
 import { AdminRequestsPage } from '@/pages/admin/admin-requests-page'
 import { EmployeesListPage } from '@/pages/admin/EmployeesList'
 import { LoginPage } from '@/pages/auth/login-page'
@@ -55,7 +55,7 @@ export function AppRouter() {
             <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
             <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
             <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
-            <Route path={ROUTES.ADMIN_AUDIT} element={<AdminAuditPage />} />
+            <Route path={ROUTES.ADMIN_AUDIT} element={<AuditLogPage />} />
           </Route>
 
           <Route element={<EmployeeRoute />}>

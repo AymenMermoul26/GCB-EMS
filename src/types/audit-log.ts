@@ -1,3 +1,15 @@
+export type AuditAction =
+  | 'EMPLOYEE_CREATED'
+  | 'EMPLOYEE_UPDATED'
+  | 'EMPLOYEE_DEACTIVATED'
+  | 'EMPLOYEE_SELF_UPDATED'
+  | 'REQUEST_SUBMITTED'
+  | 'REQUEST_APPROVED'
+  | 'REQUEST_REJECTED'
+  | 'QR_REGENERATED'
+  | 'QR_REVOKED'
+  | 'VISIBILITY_UPDATED'
+
 export interface AuditLogItem {
   id: string
   actorUserId: string | null
@@ -12,8 +24,10 @@ export interface AuditLogItem {
 }
 
 export interface ListAuditLogsParams {
-  actionFilter?: string
+  action?: AuditAction | 'ALL'
   targetEmployeeSearch?: string
+  dateFrom?: string
+  dateTo?: string
   page?: number
   pageSize?: number
 }

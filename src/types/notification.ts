@@ -8,3 +8,5 @@ export interface NotificationItem {
   createdAt: string
   updatedAt: string
 }
+
+export type NotificationsFilter = 'all' | 'unread'

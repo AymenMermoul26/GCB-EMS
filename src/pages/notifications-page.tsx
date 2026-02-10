@@ -1,10 +1,18 @@
 import { Bell, CheckCheck, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { useAuth } from '@/hooks/use-auth'
@@ -14,10 +22,13 @@ import {
   useMyNotificationsQuery,
   useUnreadNotificationsCountQuery,
 } from '@/services/notificationsService'
+import type { NotificationsFilter } from '@/types/notification'
+import { formatRelativeTime } from '@/utils/date'
 
 export function NotificationsPage() {
   const { user } = useAuth()
-  const notificationsQuery = useMyNotificationsQuery(user?.id)
+  const [filter, setFilter] = useState<NotificationsFilter>('all')
+  const notificationsQuery = useMyNotificationsQuery(user?.id, { filter })
   const unreadCountQuery = useUnreadNotificationsCountQuery(user?.id)
   const unreadCount = unreadCountQuery.data ?? 0
 
@@ -44,29 +55,47 @@ export function NotificationsPage() {
     >
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Notifications
-            {unreadCount > 0 ? (
-              <Badge className="border-transparent bg-red-600 text-white">{unreadCount}</Badge>
-            ) : null}
-          </CardTitle>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={unreadCount === 0 || markAllMutation.isPending}
-            onClick={() => {
-              void markAllMutation.mutateAsync()
-            }}
-          >
-            {markAllMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCheck className="mr-2 h-4 w-4" />
-            )}
-            Mark all as read
-          </Button>
+          <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifications
+              {unreadCount > 0 ? (
+                <Badge className="border-transparent bg-red-600 text-white">{unreadCount}</Badge>
+              ) : null}
+            </CardTitle>
+
+            <div className="flex items-center gap-2">
+              <Select
+                value={filter}
+                onValueChange={(value) => setFilter(value as NotificationsFilter)}
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="unread">Unread</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={unreadCount === 0 || markAllMutation.isPending}
+                onClick={() => {
+                  void markAllMutation.mutateAsync()
+                }}
+              >
+                {markAllMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCheck className="mr-2 h-4 w-4" />
+                )}
+                Mark all as read
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {notificationsQuery.isPending ? (
@@ -95,7 +124,7 @@ export function NotificationsPage() {
                       <p className="text-sm font-medium">{notification.title}</p>
                       <p className="text-sm text-muted-foreground">{notification.body}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(notification.createdAt).toLocaleString()}
+                        {formatRelativeTime(notification.createdAt)}
                       </p>
                       {notification.link ? (
                         <Link to={notification.link} className="text-xs text-primary hover:underline">
@@ -123,7 +152,9 @@ export function NotificationsPage() {
               ))
             ) : (
               <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                No notifications yet.
+                {filter === 'unread'
+                  ? 'No unread notifications.'
+                  : 'No notifications yet.'}
               </div>
             )
           ) : null}
