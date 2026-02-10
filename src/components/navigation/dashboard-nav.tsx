@@ -35,6 +35,9 @@ export function DashboardNav({ role }: DashboardNavProps) {
             <Badge className="border-transparent bg-red-600 text-white">{pendingCount}</Badge>
           ) : null}
         </NavLink>
+        <NavLink to={ROUTES.ADMIN_AUDIT} className={linkClassName}>
+          Audit Log
+        </NavLink>
       </nav>
     )
   }

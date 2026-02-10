@@ -1,7 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Loader2, Save, UserX } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import {
+  ArrowLeft,
+  Copy,
+  Download,
+  Loader2,
+  QrCode,
+  RefreshCcw,
+  Save,
+  ShieldCheck,
+  UserX,
+} from 'lucide-react'
+import { QRCodeCanvas } from 'qrcode.react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -23,6 +34,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -31,7 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ROUTES } from '@/constants/routes'
+import { ROUTES, getPublicProfileRoute } from '@/constants/routes'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import {
   useDeactivateEmployeeMutation,
@@ -40,10 +52,23 @@ import {
 } from '@/services/employeesService'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import {
+  useEmployeeCurrentTokenQuery,
+  useGenerateOrRegenerateTokenMutation,
+  useRevokeActiveTokenMutation,
+} from '@/services/qrService'
+import {
+  useEmployeeVisibilityQuery,
+  useUpsertVisibilityMutation,
+} from '@/services/visibilityService'
+import { auditService } from '@/services/auditService'
+import {
   employeeSchema,
   normalizeOptional,
   type EmployeeFormValues,
 } from '@/schemas/employeeSchema'
+import type { EmployeeVisibilityFieldKey } from '@/types/visibility'
+import { copyTextToClipboard } from '@/utils/clipboard'
+import { downloadCanvasAsPng } from '@/utils/qr'
 import { mapEmployeeWriteError } from '@/utils/supabase-errors'
 
 function getInitials(prenom: string, nom: string) {
@@ -55,6 +80,25 @@ function isMatriculeConflict(message: string): boolean {
   return message.toLowerCase().includes('matricule')
 }
 
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return 'No expiration'
+  }
+
+  return new Date(value).toLocaleString()
+}
+
+const VISIBILITY_FIELDS: Array<{ key: EmployeeVisibilityFieldKey; label: string }> = [
+  { key: 'nom', label: 'Nom' },
+  { key: 'prenom', label: 'Prenom' },
+  { key: 'poste', label: 'Poste' },
+  { key: 'email', label: 'Email' },
+  { key: 'telephone', label: 'Telephone' },
+  { key: 'photo_url', label: 'Photo URL' },
+  { key: 'departement', label: 'Departement' },
+  { key: 'matricule', label: 'Matricule' },
+]
+
 export function AdminEmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -63,6 +107,8 @@ export function AdminEmployeeDetailPage() {
 
   const employeeQuery = useEmployeeQuery(id)
   const departmentsQuery = useDepartmentsQuery()
+  const visibilityQuery = useEmployeeVisibilityQuery(id)
+  const employeeTokenQuery = useEmployeeCurrentTokenQuery(id)
 
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
@@ -124,15 +170,161 @@ export function AdminEmployeeDetailPage() {
       toast.success('Employee deactivated.')
       queryClient.setQueryData(['employee', employee.id], employee)
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
+      await queryClient.invalidateQueries({ queryKey: ['employeeToken', employee.id] })
     },
     onError: (error) => {
       toast.error(error.message)
     },
   })
 
+  const upsertVisibilityMutation = useUpsertVisibilityMutation()
+
+  const generateTokenMutation = useGenerateOrRegenerateTokenMutation()
+  const revokeTokenMutation = useRevokeActiveTokenMutation()
+
   const employee = employeeQuery.data
   const isInactive = Boolean(employee && !employee.isActive)
   const isFormDisabled = isInactive || updateMutation.isPending || employeeQuery.isPending
+  const token = employeeTokenQuery.data
+  const publicProfileUrl =
+    token && token.statutToken === 'ACTIF'
+      ? `${window.location.origin}${getPublicProfileRoute(token.token)}`
+      : null
+  const qrCanvasId = `employee-qr-${id ?? 'unknown'}`
+
+  const visibilityMap = useMemo(() => {
+    const map = new Map<string, boolean>()
+    for (const row of visibilityQuery.data ?? []) {
+      map.set(row.fieldKey, row.isPublic)
+    }
+
+    return map
+  }, [visibilityQuery.data])
+
+  const onToggleVisibility = async (fieldKey: EmployeeVisibilityFieldKey, isPublic: boolean) => {
+    if (!id) {
+      return
+    }
+
+    try {
+      await upsertVisibilityMutation.mutateAsync({
+        employeId: id,
+        fieldKey,
+        isPublic,
+      })
+
+      toast.success(`Visibility updated for ${fieldKey}.`)
+
+      try {
+        await auditService.insertAuditLog({
+          action: 'VISIBILITY_UPDATED',
+          targetType: 'employee_visibility',
+          targetId: id,
+          detailsJson: {
+            employe_id: id,
+            field_key: fieldKey,
+            is_public: isPublic,
+          },
+        })
+      } catch (auditError) {
+        console.error('Failed to write visibility audit log', auditError)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to update visibility')
+    }
+  }
+
+  const onGenerateOrRegenerateToken = async () => {
+    if (!employee) {
+      return
+    }
+
+    if (!employee.isActive) {
+      toast.error('Inactive employees cannot generate public QR links.')
+      return
+    }
+
+    const hadActiveToken = token?.statutToken === 'ACTIF'
+
+    try {
+      const nextToken = await generateTokenMutation.mutateAsync(employee.id)
+      toast.success(hadActiveToken ? 'QR token regenerated.' : 'QR token generated.')
+
+      try {
+        await auditService.insertAuditLog({
+          action: 'QR_REGENERATED',
+          targetType: 'TokenQR',
+          targetId: nextToken.id,
+          detailsJson: {
+            employe_id: employee.id,
+            token_id: nextToken.id,
+            statut_token: nextToken.statutToken,
+          },
+        })
+      } catch (auditError) {
+        console.error('Failed to write QR regenerate audit log', auditError)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to generate QR token')
+    }
+  }
+
+  const onRevokeToken = async () => {
+    if (!employee) {
+      return
+    }
+
+    try {
+      const revokedToken = await revokeTokenMutation.mutateAsync(employee.id)
+      if (revokedToken) {
+        toast.success('Active QR token revoked.')
+      } else {
+        toast.success('No active QR token found.')
+      }
+
+      try {
+        await auditService.insertAuditLog({
+          action: 'QR_REVOKED',
+          targetType: 'TokenQR',
+          targetId: revokedToken?.id ?? null,
+          detailsJson: {
+            employe_id: employee.id,
+            token_id: revokedToken?.id ?? null,
+          },
+        })
+      } catch (auditError) {
+        console.error('Failed to write QR revoke audit log', auditError)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to revoke QR token')
+    }
+  }
+
+  const onCopyPublicLink = async () => {
+    if (!publicProfileUrl) {
+      return
+    }
+
+    try {
+      await copyTextToClipboard(publicProfileUrl)
+      toast.success('Public link copied.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to copy link')
+    }
+  }
+
+  const onDownloadQr = () => {
+    if (!employee || !publicProfileUrl) {
+      return
+    }
+
+    try {
+      downloadCanvasAsPng(qrCanvasId, `ems_public_qr_${employee.matricule}.png`)
+      toast.success('QR code downloaded.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to download QR')
+    }
+  }
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (!id) {
@@ -421,6 +613,213 @@ export function AdminEmployeeDetailPage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" />
+                Public Profile Visibility
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {visibilityQuery.isPending ? (
+                <>
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </>
+              ) : null}
+
+              {visibilityQuery.isError ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-destructive">{visibilityQuery.error.message}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void visibilityQuery.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : null}
+
+              {!visibilityQuery.isPending && !visibilityQuery.isError ? (
+                <>
+                  {VISIBILITY_FIELDS.map((field) => (
+                    <div
+                      key={field.key}
+                      className="flex items-center justify-between rounded-md border px-3 py-2"
+                    >
+                      <p className="text-sm">{field.label}</p>
+                      <Switch
+                        checked={visibilityMap.get(field.key) ?? false}
+                        disabled={upsertVisibilityMutation.isPending}
+                        onCheckedChange={(checked) => {
+                          void onToggleVisibility(field.key, checked)
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Fields not listed in employee_visibility are treated as private.
+                  </p>
+                </>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="h-4 w-4" />
+                QR / Public Link
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {employeeTokenQuery.isPending ? (
+                <>
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </>
+              ) : null}
+
+              {employeeTokenQuery.isError ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-destructive">{employeeTokenQuery.error.message}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void employeeTokenQuery.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : null}
+
+              {!employeeTokenQuery.isPending && !employeeTokenQuery.isError ? (
+                <>
+                  {token ? (
+                    <div className="space-y-2 rounded-md border p-3 text-sm">
+                      <p className="break-all">
+                        <span className="font-medium">Token:</span> {token.token}
+                      </p>
+                      <p>
+                        <span className="font-medium">Status:</span>{' '}
+                        <Badge variant={token.statutToken === 'ACTIF' ? 'secondary' : 'outline'}>
+                          {token.statutToken}
+                        </Badge>
+                      </p>
+                      <p>
+                        <span className="font-medium">Expires at:</span>{' '}
+                        {formatDateTime(token.expiresAt)}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No QR token has been generated yet.
+                    </p>
+                  )}
+
+                  {isInactive && token ? (
+                    <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                      Employee inactive; public link should be revoked/expired.
+                    </p>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => void onGenerateOrRegenerateToken()}
+                      disabled={
+                        isInactive ||
+                        generateTokenMutation.isPending ||
+                        revokeTokenMutation.isPending
+                      }
+                    >
+                      {generateTokenMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCcw className="mr-2 h-4 w-4" />
+                      )}
+                      {token && token.statutToken === 'ACTIF' ? 'Regenerate QR' : 'Generate QR'}
+                    </Button>
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={
+                            !token ||
+                            token.statutToken !== 'ACTIF' ||
+                            revokeTokenMutation.isPending
+                          }
+                        >
+                          Revoke
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Revoke active QR token?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will immediately disable the current public profile link.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={revokeTokenMutation.isPending}>
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            disabled={revokeTokenMutation.isPending}
+                            onClick={(event) => {
+                              event.preventDefault()
+                              void onRevokeToken()
+                            }}
+                          >
+                            {revokeTokenMutation.isPending ? 'Revoking...' : 'Confirm'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+
+                  {publicProfileUrl ? (
+                    <>
+                      <div className="rounded-md border p-3">
+                        <p className="mb-2 text-xs text-muted-foreground">Public URL</p>
+                        <p className="break-all text-sm">{publicProfileUrl}</p>
+                      </div>
+
+                      <div className="flex items-center justify-center rounded-md border p-4">
+                        <QRCodeCanvas
+                          id={qrCanvasId}
+                          value={publicProfileUrl}
+                          size={168}
+                          level="M"
+                          includeMargin
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={() => void onCopyPublicLink()}>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy Public Link
+                        </Button>
+                        <Button type="button" variant="outline" onClick={onDownloadQr}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download QR
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Generate an active token to enable the public link and QR download.
+                    </p>
+                  )}
+                </>
+              ) : null}
             </CardContent>
           </Card>
         </div>

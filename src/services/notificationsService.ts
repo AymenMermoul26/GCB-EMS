@@ -164,6 +164,28 @@ export async function markNotificationRead(id: string): Promise<NotificationItem
   return mapNotification(data)
 }
 
+export async function markAllMyNotificationsRead(): Promise<number> {
+  const userId = await currentUserId()
+
+  if (!userId) {
+    throw new Error('User is not authenticated.')
+  }
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+    .select('id')
+    .returns<Array<{ id: string }>>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).length
+}
+
 export function useMyNotificationsQuery(userId?: string | null) {
   return useQuery({
     queryKey: ['notifications', userId ?? null],
@@ -199,11 +221,29 @@ export function useMarkNotificationReadMutation(
   })
 }
 
+export function useMarkAllNotificationsReadMutation(
+  userId?: string | null,
+  options?: UseMutationOptions<number, Error, void>,
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: markAllMyNotificationsRead,
+    onSuccess: async (data, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['notifications', userId ?? null] })
+      await queryClient.invalidateQueries({ queryKey: ['notificationsUnreadCount', userId ?? null] })
+      await options?.onSuccess?.(data, variables, onMutateResult, context)
+    },
+    ...options,
+  })
+}
+
 export const notificationsService = {
   listMyNotifications,
   countUnreadMyNotifications,
   createNotification,
   createNotifications,
   markNotificationRead,
+  markAllMyNotificationsRead,
 }
 

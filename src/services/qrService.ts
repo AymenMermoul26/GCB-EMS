@@ -1,4 +1,9 @@
-import { useMutation, useQueryClient, type UseMutationOptions } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationOptions,
+} from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
 import type { TokenQR } from '@/types/token'
@@ -59,6 +64,75 @@ export async function generateOrRegenerateToken(
   return mapToken(data)
 }
 
+export async function getEmployeeCurrentToken(
+  employeId: string,
+): Promise<TokenQR | null> {
+  const { data: activeTokenRows, error: activeTokenError } = await supabase
+    .from('TokenQR')
+    .select('id, employe_id, token, statut_token, expires_at, created_at, updated_at')
+    .eq('employe_id', employeId)
+    .eq('statut_token', 'ACTIF')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .returns<TokenQRRow[]>()
+
+  if (activeTokenError) {
+    throw new Error(activeTokenError.message)
+  }
+
+  if (activeTokenRows && activeTokenRows.length > 0) {
+    return mapToken(activeTokenRows[0])
+  }
+
+  const { data: latestTokenRows, error: latestTokenError } = await supabase
+    .from('TokenQR')
+    .select('id, employe_id, token, statut_token, expires_at, created_at, updated_at')
+    .eq('employe_id', employeId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .returns<TokenQRRow[]>()
+
+  if (latestTokenError) {
+    throw new Error(latestTokenError.message)
+  }
+
+  if (!latestTokenRows || latestTokenRows.length === 0) {
+    return null
+  }
+
+  return mapToken(latestTokenRows[0])
+}
+
+export async function revokeActiveToken(
+  employeId: string,
+): Promise<TokenQR | null> {
+  const { data, error } = await supabase
+    .from('TokenQR')
+    .update({ statut_token: 'REVOQUE' })
+    .eq('employe_id', employeId)
+    .eq('statut_token', 'ACTIF')
+    .select('id, employe_id, token, statut_token, expires_at, created_at, updated_at')
+    .returns<TokenQRRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data || data.length === 0) {
+    return null
+  }
+
+  return mapToken(data[0])
+}
+
+export function useEmployeeCurrentTokenQuery(employeId?: string | null) {
+  return useQuery({
+    queryKey: ['employeeToken', employeId],
+    queryFn: () => getEmployeeCurrentToken(employeId as string),
+    enabled: Boolean(employeId),
+  })
+}
+
 export function useGenerateOrRegenerateTokenMutation(
   options?: UseMutationOptions<TokenQR, Error, string>,
 ) {
@@ -69,6 +143,24 @@ export function useGenerateOrRegenerateTokenMutation(
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employee', variables] })
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
+      await queryClient.invalidateQueries({ queryKey: ['employeeToken', variables] })
+      await options?.onSuccess?.(data, variables, onMutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export function useRevokeActiveTokenMutation(
+  options?: UseMutationOptions<TokenQR | null, Error, string>,
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: revokeActiveToken,
+    onSuccess: async (data, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['employee', variables] })
+      await queryClient.invalidateQueries({ queryKey: ['employees'] })
+      await queryClient.invalidateQueries({ queryKey: ['employeeToken', variables] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -76,5 +168,7 @@ export function useGenerateOrRegenerateTokenMutation(
 }
 
 export const qrService = {
+  getEmployeeCurrentToken,
   generateOrRegenerateToken,
+  revokeActiveToken,
 }

@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
-import type { PublicProfile } from '@/types/profile'
+import type { PublicProfile, PublicProfileResult } from '@/types/profile'
 
 export async function getPublicProfileByToken(
   token: string,
-): Promise<PublicProfile | null> {
+): Promise<PublicProfileResult> {
   const { data, error } = await supabase.rpc('get_public_profile_by_token', {
     p_token: token,
   })
@@ -15,15 +15,31 @@ export async function getPublicProfileByToken(
   }
 
   if (!data) {
-    return null
+    return {
+      status: 'invalid_or_revoked',
+      profile: null,
+    }
   }
 
-  return data as PublicProfile
+  if (typeof data === 'object' && data !== null && '__status' in data) {
+    const status = (data as { __status?: unknown }).__status
+    if (status === 'EXPIRED') {
+      return {
+        status: 'expired',
+        profile: null,
+      }
+    }
+  }
+
+  return {
+    status: 'valid',
+    profile: data as PublicProfile,
+  }
 }
 
 export function usePublicProfileByTokenQuery(token?: string) {
   return useQuery({
-    queryKey: ['public-profile', token],
+    queryKey: ['publicProfile', token],
     queryFn: () => getPublicProfileByToken(token as string),
     enabled: Boolean(token),
   })

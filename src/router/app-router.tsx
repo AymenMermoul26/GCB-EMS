@@ -9,11 +9,13 @@ import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { AdminEmployeeCreatePage } from '@/pages/admin/admin-employee-create-page'
 import { AdminEmployeeDetailPage } from '@/pages/admin/admin-employee-detail-page'
+import { AdminAuditPage } from '@/pages/admin/admin-audit-page'
 import { AdminRequestsPage } from '@/pages/admin/admin-requests-page'
 import { EmployeesListPage } from '@/pages/admin/EmployeesList'
 import { LoginPage } from '@/pages/auth/login-page'
 import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
 import { NotFoundPage } from '@/pages/not-found-page'
+import { NotificationsPage } from '@/pages/notifications-page'
 import { PublicProfilePage } from '@/pages/public/public-profile-page'
 
 function HomeRedirect() {
@@ -53,12 +55,15 @@ export function AppRouter() {
             <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
             <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
             <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
+            <Route path={ROUTES.ADMIN_AUDIT} element={<AdminAuditPage />} />
           </Route>
 
           <Route element={<EmployeeRoute />}>
             <Route path={ROUTES.EMPLOYEE} element={<Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />} />
             <Route path={ROUTES.EMPLOYEE_PROFILE} element={<EmployeeProfilePage />} />
           </Route>
+
+          <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

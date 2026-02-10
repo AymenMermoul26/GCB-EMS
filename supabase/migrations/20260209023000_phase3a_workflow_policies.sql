@@ -1,4 +1,4 @@
-﻿-- =====================================================================
+-- =====================================================================
 -- Phase 3a workflow RLS adjustments
 -- - Allow limited employee self-update on Employe
 -- - Allow employee audit_log inserts for self-service actions

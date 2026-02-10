@@ -39,14 +39,14 @@ export function PublicProfilePage() {
     )
   }
 
-  if (!data) {
+  if (data?.status === 'expired') {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
         <Card className="w-full max-w-lg">
           <CardHeader>
-            <CardTitle>Profile not found</CardTitle>
+            <CardTitle>Link expired</CardTitle>
             <CardDescription>
-              This QR token is invalid, expired, or not published.
+              This public link has expired. Please request a new QR code.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -54,11 +54,26 @@ export function PublicProfilePage() {
     )
   }
 
-  const entries = Object.entries(data)
-  const fullName = [data.prenom, data.nom].filter(Boolean).join(' ').trim()
+  if (!data || data.status === 'invalid_or_revoked' || !data.profile) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>Invalid or revoked link</CardTitle>
+            <CardDescription>
+              This QR token is invalid, revoked, or not published.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </main>
+    )
+  }
+
+  const entries = Object.entries(data.profile)
+  const fullName = [data.profile.prenom, data.profile.nom].filter(Boolean).join(' ').trim()
   const photoUrl =
-    typeof data.photo_url === 'string' && data.photo_url.length > 0
-      ? data.photo_url
+    typeof data.profile.photo_url === 'string' && data.profile.photo_url.length > 0
+      ? data.profile.photo_url
       : null
   const infoEntries = entries.filter(([key]) => key !== 'photo_url')
 

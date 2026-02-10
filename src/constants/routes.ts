@@ -5,8 +5,10 @@ export const ROUTES = {
   ADMIN_EMPLOYEES: '/admin/employees',
   ADMIN_EMPLOYEES_NEW: '/admin/employees/new',
   ADMIN_REQUESTS: '/admin/requests',
+  ADMIN_AUDIT: '/admin/audit',
   EMPLOYEE: '/employee',
   EMPLOYEE_PROFILE: '/employee/profile',
+  NOTIFICATIONS: '/notifications',
   PUBLIC_PROFILE_BASE: '/p',
 } as const
 
