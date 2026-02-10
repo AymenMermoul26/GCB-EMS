@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { MyQrCard } from '@/components/employee/MyQrCard'
+import { ChangePasswordCard } from '@/components/security/ChangePasswordCard'
 import {
   Dialog,
   DialogContent,
@@ -376,6 +378,14 @@ export function EmployeeProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <ChangePasswordCard
+        className="mt-4"
+        title="Security"
+        description="Change your password securely by confirming your current password first."
+      />
+
+      <MyQrCard employeId={employeId} />
 
       <Card className="mt-4">
         <CardHeader className="flex flex-row items-center justify-between">

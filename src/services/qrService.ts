@@ -103,6 +103,12 @@ export async function getEmployeeCurrentToken(
   return mapToken(latestTokenRows[0])
 }
 
+export async function getMyActiveToken(
+  employeId: string,
+): Promise<TokenQR | null> {
+  return getEmployeeCurrentToken(employeId)
+}
+
 export async function revokeActiveToken(
   employeId: string,
 ): Promise<TokenQR | null> {
@@ -130,6 +136,15 @@ export function useEmployeeCurrentTokenQuery(employeId?: string | null) {
     queryKey: ['employeeToken', employeId],
     queryFn: () => getEmployeeCurrentToken(employeId as string),
     enabled: Boolean(employeId),
+  })
+}
+
+export function useMyActiveTokenQuery(employeId?: string | null) {
+  return useQuery({
+    queryKey: ['myActiveToken', employeId],
+    queryFn: () => getMyActiveToken(employeId as string),
+    enabled: Boolean(employeId),
+    refetchInterval: 30000,
   })
 }
 
@@ -168,6 +183,7 @@ export function useRevokeActiveTokenMutation(
 }
 
 export const qrService = {
+  getMyActiveToken,
   getEmployeeCurrentToken,
   generateOrRegenerateToken,
   revokeActiveToken,
