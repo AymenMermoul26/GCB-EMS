@@ -84,8 +84,12 @@ async function findAuthUserIdByEmail(
 async function inviteOrResolveAuthUser(
   adminClient: ReturnType<typeof createClient>,
   normalizedEmail: string,
+  redirectTo?: string,
 ): Promise<string> {
-  const inviteResult = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail)
+  const inviteResult = await adminClient.auth.admin.inviteUserByEmail(
+    normalizedEmail,
+    redirectTo ? { redirectTo } : undefined,
+  )
 
   if (!inviteResult.error && inviteResult.data.user?.id) {
     return inviteResult.data.user.id
@@ -133,6 +137,69 @@ function normalizePayload(rawBody: unknown): InviteEmployeePayload {
   return rawBody as InviteEmployeePayload
 }
 
+function extractBearerToken(value: string | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    return null
+  }
+
+  const prefix = 'bearer '
+  if (trimmed.toLowerCase().startsWith(prefix)) {
+    const token = trimmed.slice(prefix.length).trim()
+    return token.length > 0 ? token : null
+  }
+
+  return null
+}
+
+function normalizeUrlValue(value: string | null | undefined): string | null {
+  const raw = value?.trim()
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null
+    }
+
+    return parsed.toString().replace(/\/$/, '')
+  } catch {
+    return null
+  }
+}
+
+function resolveInviteRedirectUrl(request: Request): string | undefined {
+  const configuredRedirect = normalizeUrlValue(Deno.env.get('INVITE_REDIRECT_URL'))
+  if (configuredRedirect) {
+    return configuredRedirect
+  }
+
+  const originHeader = normalizeUrlValue(request.headers.get('origin'))
+  if (originHeader) {
+    return `${originHeader}/login`
+  }
+
+  const refererHeader = request.headers.get('referer')?.trim()
+  if (refererHeader) {
+    try {
+      const refererOrigin = normalizeUrlValue(new URL(refererHeader).origin)
+      if (refererOrigin) {
+        return `${refererOrigin}/login`
+      }
+    } catch {
+      // Ignore malformed referer and fall back to Supabase project defaults.
+    }
+  }
+
+  return undefined
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -143,32 +210,27 @@ Deno.serve(async (request) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
     return jsonResponse(500, { error: 'Server configuration error.' })
   }
 
-  const authorization = request.headers.get('Authorization')
-  if (!authorization) {
+  const authorizationHeader = request.headers.get('Authorization')
+  const accessToken = extractBearerToken(authorizationHeader)
+  if (!accessToken) {
     return jsonResponse(401, { error: 'Missing Authorization header.' })
   }
 
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: authorization,
-      },
-    },
-  })
-
   const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+  const inviteRedirectTo = resolveInviteRedirectUrl(request)
 
   const {
-    data: { user },
+    data: userData,
     error: userError,
-  } = await userClient.auth.getUser()
+  } = await adminClient.auth.getUser(accessToken)
+
+  const user = userData.user
 
   if (userError || !user) {
     return jsonResponse(401, { error: 'Unauthorized.' })
@@ -279,7 +341,10 @@ Deno.serve(async (request) => {
       return jsonResponse(409, { error: 'Account already linked to this employee.' })
     }
 
-    const resendResult = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail)
+    const resendResult = await adminClient.auth.admin.inviteUserByEmail(
+      normalizedEmail,
+      inviteRedirectTo ? { redirectTo: inviteRedirectTo } : undefined,
+    )
     if (resendResult.error && !isAlreadyRegisteredError(resendResult.error.message)) {
       return jsonResponse(400, { error: resendResult.error.message })
     }
@@ -294,7 +359,11 @@ Deno.serve(async (request) => {
 
   let authUserId: string
   try {
-    authUserId = await inviteOrResolveAuthUser(adminClient, normalizedEmail)
+    authUserId = await inviteOrResolveAuthUser(
+      adminClient,
+      normalizedEmail,
+      inviteRedirectTo,
+    )
   } catch (error) {
     return jsonResponse(400, {
       error: error instanceof Error ? error.message : 'Unable to invite auth user.',
