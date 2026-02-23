@@ -25,25 +25,40 @@ interface AuthContextValue {
   user: User | null
   role: AppRole | null
   employeId: string | null
+  mustChangePassword: boolean
   isLoading: boolean
   isAuthenticated: boolean
   signIn: (credentials: LoginInput) => Promise<RoleInfo>
   signOut: () => Promise<void>
   refreshRole: () => Promise<RoleInfo | null>
+  refreshAuthState: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)
+
+function readMustChangePassword(user: User | null): boolean {
+  const rawValue = user?.app_metadata?.must_change_password
+  return rawValue === true || rawValue === 'true'
+}
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<AppRole | null>(null)
   const [employeId, setEmployeId] = useState<string | null>(null)
+  const [mustChangePassword, setMustChangePassword] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const applyRole = useCallback((roleInfo: RoleInfo | null) => {
     setRole(roleInfo?.role ?? null)
     setEmployeId(roleInfo?.employeId ?? null)
+  }, [])
+
+  const applySession = useCallback((nextSession: Session | null) => {
+    setSession(nextSession)
+    const nextUser = nextSession?.user ?? null
+    setUser(nextUser)
+    setMustChangePassword(readMustChangePassword(nextUser))
   }, [])
 
   const resolveAndCacheRole = useCallback(
@@ -64,6 +79,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return resolveAndCacheRole(user?.id ?? null)
   }, [resolveAndCacheRole, user?.id])
 
+  const refreshAuthState = useCallback(async () => {
+    const nextSession = await getSession()
+    applySession(nextSession)
+    await resolveAndCacheRole(nextSession?.user.id ?? null)
+  }, [applySession, resolveAndCacheRole])
+
   useEffect(() => {
     let mounted = true
 
@@ -75,8 +96,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return
         }
 
-        setSession(nextSession)
-        setUser(nextSession?.user ?? null)
+        applySession(nextSession)
         await resolveAndCacheRole(nextSession?.user.id ?? null)
       } finally {
         if (mounted) {
@@ -88,8 +108,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     void bootstrap()
 
     const unsubscribe = subscribeToAuthChanges((_event, nextSession) => {
-      setSession(nextSession)
-      setUser(nextSession?.user ?? null)
+      applySession(nextSession)
       void resolveAndCacheRole(nextSession?.user.id ?? null)
     })
 
@@ -97,15 +116,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       mounted = false
       unsubscribe()
     }
-  }, [resolveAndCacheRole])
+  }, [applySession, resolveAndCacheRole])
 
   const signIn = useCallback(
     async (credentials: LoginInput) => {
       setIsLoading(true)
       try {
         const nextSession = await signInWithPassword(credentials)
-        setSession(nextSession)
-        setUser(nextSession?.user ?? null)
+        applySession(nextSession)
 
         const roleInfo = await resolveAndCacheRole(nextSession?.user.id ?? null)
 
@@ -118,20 +136,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setIsLoading(false)
       }
     },
-    [resolveAndCacheRole],
+    [applySession, resolveAndCacheRole],
   )
 
   const signOut = useCallback(async () => {
     setIsLoading(true)
     try {
       await signOutRequest()
-      setSession(null)
-      setUser(null)
+      applySession(null)
       applyRole(null)
     } finally {
       setIsLoading(false)
     }
-  }, [applyRole])
+  }, [applyRole, applySession])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -139,21 +156,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
       user,
       role,
       employeId,
+      mustChangePassword,
       isLoading,
       isAuthenticated: Boolean(session?.user),
       signIn,
       signOut,
       refreshRole,
+      refreshAuthState,
     }),
     [
       session,
       user,
       role,
       employeId,
+      mustChangePassword,
       isLoading,
       signIn,
       signOut,
       refreshRole,
+      refreshAuthState,
     ],
   )
 

@@ -2,7 +2,10 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 import { supabase } from '@/lib/supabaseClient'
 import type { LoginInput } from '@/schemas/auth/login.schema'
-import type { ChangePasswordFormValues } from '@/schemas/changePasswordSchema'
+import type {
+  ChangePasswordFormValues,
+  FirstLoginSetPasswordFormValues,
+} from '@/schemas/changePasswordSchema'
 
 export async function signInWithPassword(
   credentials: LoginInput,
@@ -71,6 +74,9 @@ export async function changePasswordWithReauth(
 
   const { error: updateError } = await supabase.auth.updateUser({
     password: payload.newPassword,
+    data: {
+      must_change_password: false,
+    },
   })
 
   if (updateError) {
@@ -80,6 +86,39 @@ export async function changePasswordWithReauth(
 
     throw new Error(updateError.message)
   }
+
+  const { error: refreshError } = await supabase.auth.refreshSession()
+
+  if (refreshError) {
+    throw new Error('Password updated, but session refresh failed. Please sign in again.')
+  }
+}
+
+export async function setPasswordOnFirstLogin(
+  payload: Pick<FirstLoginSetPasswordFormValues, 'newPassword'>,
+): Promise<void> {
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: payload.newPassword,
+    data: {
+      must_change_password: false,
+    },
+  })
+
+  if (updateError) {
+    const normalizedMessage = updateError.message.toLowerCase()
+
+    if (normalizedMessage.includes('reauthentication')) {
+      throw new Error('Session expired. Please sign in again from your invite link.')
+    }
+
+    throw new Error(updateError.message)
+  }
+
+  const { error: refreshError } = await supabase.auth.refreshSession()
+
+  if (refreshError) {
+    throw new Error('Password updated, but session refresh failed. Please sign in again.')
+  }
 }
 
 export const authService = {
@@ -88,4 +127,5 @@ export const authService = {
   getSession,
   subscribeToAuthChanges,
   changePasswordWithReauth,
+  setPasswordOnFirstLogin,
 }

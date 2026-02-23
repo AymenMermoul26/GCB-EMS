@@ -87,7 +87,7 @@ function getInitials(prenom: string, nom: string) {
 
 export function EmployeeProfilePage() {
   const { employeId } = useRole()
-  const { user } = useAuth()
+  const { user, mustChangePassword } = useAuth()
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false)
 
   const employeeQuery = useEmployeeQuery(employeId)
@@ -333,6 +333,12 @@ export function EmployeeProfilePage() {
       title="My Profile"
       subtitle="View your information and submit profile change requests."
     >
+      {mustChangePassword ? (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          You must change your password before using the application.
+        </div>
+      ) : null}
+
       <ProfileCompletenessCard
         values={{
           poste: watchedPoste ?? '',
@@ -447,9 +453,9 @@ export function EmployeeProfilePage() {
       </div>
 
       <ChangePasswordCard
+        anchorId="security"
         className="mt-4"
         title="Security"
-        description="Change your password securely by confirming your current password first."
       />
 
       <MyQrCard employeId={employeId} />

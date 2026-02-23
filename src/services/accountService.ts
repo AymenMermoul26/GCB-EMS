@@ -41,6 +41,7 @@ export interface InviteEmployeeAccountResponse {
   user_id: string
   email: string
   status: 'INVITED'
+  must_change_password?: boolean
 }
 
 function mapEmployeeProfileLink(row: EmployeeProfileRow): EmployeeProfileLink {

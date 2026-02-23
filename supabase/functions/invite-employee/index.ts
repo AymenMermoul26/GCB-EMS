@@ -20,11 +20,19 @@ interface UserLookupRow {
   employe_id: string
 }
 
+interface NotificationLookupRow {
+  id: string
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Content-Type': 'application/json',
 }
+
+const SECURITY_NOTIFICATION_TITLE = 'Security'
+const SECURITY_NOTIFICATION_BODY = 'Welcome! Please change your password to a strong one.'
+const SECURITY_NOTIFICATION_LINK = '/employee/profile#security'
 
 function jsonResponse(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -135,6 +143,81 @@ function normalizePayload(rawBody: unknown): InviteEmployeePayload {
   }
 
   return rawBody as InviteEmployeePayload
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return value as Record<string, unknown>
+}
+
+function readMustChangePasswordFlag(value: unknown): boolean {
+  return value === true
+}
+
+async function ensureMustChangePasswordMetadata(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await adminClient.auth.admin.getUserById(userId)
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const appMetadata = asRecord(data.user?.app_metadata)
+  if (readMustChangePasswordFlag(appMetadata.must_change_password)) {
+    return true
+  }
+
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
+    app_metadata: {
+      ...appMetadata,
+      must_change_password: true,
+    },
+  })
+
+  if (updateError) {
+    throw new Error(updateError.message)
+  }
+
+  return true
+}
+
+async function ensureSecurityNotification(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<void> {
+  const { data: existingRows, error: lookupError } = await adminClient
+    .from('notifications')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('title', SECURITY_NOTIFICATION_TITLE)
+    .eq('body', SECURITY_NOTIFICATION_BODY)
+    .eq('link', SECURITY_NOTIFICATION_LINK)
+    .limit(1)
+    .returns<NotificationLookupRow[]>()
+
+  if (lookupError) {
+    throw new Error(lookupError.message)
+  }
+
+  if (existingRows && existingRows.length > 0) {
+    return
+  }
+
+  const { error: insertError } = await adminClient.from('notifications').insert({
+    user_id: userId,
+    title: SECURITY_NOTIFICATION_TITLE,
+    body: SECURITY_NOTIFICATION_BODY,
+    link: SECURITY_NOTIFICATION_LINK,
+    is_read: false,
+  })
+
+  if (insertError) {
+    throw new Error(insertError.message)
+  }
 }
 
 function extractBearerToken(value: string | null): string | null {
@@ -341,6 +424,9 @@ Deno.serve(async (request) => {
       return jsonResponse(409, { error: 'Account already linked to this employee.' })
     }
 
+    const linkedAppMetadata = asRecord(linkedUserResponse.user?.app_metadata)
+    const linkedMustChangePassword = readMustChangePasswordFlag(linkedAppMetadata.must_change_password)
+
     const resendResult = await adminClient.auth.admin.inviteUserByEmail(
       normalizedEmail,
       inviteRedirectTo ? { redirectTo: inviteRedirectTo } : undefined,
@@ -349,11 +435,22 @@ Deno.serve(async (request) => {
       return jsonResponse(400, { error: resendResult.error.message })
     }
 
+    if (linkedMustChangePassword) {
+      try {
+        await ensureSecurityNotification(adminClient, profile.user_id)
+      } catch (error) {
+        return jsonResponse(500, {
+          error: error instanceof Error ? error.message : 'Unable to enqueue security notification.',
+        })
+      }
+    }
+
     return jsonResponse(200, {
       employe_id: employeId,
       user_id: profile.user_id,
       email: linkedEmail || normalizedEmail,
       status: 'INVITED',
+      must_change_password: linkedMustChangePassword,
     })
   }
 
@@ -398,10 +495,20 @@ Deno.serve(async (request) => {
     return jsonResponse(500, { error: updateProfileError.message })
   }
 
+  try {
+    await ensureMustChangePasswordMetadata(adminClient, authUserId)
+    await ensureSecurityNotification(adminClient, authUserId)
+  } catch (error) {
+    return jsonResponse(500, {
+      error: error instanceof Error ? error.message : 'Unable to apply invite security settings.',
+    })
+  }
+
   return jsonResponse(200, {
     employe_id: employeId,
     user_id: authUserId,
     email: normalizedEmail,
     status: 'INVITED',
+    must_change_password: true,
   })
 })

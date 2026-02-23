@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeOptional as normalizeEmployeeOptional, optionalAlgerianMobileSchema } from '@/schemas/employeeSchema'
 
 const optionalText = z.string().trim().optional()
 
@@ -23,13 +24,12 @@ const optionalUrl = z
 export const employeeSelfEditSchema = z.object({
   poste: optionalText,
   email: optionalEmail,
-  telephone: optionalText,
+  telephone: optionalAlgerianMobileSchema,
   photoUrl: optionalUrl,
 })
 
-export type EmployeeSelfEditValues = z.infer<typeof employeeSelfEditSchema>
+export type EmployeeSelfEditValues = z.input<typeof employeeSelfEditSchema>
 
 export function normalizeOptional(value?: string): string | null {
-  const trimmed = value?.trim()
-  return trimmed && trimmed.length > 0 ? trimmed : null
+  return normalizeEmployeeOptional(value)
 }

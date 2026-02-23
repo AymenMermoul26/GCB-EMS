@@ -4,6 +4,7 @@ import { AdminRoute } from '@/components/guards/admin-route'
 import { EmployeeRoute } from '@/components/guards/employee-route'
 import { FullScreenLoader } from '@/components/common/full-screen-loader'
 import { ProtectedRoute } from '@/components/guards/protected-route'
+import { RequirePasswordChange } from '@/components/guards/require-password-change'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
@@ -50,22 +51,24 @@ export function AppRouter() {
         <Route path={`${ROUTES.PUBLIC_PROFILE_BASE}/:token`} element={<PublicProfilePage />} />
 
         <Route element={<ProtectedRoute />}>
-          <Route element={<AdminRoute />}>
-            <Route path={ROUTES.ADMIN} element={<Navigate to={ROUTES.ADMIN_EMPLOYEES} replace />} />
-            <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
-            <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
-            <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
-            <Route path={ROUTES.ADMIN_DEPARTMENTS} element={<DepartmentsPage />} />
-            <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
-            <Route path={ROUTES.ADMIN_AUDIT} element={<AuditLogPage />} />
-          </Route>
+          <Route element={<RequirePasswordChange />}>
+            <Route element={<AdminRoute />}>
+              <Route path={ROUTES.ADMIN} element={<Navigate to={ROUTES.ADMIN_EMPLOYEES} replace />} />
+              <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
+              <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
+              <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
+              <Route path={ROUTES.ADMIN_DEPARTMENTS} element={<DepartmentsPage />} />
+              <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
+              <Route path={ROUTES.ADMIN_AUDIT} element={<AuditLogPage />} />
+            </Route>
 
-          <Route element={<EmployeeRoute />}>
-            <Route path={ROUTES.EMPLOYEE} element={<Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />} />
-            <Route path={ROUTES.EMPLOYEE_PROFILE} element={<EmployeeProfilePage />} />
-          </Route>
+            <Route element={<EmployeeRoute />}>
+              <Route path={ROUTES.EMPLOYEE} element={<Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />} />
+              <Route path={ROUTES.EMPLOYEE_PROFILE} element={<EmployeeProfilePage />} />
+            </Route>
 
-          <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+            <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+          </Route>
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
