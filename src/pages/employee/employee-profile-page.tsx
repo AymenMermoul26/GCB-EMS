@@ -50,6 +50,7 @@ import {
   normalizeOptional,
   type EmployeeSelfEditValues,
 } from '@/schemas/employeeSelfEditSchema'
+import { normalizePhoneNumberInput } from '@/schemas/employeeSchema'
 import {
   modificationRequestSchema,
   type ModificationRequestValues,
@@ -58,11 +59,13 @@ import { auditService } from '@/services/auditService'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useEmployeeQuery, useUpdateEmployeeMutation } from '@/services/employeesService'
 import {
+  notificationsService,
   useMarkNotificationReadMutation,
   useMyNotificationsQuery,
   useUnreadNotificationsCountQuery,
 } from '@/services/notificationsService'
 import { useMyRequestsQuery, useSubmitModificationRequestMutation } from '@/services/requestsService'
+import type { Employee } from '@/types/employee'
 import { MODIFICATION_REQUEST_FIELD_OPTIONS } from '@/types/modification-request'
 import {
   REQUEST_FIELD_LABELS,
@@ -83,6 +86,46 @@ function getStatusClassName(status: string): string {
 
 function getInitials(prenom: string, nom: string) {
   return `${prenom.trim().charAt(0)}${nom.trim().charAt(0)}`.toUpperCase() || 'NA'
+}
+
+type QrRefreshField = 'poste' | 'email' | 'telephone' | 'photo_url'
+
+interface SelfEditComparableValues {
+  poste: string | null
+  email: string | null
+  telephone: string | null
+  photo_url: string | null
+}
+
+function buildComparableValues(
+  employee: Employee,
+  values: EmployeeSelfEditValues,
+): { previous: SelfEditComparableValues; next: SelfEditComparableValues } {
+  const previous: SelfEditComparableValues = {
+    poste: normalizeOptional(employee.poste ?? undefined),
+    email: normalizeOptional(employee.email ?? undefined),
+    telephone: normalizeOptional(employee.telephone ?? undefined),
+    photo_url: normalizeOptional(employee.photoUrl ?? undefined),
+  }
+
+  const next: SelfEditComparableValues = {
+    poste: normalizeOptional(values.poste),
+    email: normalizeOptional(values.email),
+    telephone: normalizeOptional(values.telephone),
+    photo_url: normalizeOptional(values.photoUrl),
+  }
+
+  return { previous, next }
+}
+
+function getChangedSelfEditFields(
+  employee: Employee,
+  values: EmployeeSelfEditValues,
+): QrRefreshField[] {
+  const { previous, next } = buildComparableValues(employee, values)
+  const trackedFields: QrRefreshField[] = ['poste', 'email', 'telephone', 'photo_url']
+
+  return trackedFields.filter((field) => previous[field] !== next[field])
 }
 
 export function EmployeeProfilePage() {
@@ -110,6 +153,8 @@ export function EmployeeProfilePage() {
 
   const editForm = useForm<EmployeeSelfEditValues>({
     resolver: zodResolver(employeeSelfEditSchema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       poste: '',
       email: '',
@@ -117,6 +162,8 @@ export function EmployeeProfilePage() {
       photoUrl: '',
     },
   })
+
+  const telephoneRegister = editForm.register('telephone')
 
   useEffect(() => {
     if (!employeeQuery.data) {
@@ -243,6 +290,13 @@ export function EmployeeProfilePage() {
       return
     }
 
+    const currentEmployee = employeeQuery.data
+    if (!currentEmployee) {
+      return
+    }
+
+    const changedFields = getChangedSelfEditFields(currentEmployee, values)
+
     await updateProfileMutation.mutateAsync({
       id: employeId,
       payload: {
@@ -252,6 +306,19 @@ export function EmployeeProfilePage() {
         photoUrl: normalizeOptional(values.photoUrl),
       },
     })
+
+    if (changedFields.length === 0) {
+      return
+    }
+
+    try {
+      await notificationsService.notifyAdminsQrRefreshRequired({
+        employeId,
+        changedFields,
+      })
+    } catch (error) {
+      console.error('Failed to notify admins about QR refresh requirement', error)
+    }
   })
 
   const onSubmitRequest = requestForm.handleSubmit(async (values) => {
@@ -426,9 +493,25 @@ export function EmployeeProfilePage() {
               >
                 <Input
                   id="employee-profile-telephone"
-                  {...editForm.register('telephone')}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="+213612345678"
+                  {...telephoneRegister}
+                  onBlur={(event) => {
+                    telephoneRegister.onBlur(event)
+                    const normalized = normalizePhoneNumberInput(event.target.value)
+                    editForm.setValue('telephone', normalized ?? '', {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    })
+                  }}
                   disabled={updateProfileMutation.isPending}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Format: +213 followed by 5, 6, or 7 and 8 digits.
+                </p>
               </FormField>
 
               <FormField label="Photo URL" error={editForm.formState.errors.photoUrl?.message}>
@@ -439,7 +522,11 @@ export function EmployeeProfilePage() {
                 />
               </FormField>
 
-              <Button type="submit" className="w-full" disabled={updateProfileMutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={updateProfileMutation.isPending || !editForm.formState.isValid}
+              >
                 {updateProfileMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (

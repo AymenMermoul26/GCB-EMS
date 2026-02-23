@@ -31,6 +31,23 @@ export interface ListMyNotificationsOptions {
   limit?: number
 }
 
+export const QR_REFRESH_NOTIFICATION_TITLE = 'QR refresh required'
+
+export interface NotifyAdminsQrRefreshPayload {
+  employeId: string
+  changedFields: Array<'poste' | 'email' | 'telephone' | 'photo_url'>
+}
+
+export interface NotifyAdminsQrRefreshResponse {
+  ok: boolean
+  admins_notified: number
+  deduped: number
+}
+
+function getQrRefreshNotificationLink(employeId: string) {
+  return `/admin/employees/${employeId}#qr`
+}
+
 async function currentUserId(): Promise<string | null> {
   const { data, error } = await supabase.auth.getUser()
 
@@ -210,6 +227,92 @@ export async function markAllMyNotificationsRead(): Promise<number> {
   return (data ?? []).length
 }
 
+export async function notifyAdminsQrRefreshRequired(
+  payload: NotifyAdminsQrRefreshPayload,
+): Promise<NotifyAdminsQrRefreshResponse> {
+  const { data, error } = await supabase.functions.invoke<NotifyAdminsQrRefreshResponse>(
+    'notify-admin-qr-regenerate',
+    {
+      body: {
+        employe_id: payload.employeId,
+        changed_fields: payload.changedFields,
+      },
+    },
+  )
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data?.ok) {
+    throw new Error('Failed to notify admins for QR refresh.')
+  }
+
+  return data
+}
+
+export async function hasUnreadQrRefreshForEmployee(
+  employeId: string,
+  userId?: string | null,
+): Promise<boolean> {
+  const resolvedUserId = await currentUserId()
+
+  if (!resolvedUserId) {
+    return false
+  }
+
+  if (userId && userId !== resolvedUserId) {
+    console.warn('notificationsService.hasUnreadQrRefreshForEmployee received mismatched user id input.')
+  }
+
+  const link = getQrRefreshNotificationLink(employeId)
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', resolvedUserId)
+    .eq('title', QR_REFRESH_NOTIFICATION_TITLE)
+    .eq('link', link)
+    .eq('is_read', false)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (count ?? 0) > 0
+}
+
+export async function markUnreadQrRefreshForEmployeeRead(
+  employeId: string,
+  userId?: string | null,
+): Promise<number> {
+  const resolvedUserId = await currentUserId()
+
+  if (!resolvedUserId) {
+    return 0
+  }
+
+  if (userId && userId !== resolvedUserId) {
+    console.warn('notificationsService.markUnreadQrRefreshForEmployeeRead received mismatched user id input.')
+  }
+
+  const link = getQrRefreshNotificationLink(employeId)
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', resolvedUserId)
+    .eq('title', QR_REFRESH_NOTIFICATION_TITLE)
+    .eq('link', link)
+    .eq('is_read', false)
+    .select('id')
+    .returns<Array<{ id: string }>>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).length
+}
+
 export function useMyNotificationsQuery(
   userId?: string | null,
   options: ListMyNotificationsOptions = {},
@@ -230,6 +333,18 @@ export function useUnreadNotificationsCountQuery(userId?: string | null) {
     queryKey: ['notificationsUnreadCount', userId ?? null],
     queryFn: () => countUnreadMyNotifications(userId),
     enabled: Boolean(userId),
+    refetchInterval: 15000,
+  })
+}
+
+export function useHasUnreadQrRefreshForEmployeeQuery(
+  employeId?: string | null,
+  userId?: string | null,
+) {
+  return useQuery({
+    queryKey: ['qrRefreshRequired', employeId ?? null, userId ?? null],
+    queryFn: () => hasUnreadQrRefreshForEmployee(employeId as string, userId),
+    enabled: Boolean(employeId && userId),
     refetchInterval: 15000,
   })
 }
@@ -275,5 +390,8 @@ export const notificationsService = {
   createNotifications,
   markNotificationRead,
   markAllMyNotificationsRead,
+  notifyAdminsQrRefreshRequired,
+  hasUnreadQrRefreshForEmployee,
+  markUnreadQrRefreshForEmployeeRead,
 }
 

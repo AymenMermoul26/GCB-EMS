@@ -23,6 +23,7 @@ import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useCreateEmployeeMutation } from '@/services/employeesService'
 import {
   employeeSchema,
+  normalizePhoneNumberInput,
   normalizeOptional,
   type EmployeeFormValues,
 } from '@/schemas/employeeSchema'
@@ -39,6 +40,8 @@ export function AdminEmployeeCreatePage() {
 
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       matricule: '',
       nom: '',
@@ -50,6 +53,8 @@ export function AdminEmployeeCreatePage() {
       photoUrl: '',
     },
   })
+
+  const telephoneRegister = form.register('telephone')
 
   const createMutation = useCreateEmployeeMutation({
     onSuccess: (employee) => {
@@ -202,10 +207,25 @@ export function AdminEmployeeCreatePage() {
                 <Label htmlFor="telephone">Telephone</Label>
                 <Input
                   id="telephone"
-                  placeholder="+1 555 123 4567"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="+213612345678"
                   disabled={isSubmitting}
-                  {...form.register('telephone')}
+                  {...telephoneRegister}
+                  onBlur={(event) => {
+                    telephoneRegister.onBlur(event)
+                    const normalized = normalizePhoneNumberInput(event.target.value)
+                    form.setValue('telephone', normalized ?? '', {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                      shouldTouch: true,
+                    })
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Format: +213 followed by 5, 6, or 7 and 8 digits.
+                </p>
               </FieldError>
 
               <FieldError message={form.formState.errors.photoUrl?.message}>
@@ -228,7 +248,10 @@ export function AdminEmployeeCreatePage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting || departmentsQuery.isPending}>
+              <Button
+                type="submit"
+                disabled={isSubmitting || departmentsQuery.isPending || !form.formState.isValid}
+              >
                 {isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (

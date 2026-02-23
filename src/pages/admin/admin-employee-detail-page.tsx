@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES, getPublicProfileRoute } from '@/constants/routes'
+import { useAuth } from '@/hooks/use-auth'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import {
   useDeactivateEmployeeMutation,
@@ -67,9 +68,14 @@ import {
   useEmployeeVisibilityQuery,
   useUpsertVisibilityMutation,
 } from '@/services/visibilityService'
+import {
+  notificationsService,
+  useHasUnreadQrRefreshForEmployeeQuery,
+} from '@/services/notificationsService'
 import { auditService } from '@/services/auditService'
 import {
   employeeSchema,
+  normalizePhoneNumberInput,
   normalizeOptional,
   type EmployeeFormValues,
 } from '@/schemas/employeeSchema'
@@ -114,6 +120,7 @@ export function AdminEmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [accountEmailInput, setAccountEmailInput] = useState<string | null>(null)
 
@@ -122,9 +129,12 @@ export function AdminEmployeeDetailPage() {
   const departmentsQuery = useDepartmentsQuery()
   const visibilityQuery = useEmployeeVisibilityQuery(id)
   const employeeTokenQuery = useEmployeeCurrentTokenQuery(id)
+  const qrRefreshRequiredQuery = useHasUnreadQrRefreshForEmployeeQuery(id, user?.id)
 
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       matricule: '',
       nom: '',
@@ -136,6 +146,8 @@ export function AdminEmployeeDetailPage() {
       photoUrl: '',
     },
   })
+
+  const telephoneRegister = form.register('telephone')
 
   useEffect(() => {
     if (!employeeQuery.data) {
@@ -224,6 +236,7 @@ export function AdminEmployeeDetailPage() {
       : null
   const qrCanvasId = `employee-qr-${id ?? 'unknown'}`
   const isInviting = inviteAccountMutation.isPending || resendInviteMutation.isPending
+  const needsQrRefresh = qrRefreshRequiredQuery.data ?? false
 
   const visibilityMap = useMemo(() => {
     const map = new Map<string, boolean>()
@@ -282,6 +295,19 @@ export function AdminEmployeeDetailPage() {
     try {
       const nextToken = await generateTokenMutation.mutateAsync(employee.id)
       toast.success(hadActiveToken ? 'QR token regenerated.' : 'QR token generated.')
+
+      if (user?.id) {
+        try {
+          await notificationsService.markUnreadQrRefreshForEmployeeRead(employee.id, user.id)
+          await queryClient.invalidateQueries({
+            queryKey: ['qrRefreshRequired', employee.id, user.id],
+          })
+          await queryClient.invalidateQueries({ queryKey: ['notifications', user.id] })
+          await queryClient.invalidateQueries({ queryKey: ['notificationsUnreadCount', user.id] })
+        } catch (notificationError) {
+          console.error('Failed to clear QR refresh notifications', notificationError)
+        }
+      }
 
       try {
         await auditService.insertAuditLog({
@@ -599,9 +625,25 @@ export function AdminEmployeeDetailPage() {
                   <Label htmlFor="telephone">Telephone</Label>
                   <Input
                     id="telephone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="+213612345678"
                     disabled={isFormDisabled}
-                    {...form.register('telephone')}
+                    {...telephoneRegister}
+                    onBlur={(event) => {
+                      telephoneRegister.onBlur(event)
+                      const normalized = normalizePhoneNumberInput(event.target.value)
+                      form.setValue('telephone', normalized ?? '', {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                        shouldTouch: true,
+                      })
+                    }}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Format: +213 followed by 5, 6, or 7 and 8 digits.
+                  </p>
                 </FieldError>
 
                 <FieldError message={form.formState.errors.photoUrl?.message}>
@@ -617,7 +659,7 @@ export function AdminEmployeeDetailPage() {
               <Separator />
 
               <div className="flex items-center gap-2">
-                <Button type="submit" disabled={isFormDisabled}>
+                <Button type="submit" disabled={isFormDisabled || !form.formState.isValid}>
                   {updateMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -848,14 +890,25 @@ export function AdminEmployeeDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="qr">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <QrCode className="h-4 w-4" />
                 QR / Public Link
+                {needsQrRefresh ? (
+                  <Badge className="border-transparent bg-red-600 text-white">
+                    Needs QR refresh
+                  </Badge>
+                ) : null}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {needsQrRefresh ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                  Employee info changed. Regenerate QR to ensure public profile is up to date.
+                </div>
+              ) : null}
+
               {employeeTokenQuery.isPending ? (
                 <>
                   <Skeleton className="h-8 w-full" />
