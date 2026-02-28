@@ -60,6 +60,8 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { EmployeeBadgeDialog } from '@/components/admin/employee-badge-dialog'
+import { env } from '@/config/env'
 import { ROUTES, getPublicProfileRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
@@ -283,9 +285,10 @@ export function AdminEmployeeDetailPage() {
   const isFormDisabled = isInactive || updateMutation.isPending || employeeQuery.isPending
   const token = employeeTokenQuery.data
   const employeeProfile = employeeProfileQuery.data
+  const publicBaseUrl = (env.VITE_PUBLIC_BASE_URL ?? window.location.origin).replace(/\/+$/, '')
   const publicProfileUrl =
     token && token.statutToken === 'ACTIF'
-      ? `${window.location.origin}${getPublicProfileRoute(token.token)}`
+      ? `${publicBaseUrl}${getPublicProfileRoute(token.token)}`
       : null
   const qrCanvasId = `employee-qr-${employeeId || 'unknown'}`
   const isInviting = inviteAccountMutation.isPending || resendInviteMutation.isPending
@@ -703,6 +706,24 @@ export function AdminEmployeeDetailPage() {
               )}
               Regenerate QR
             </Button>
+            <EmployeeBadgeDialog
+              employee={{
+                matricule: employee.matricule,
+                nom: employee.nom,
+                prenom: employee.prenom,
+                poste: employee.poste,
+                photoUrl: employee.photoUrl,
+              }}
+              departmentName={departmentName}
+              publicProfileUrl={publicProfileUrl}
+              isTokenLoading={employeeTokenQuery.isPending}
+              tokenError={employeeTokenQuery.isError ? employeeTokenQuery.error.message : null}
+              isGeneratingQr={generateTokenMutation.isPending}
+              onGenerateQr={() => {
+                setActiveTab('qr-visibility')
+                void onGenerateOrRegenerateToken()
+              }}
+            />
 
             <Dialog open={isMoreActionsOpen} onOpenChange={setIsMoreActionsOpen}>
               <DialogTrigger asChild>
