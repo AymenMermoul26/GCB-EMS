@@ -1,6 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Edit, Loader2, Plus, Search, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import {
+  Edit,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  Search,
+  ShieldAlert,
+  Trash2,
+} from 'lucide-react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -14,8 +22,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -116,6 +126,8 @@ export function DepartmentsPage() {
   })
 
   const isSaving = createMutation.isPending || updateMutation.isPending
+  const departments = departmentsQuery.data ?? []
+  const totalDepartments = departments.length
 
   const openCreateDialog = () => {
     setEditingDepartment(null)
@@ -168,113 +180,181 @@ export function DepartmentsPage() {
       title="Departments"
       subtitle="Manage department records and assignments."
     >
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="relative w-full md:max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search by name or code..."
-            className="pl-9"
-          />
-        </div>
+      <div className="sticky top-2 z-20 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Departments</h1>
+              {departmentsQuery.isPending ? (
+                <Skeleton className="h-6 w-24 rounded-full" />
+              ) : (
+                <Badge variant="secondary" className="rounded-full">
+                  {totalDepartments} total
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Create, update, and manage department availability.
+            </p>
+          </div>
 
-        <Button type="button" onClick={openCreateDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Department
-        </Button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+            {departmentsQuery.isPending ? (
+              <>
+                <Skeleton className="h-10 w-full sm:w-64" />
+                <Skeleton className="h-10 w-full sm:w-44" />
+              </>
+            ) : (
+              <>
+                <div className="relative w-full sm:w-64">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Search department..."
+                    className="pl-9"
+                    aria-label="Search departments"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                  onClick={openCreateDialog}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Department
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="w-[180px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {departmentsQuery.isPending
-                ? Array.from({ length: 6 }).map((_, index) => (
+      {departmentsQuery.isError ? (
+        <Alert variant="destructive" className="mb-6">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Failed to load departments</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>{departmentsQuery.error.message}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void departmentsQuery.refetch()}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-base font-semibold">Department list</CardTitle>
+          <CardDescription>
+            Maintain department metadata used across employee profiles and request workflows.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {departmentsQuery.isPending ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Department Name</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead>Updated At</TableHead>
+                    <TableHead className="w-[64px] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 8 }).map((_, index) => (
                     <TableRow key={`department-skeleton-${index}`}>
                       <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-52" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-8 w-36" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="ml-auto h-8 w-8 rounded-md" /></TableCell>
                     </TableRow>
-                  ))
-                : null}
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
 
-              {!departmentsQuery.isPending &&
-              !departmentsQuery.isError &&
-              (departmentsQuery.data?.length ?? 0) === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    No departments found.
-                  </TableCell>
-                </TableRow>
-              ) : null}
+          {!departmentsQuery.isPending && !departmentsQuery.isError && departments.length === 0 ? (
+            <div className="flex justify-center py-8">
+              <div className="w-full max-w-lg rounded-2xl border border-dashed bg-muted/20 p-8 text-center">
+                <h3 className="text-lg font-semibold text-slate-900">No departments found</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Try a different search or create a new department.
+                </p>
+                <Button
+                  type="button"
+                  className="mt-5 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                  onClick={openCreateDialog}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Department
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
-              {!departmentsQuery.isPending &&
-                (departmentsQuery.data ?? []).map((department) => (
-                  <TableRow key={department.id}>
-                    <TableCell className="font-medium">{department.nom}</TableCell>
-                    <TableCell>{department.code ?? '-'}</TableCell>
-                    <TableCell>
-                      <p className="max-w-[320px] truncate text-sm text-muted-foreground">
-                        {department.description ?? '-'}
-                      </p>
-                    </TableCell>
-                    <TableCell>{new Date(department.updatedAt).toLocaleString()}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEditDialog(department)}
-                        >
-                          <Edit className="mr-1 h-4 w-4" />
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => setDepartmentToDelete(department)}
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" />
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
+          {!departmentsQuery.isPending && !departmentsQuery.isError && departments.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Department Name</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead>Updated At</TableHead>
+                    <TableHead className="w-[64px] text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {departments.map((department) => (
+                    <TableRow key={department.id}>
+                      <TableCell className="font-medium">{department.nom}</TableCell>
+                      <TableCell>
+                        {department.code ? (
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {department.code}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <p className="max-w-[280px] truncate text-sm text-muted-foreground">
+                          {department.description ?? '-'}
+                        </p>
+                      </TableCell>
+                      <TableCell>{new Date(department.createdAt).toLocaleString()}</TableCell>
+                      <TableCell>{new Date(department.updatedAt).toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        <DepartmentRowActions
+                          departmentName={department.nom}
+                          onEdit={() => openEditDialog(department)}
+                          onDelete={() => setDepartmentToDelete(department)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
-      {departmentsQuery.isError ? (
-        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-4">
-          <p className="text-sm text-destructive">{departmentsQuery.error.message}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => void departmentsQuery.refetch()}
-          >
-            Retry
-          </Button>
-        </div>
-      ) : null}
-
       <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {editingDepartment ? 'Edit Department' : 'New Department'}
@@ -288,47 +368,54 @@ export function DepartmentsPage() {
 
           <form className="space-y-4" onSubmit={onSubmit}>
             {form.formState.errors.root?.message ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {form.formState.errors.root.message}
-              </div>
+              <Alert variant="destructive">
+                <AlertTitle>Could not save department</AlertTitle>
+                <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
+              </Alert>
             ) : null}
 
-            <div className="space-y-2">
-              <Label htmlFor="department-nom">Nom</Label>
-              <Input
-                id="department-nom"
-                {...form.register('nom')}
-                disabled={isSaving}
-              />
-              {form.formState.errors.nom?.message ? (
-                <p className="text-xs text-destructive">{form.formState.errors.nom.message}</p>
-              ) : null}
-            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="department-nom">
+                  Department Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="department-nom"
+                  {...form.register('nom')}
+                  disabled={isSaving}
+                  placeholder="Human Resources"
+                />
+                {form.formState.errors.nom?.message ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.nom.message}</p>
+                ) : null}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="department-code">Code (optional)</Label>
-              <Input
-                id="department-code"
-                placeholder="Example: HR"
-                {...form.register('code')}
-                disabled={isSaving}
-              />
-              {form.formState.errors.code?.message ? (
-                <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
-              ) : null}
-            </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="department-code">Code (optional)</Label>
+                <Input
+                  id="department-code"
+                  placeholder="Example: HR"
+                  {...form.register('code')}
+                  disabled={isSaving}
+                />
+                {form.formState.errors.code?.message ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
+                ) : null}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="department-description">Description (optional)</Label>
-              <Textarea
-                id="department-description"
-                rows={4}
-                {...form.register('description')}
-                disabled={isSaving}
-              />
-              {form.formState.errors.description?.message ? (
-                <p className="text-xs text-destructive">{form.formState.errors.description.message}</p>
-              ) : null}
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="department-description">Description (optional)</Label>
+                <Textarea
+                  id="department-description"
+                  rows={4}
+                  {...form.register('description')}
+                  disabled={isSaving}
+                  placeholder="Short description of department scope."
+                />
+                {form.formState.errors.description?.message ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.description.message}</p>
+                ) : null}
+              </div>
             </div>
 
             <DialogFooter>
@@ -340,7 +427,11 @@ export function DepartmentsPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSaving}>
+              <Button
+                type="submit"
+                disabled={isSaving}
+                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+              >
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {editingDepartment ? 'Save Changes' : 'Create Department'}
               </Button>
@@ -387,5 +478,89 @@ export function DepartmentsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </DashboardLayout>
+  )
+}
+
+interface DepartmentRowActionsProps {
+  departmentName: string
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function DepartmentRowActions({ departmentName, onEdit, onDelete }: DepartmentRowActionsProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [isOpen])
+
+  return (
+    <div ref={menuRef} className="relative inline-flex">
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label={`Actions for ${departmentName}`}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+
+      {isOpen ? (
+        <div className="absolute right-0 top-10 z-30 w-44 rounded-lg border bg-white p-1 shadow-md">
+          <ActionMenuItem
+            onClick={() => {
+              setIsOpen(false)
+              onEdit()
+            }}
+          >
+            <Edit className="h-4 w-4" />
+            Edit
+          </ActionMenuItem>
+          <ActionMenuItem
+            className="text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              setIsOpen(false)
+              onDelete()
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </ActionMenuItem>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+interface ActionMenuItemProps {
+  children: ReactNode
+  onClick: () => void
+  className?: string
+}
+
+function ActionMenuItem({ children, onClick, className }: ActionMenuItemProps) {
+  return (
+    <button
+      type="button"
+      className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted ${className ?? ''}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   )
 }
