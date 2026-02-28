@@ -56,8 +56,9 @@ export const optionalAlgerianMobileSchema = z
     return algerianMobileRegex.test(normalized)
   }, algerianMobileErrorMessage)
 
-const baseEmployeeSchema = z.object({
-  matricule: requiredText('Matricule'),
+const createMatriculeSchema = z.string().trim().optional()
+
+const employeeBaseFields = {
   nom: requiredText('Nom'),
   prenom: requiredText('Prenom'),
   departementId: z.string().uuid('Department is required'),
@@ -65,13 +66,23 @@ const baseEmployeeSchema = z.object({
   email: optionalEmail,
   telephone: optionalAlgerianMobileSchema,
   photoUrl: optionalUrl,
+}
+
+export const employeeCreateSchema = z.object({
+  matricule: createMatriculeSchema,
+  ...employeeBaseFields,
 })
 
-export const employeeCreateSchema = baseEmployeeSchema
-export const employeeUpdateSchema = baseEmployeeSchema
-export const employeeSchema = employeeCreateSchema
+export const employeeUpdateSchema = z.object({
+  matricule: requiredText('Matricule'),
+  ...employeeBaseFields,
+})
 
-export type EmployeeFormValues = z.input<typeof employeeSchema>
+export const employeeSchema = employeeUpdateSchema
+
+export type EmployeeCreateFormValues = z.input<typeof employeeCreateSchema>
+export type EmployeeUpdateFormValues = z.input<typeof employeeUpdateSchema>
+export type EmployeeFormValues = EmployeeUpdateFormValues
 
 export function normalizeOptional(value?: string): string | null {
   const trimmed = value?.trim()

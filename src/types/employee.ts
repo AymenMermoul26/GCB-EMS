@@ -37,7 +37,7 @@ export interface EmployeesListResponse {
 
 export interface CreateEmployeePayload {
   departementId: string
-  matricule: string
+  matricule?: string | null
   nom: string
   prenom: string
   poste?: string | null

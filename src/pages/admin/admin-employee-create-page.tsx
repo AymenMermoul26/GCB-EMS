@@ -33,10 +33,10 @@ import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useCreateEmployeeMutation } from '@/services/employeesService'
 import {
-  employeeSchema,
+  employeeCreateSchema,
   normalizePhoneNumberInput,
   normalizeOptional,
-  type EmployeeFormValues,
+  type EmployeeCreateFormValues,
 } from '@/schemas/employeeSchema'
 import { mapEmployeeWriteError } from '@/utils/supabase-errors'
 
@@ -49,8 +49,8 @@ export function AdminEmployeeCreatePage() {
   const departmentsQuery = useDepartmentsQuery()
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const form = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeSchema),
+  const form = useForm<EmployeeCreateFormValues>({
+    resolver: zodResolver(employeeCreateSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -69,7 +69,7 @@ export function AdminEmployeeCreatePage() {
 
   const createMutation = useCreateEmployeeMutation({
     onSuccess: (employee) => {
-      toast.success('Employee created successfully.')
+      toast.success(`Employee created successfully (${employee.matricule}).`)
       navigate(getAdminEmployeeRoute(employee.id), { replace: true })
     },
     onError: (error) => {
@@ -83,9 +83,13 @@ export function AdminEmployeeCreatePage() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     setSubmitError(null)
+    const normalizedMatricule = values.matricule?.trim()
 
     await createMutation.mutateAsync({
-      matricule: values.matricule.trim(),
+      matricule:
+        normalizedMatricule && normalizedMatricule.length > 0
+          ? normalizedMatricule
+          : undefined,
       nom: values.nom.trim(),
       prenom: values.prenom.trim(),
       departementId: values.departementId,
@@ -214,15 +218,16 @@ export function AdminEmployeeCreatePage() {
             </FieldError>
 
             <FieldError message={form.formState.errors.matricule?.message}>
-              <Label htmlFor="matricule">
-                Matricule <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="matricule">Matricule</Label>
               <Input
                 id="matricule"
-                placeholder="EMP-001"
+                placeholder="Leave empty to auto-generate (GCB-XXXXXX)"
                 disabled={isSubmitting}
                 {...form.register('matricule')}
               />
+              <p className="text-xs text-muted-foreground">
+                Leave empty to auto-generate the next unique matricule.
+              </p>
             </FieldError>
 
             <FieldError message={form.formState.errors.poste?.message}>

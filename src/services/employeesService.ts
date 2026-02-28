@@ -66,9 +66,11 @@ function mapEmployee(row: EmployeeRow): Employee {
 }
 
 function toInsertPayload(payload: CreateEmployeePayload) {
+  const normalizedMatricule = payload.matricule?.trim()
+
   return {
     departement_id: payload.departementId,
-    matricule: payload.matricule,
+    matricule: normalizedMatricule && normalizedMatricule.length > 0 ? normalizedMatricule : null,
     nom: payload.nom,
     prenom: payload.prenom,
     poste: payload.poste ?? null,
