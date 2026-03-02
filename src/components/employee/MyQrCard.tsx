@@ -12,11 +12,13 @@ import { useMyActiveTokenQuery } from '@/services/qrService'
 import type { TokenQR } from '@/types/token'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { downloadQrPng } from '@/utils/qrDownload'
+import { cn } from '@/lib/utils'
 
 type MyQrStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'NONE'
 
 interface MyQrCardProps {
   employeId?: string | null
+  className?: string
 }
 
 function resolveQrStatus(token: TokenQR | null): MyQrStatus {
@@ -59,7 +61,7 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString()
 }
 
-export function MyQrCard({ employeId }: MyQrCardProps) {
+export function MyQrCard({ employeId, className }: MyQrCardProps) {
   const tokenQuery = useMyActiveTokenQuery(employeId)
   const token = tokenQuery.data
   const status = resolveQrStatus(token ?? null)
@@ -110,7 +112,7 @@ export function MyQrCard({ employeId }: MyQrCardProps) {
   }
 
   return (
-    <Card className="mt-4">
+    <Card className={cn('mt-4', className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <QrCode className="h-4 w-4" />

@@ -14,10 +14,10 @@ export function RequirePasswordChange() {
   }
 
   const isEmployee = role === APP_ROLES.EMPLOYE
-  const isOnEmployeeProfile = location.pathname.startsWith(ROUTES.EMPLOYEE_PROFILE)
+  const isOnSecurityPage = location.pathname === ROUTES.EMPLOYEE_SECURITY
 
-  if (isEmployee && mustChangePassword && !isOnEmployeeProfile) {
-    return <Navigate to={`${ROUTES.EMPLOYEE_PROFILE_MANAGE}#security`} replace />
+  if (isEmployee && mustChangePassword && !isOnSecurityPage) {
+    return <Navigate to={ROUTES.EMPLOYEE_SECURITY} replace />
   }
 
   return <Outlet />

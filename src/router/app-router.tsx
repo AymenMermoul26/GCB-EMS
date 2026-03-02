@@ -17,6 +17,9 @@ import { DepartmentsPage } from '@/pages/admin/DepartmentsPage'
 import { LoginPage } from '@/pages/auth/login-page'
 import { EmployeeProfileManagePage } from '@/pages/employee/employee-profile-manage-page'
 import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
+import { EmployeeMyQrPage } from '@/pages/employee/employee-my-qr-page'
+import { EmployeeRequestsPage } from '@/pages/employee/employee-requests-page'
+import { EmployeeSecurityPage } from '@/pages/employee/employee-security-page'
 import { NotFoundPage } from '@/pages/not-found-page'
 import { NotificationsPage } from '@/pages/notifications-page'
 import { PublicProfilePage } from '@/pages/public/public-profile-page'
@@ -67,6 +70,9 @@ export function AppRouter() {
               <Route path={ROUTES.EMPLOYEE} element={<Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />} />
               <Route path={ROUTES.EMPLOYEE_PROFILE} element={<EmployeeProfilePage />} />
               <Route path={ROUTES.EMPLOYEE_PROFILE_MANAGE} element={<EmployeeProfileManagePage />} />
+              <Route path={ROUTES.EMPLOYEE_MY_QR} element={<EmployeeMyQrPage />} />
+              <Route path={ROUTES.EMPLOYEE_REQUESTS} element={<EmployeeRequestsPage />} />
+              <Route path={ROUTES.EMPLOYEE_SECURITY} element={<EmployeeSecurityPage />} />
             </Route>
 
             <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />

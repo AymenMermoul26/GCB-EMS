@@ -8,7 +8,13 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react'
-import { type ComponentType, type SVGProps, useMemo, useState } from 'react'
+import {
+  type ComponentType,
+  type SVGProps,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +36,12 @@ import { useEmployeeQuery } from '@/services/employeesService'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
+const NAV_ITEM_HEIGHT = 50
+const NAV_ITEM_GAP = 8
+const ACTIVE_PILL_TOP_OFFSET = 0
+const ACTIVE_PILL_LEFT_OFFSET = -2
+const MODERN_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+
 interface EmployeeNavItem {
   key: string
   label: string
@@ -48,19 +60,19 @@ const EMPLOYEE_NAV_ITEMS: EmployeeNavItem[] = [
   {
     key: 'requests',
     label: 'Requests',
-    to: `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#requests`,
+    to: ROUTES.EMPLOYEE_REQUESTS,
     icon: ClipboardList,
   },
   {
     key: 'my-qr',
     label: 'My QR Code',
-    to: `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#my-qr`,
+    to: ROUTES.EMPLOYEE_MY_QR,
     icon: QrCode,
   },
   {
     key: 'security',
     label: 'Security',
-    to: `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#security`,
+    to: ROUTES.EMPLOYEE_SECURITY,
     icon: ShieldCheck,
   },
   { key: 'notifications', label: 'Notifications', to: ROUTES.NOTIFICATIONS, icon: Bell },
@@ -133,6 +145,31 @@ function EmployeeSidebarContent({
     [location.hash, location.pathname],
   )
 
+  const activeItemIndex = useMemo(
+    () =>
+      EMPLOYEE_NAV_ITEMS.findIndex((item) =>
+        isRouteActive(location.pathname, location.hash, item.to),
+      ),
+    [location.hash, location.pathname],
+  )
+
+  const [animatedActiveItemIndex, setAnimatedActiveItemIndex] = useState(activeItemIndex)
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      setAnimatedActiveItemIndex(activeItemIndex)
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+    }
+  }, [activeItemIndex])
+
+  const activeIndicatorY =
+    animatedActiveItemIndex >= 0
+      ? animatedActiveItemIndex * (NAV_ITEM_HEIGHT + NAV_ITEM_GAP)
+      : 0
+
   const employeeInitial = getEmployeeInitials(
     employeeQuery.data?.prenom ?? null,
     employeeQuery.data?.nom ?? null,
@@ -161,7 +198,23 @@ function EmployeeSidebarContent({
         </div>
       </div>
 
-      <nav className="mt-5 flex-1 space-y-2">
+      <nav className="relative mt-5 flex-1 space-y-2">
+        <span
+          className={cn(
+            'pointer-events-none absolute z-0 rounded-2xl border border-white/25 bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_20px_38px_-20px_rgba(255,107,53,1)] will-change-transform',
+            'transition-[transform,opacity] duration-500',
+            animatedActiveItemIndex >= 0 ? 'opacity-100' : 'opacity-0',
+          )}
+          style={{
+            top: ACTIVE_PILL_TOP_OFFSET,
+            left: ACTIVE_PILL_LEFT_OFFSET,
+            right: 0,
+            transform: `translate3d(0, ${activeIndicatorY}px, 0)`,
+            height: NAV_ITEM_HEIGHT,
+            transitionTimingFunction: MODERN_EASE,
+          }}
+          aria-hidden="true"
+        />
         {EMPLOYEE_NAV_ITEMS.map((item) => {
           const Icon = item.icon
           const isActive = activeKey === item.key
@@ -171,11 +224,12 @@ function EmployeeSidebarContent({
               to={item.to}
               onClick={() => onNavigate?.()}
               className={cn(
-                'group relative flex h-[50px] items-center overflow-hidden rounded-2xl px-3.5 text-sm font-medium transition-[color,background-color,transform] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))] focus-visible:ring-offset-2',
+                'group relative z-10 flex h-[50px] items-center overflow-hidden rounded-2xl px-3.5 py-0 text-sm font-medium leading-none transition-[color,background-color,transform] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))] focus-visible:ring-offset-2',
                 isActive
-                  ? 'bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] text-white shadow-[0_16px_26px_-18px_rgba(255,107,53,0.95)]'
-                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950',
+                  ? 'text-white'
+                  : 'text-slate-700 hover:translate-x-[2px] hover:bg-slate-100 hover:text-slate-950',
               )}
+              style={{ transitionTimingFunction: MODERN_EASE }}
             >
               <span
                 className={cn(
@@ -184,8 +238,10 @@ function EmployeeSidebarContent({
                 )}
                 aria-hidden="true"
               />
-              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="ml-3 truncate">{item.label}</span>
+              <span className="relative z-10 flex h-5 w-5 items-center justify-center">
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </span>
+              <span className="relative z-10 ml-3 truncate leading-none">{item.label}</span>
             </Link>
           )
         })}

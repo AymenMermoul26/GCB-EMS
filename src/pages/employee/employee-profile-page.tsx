@@ -107,8 +107,8 @@ export function EmployeeProfilePage() {
   }, [currentToken, hasValidPublicToken])
 
   const requestChangesRoute = `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#requests`
-  const securityRoute = `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#security`
-  const myQrRoute = `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#my-qr`
+  const securityRoute = ROUTES.EMPLOYEE_SECURITY
+  const myQrRoute = ROUTES.EMPLOYEE_MY_QR
 
   const handlePreviewPublicProfile = () => {
     if (!publicProfileUrl) {

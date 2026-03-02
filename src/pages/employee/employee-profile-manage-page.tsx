@@ -29,8 +29,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { MyQrCard } from '@/components/employee/MyQrCard'
-import { ChangePasswordCard } from '@/components/security/ChangePasswordCard'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -789,16 +787,6 @@ export function EmployeeProfileManagePage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-
-      <ChangePasswordCard
-        anchorId="security"
-        className="mt-6 rounded-2xl border-slate-200/80 shadow-sm scroll-mt-24"
-        title="Security"
-      />
-
-      <div id="my-qr" className="scroll-mt-24">
-        <MyQrCard employeId={employeId} />
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

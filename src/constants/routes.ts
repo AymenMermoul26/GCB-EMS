@@ -10,6 +10,9 @@ export const ROUTES = {
   EMPLOYEE: '/employee',
   EMPLOYEE_PROFILE: '/employee/profile',
   EMPLOYEE_PROFILE_MANAGE: '/employee/profile/manage',
+  EMPLOYEE_MY_QR: '/employee/my-qr',
+  EMPLOYEE_REQUESTS: '/employee/requests',
+  EMPLOYEE_SECURITY: '/employee/security',
   NOTIFICATIONS: '/notifications',
   PUBLIC_PROFILE_BASE: '/p',
 } as const

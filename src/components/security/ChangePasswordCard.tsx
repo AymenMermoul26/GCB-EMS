@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { type UseFormRegisterReturn, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -34,6 +35,10 @@ export function ChangePasswordCard({
   anchorId,
 }: ChangePasswordCardProps) {
   const { refreshAuthState, mustChangePassword } = useAuth()
+  const [submitFeedback, setSubmitFeedback] = useState<{
+    type: 'success' | 'error'
+    message: string
+  } | null>(null)
   const [showPassword, setShowPassword] = useState<Record<PasswordFieldKey, boolean>>({
     currentPassword: false,
     newPassword: false,
@@ -42,6 +47,8 @@ export function ChangePasswordCard({
 
   const regularForm = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       currentPassword: '',
       newPassword: '',
@@ -51,6 +58,8 @@ export function ChangePasswordCard({
 
   const firstLoginForm = useForm<FirstLoginSetPasswordFormValues>({
     resolver: zodResolver(firstLoginSetPasswordSchema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       newPassword: '',
       confirmNewPassword: '',
@@ -58,6 +67,8 @@ export function ChangePasswordCard({
   })
 
   const onSubmitRegular = regularForm.handleSubmit(async (values) => {
+    setSubmitFeedback(null)
+
     try {
       await authService.changePasswordWithReauth({
         currentPassword: values.currentPassword,
@@ -66,6 +77,7 @@ export function ChangePasswordCard({
       await refreshAuthState()
 
       toast.success('Password updated successfully')
+      setSubmitFeedback({ type: 'success', message: 'Password updated successfully.' })
       regularForm.clearErrors()
       regularForm.reset({
         currentPassword: '',
@@ -73,11 +85,15 @@ export function ChangePasswordCard({
         confirmNewPassword: '',
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to update password')
+      const message = error instanceof Error ? error.message : 'Unable to update password'
+      toast.error(message)
+      setSubmitFeedback({ type: 'error', message })
     }
   })
 
   const onSubmitFirstLogin = firstLoginForm.handleSubmit(async (values) => {
+    setSubmitFeedback(null)
+
     try {
       await authService.setPasswordOnFirstLogin({
         newPassword: values.newPassword,
@@ -85,13 +101,16 @@ export function ChangePasswordCard({
       await refreshAuthState()
 
       toast.success('Password set successfully')
+      setSubmitFeedback({ type: 'success', message: 'Password set successfully.' })
       firstLoginForm.clearErrors()
       firstLoginForm.reset({
         newPassword: '',
         confirmNewPassword: '',
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to set password')
+      const message = error instanceof Error ? error.message : 'Unable to set password'
+      toast.error(message)
+      setSubmitFeedback({ type: 'error', message })
     }
   })
 
@@ -106,6 +125,10 @@ export function ChangePasswordCard({
       ? 'First login detected. Set a strong password before continuing.'
       : 'Change your account password.')
 
+  const isValidAndDirty = mustChangePassword
+    ? firstLoginForm.formState.isValid && firstLoginForm.formState.isDirty
+    : regularForm.formState.isValid && regularForm.formState.isDirty
+
   const toggleVisibility = (key: PasswordFieldKey) => {
     setShowPassword((previous) => ({
       ...previous,
@@ -118,8 +141,23 @@ export function ChangePasswordCard({
       <CardHeader>
         <CardTitle>{effectiveTitle}</CardTitle>
         <p className="text-sm text-muted-foreground">{effectiveDescription}</p>
+        <p className="text-xs text-muted-foreground">
+          Password must be at least 8 characters and different from your current password.
+        </p>
       </CardHeader>
       <CardContent>
+        {submitFeedback ? (
+          <Alert
+            variant={submitFeedback.type === 'error' ? 'destructive' : 'default'}
+            className="mb-4"
+          >
+            <AlertTitle>
+              {submitFeedback.type === 'success' ? 'Success' : 'Could not update password'}
+            </AlertTitle>
+            <AlertDescription>{submitFeedback.message}</AlertDescription>
+          </Alert>
+        ) : null}
+
         {mustChangePassword ? (
           <form className="space-y-4" onSubmit={onSubmitFirstLogin}>
             <PasswordField
@@ -144,13 +182,17 @@ export function ChangePasswordCard({
               registration={firstLoginForm.register('confirmNewPassword')}
             />
 
-            <Button type="submit" disabled={isSubmitting} className="w-full">
+            <Button
+              type="submit"
+              disabled={isSubmitting || !isValidAndDirty}
+              className="w-full border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
+            >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <KeyRound className="mr-2 h-4 w-4" />
               )}
-              {isSubmitting ? 'Setting password...' : 'Set password'}
+              {isSubmitting ? 'Updating...' : 'Update Password'}
             </Button>
           </form>
         ) : (
@@ -188,13 +230,17 @@ export function ChangePasswordCard({
               registration={regularForm.register('confirmNewPassword')}
             />
 
-            <Button type="submit" disabled={isSubmitting} className="w-full">
+            <Button
+              type="submit"
+              disabled={isSubmitting || !isValidAndDirty}
+              className="w-full border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
+            >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <KeyRound className="mr-2 h-4 w-4" />
               )}
-              {isSubmitting ? 'Updating password...' : 'Change password'}
+              {isSubmitting ? 'Updating...' : 'Update Password'}
             </Button>
           </form>
         )}
