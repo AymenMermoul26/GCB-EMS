@@ -1,366 +1,137 @@
-﻿import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Loader2, PencilLine, PlusCircle, Save } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Controller, useForm, useWatch } from 'react-hook-form'
-import { toast } from 'sonner'
+import {
+  ArrowRight,
+  BriefcaseBusiness,
+  Building2,
+  ExternalLink,
+  IdCard,
+  Mail,
+  Phone,
+  QrCode,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react'
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DownloadProfilePdfButton } from '@/components/employee/DownloadProfilePdfButton'
-import { MyQrCard } from '@/components/employee/MyQrCard'
-import {
-  ProfileCompletenessCard,
-  type CompletenessField,
-} from '@/components/employee/ProfileCompletenessCard'
-import { ChangePasswordCard } from '@/components/security/ChangePasswordCard'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
+import { getPublicProfileRoute, ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { useRole } from '@/hooks/use-role'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
-import {
-  employeeSelfEditSchema,
-  normalizeOptional,
-  type EmployeeSelfEditValues,
-} from '@/schemas/employeeSelfEditSchema'
-import { normalizePhoneNumberInput } from '@/schemas/employeeSchema'
-import {
-  modificationRequestSchema,
-  type ModificationRequestValues,
-} from '@/schemas/modification-request.schema'
-import { auditService } from '@/services/auditService'
 import { useDepartmentsQuery } from '@/services/departmentsService'
-import { useEmployeeQuery, useUpdateEmployeeMutation } from '@/services/employeesService'
-import {
-  notificationsService,
-  useMarkNotificationReadMutation,
-  useMyNotificationsQuery,
-  useUnreadNotificationsCountQuery,
-} from '@/services/notificationsService'
-import { useMyRequestsQuery, useSubmitModificationRequestMutation } from '@/services/requestsService'
+import { useEmployeeQuery } from '@/services/employeesService'
+import { useMyActiveTokenQuery } from '@/services/qrService'
 import type { Employee } from '@/types/employee'
-import { MODIFICATION_REQUEST_FIELD_OPTIONS } from '@/types/modification-request'
-import {
-  REQUEST_FIELD_LABELS,
-  getEmployeeFieldValue,
-} from '@/utils/modification-requests'
-
-function getStatusVariant(status: string): 'secondary' | 'outline' {
-  if (status === 'ACCEPTEE') {
-    return 'secondary'
-  }
-
-  return 'outline'
-}
-
-function getStatusClassName(status: string): string {
-  return status === 'REJETEE' ? 'border-destructive text-destructive' : ''
-}
+import type { TokenQR } from '@/types/token'
 
 function getInitials(prenom: string, nom: string) {
-  return `${prenom.trim().charAt(0)}${nom.trim().charAt(0)}`.toUpperCase() || 'NA'
+  return `${prenom.trim().charAt(0)}${nom.trim().charAt(0)}`.toUpperCase() || 'EM'
 }
 
-type QrRefreshField = 'poste' | 'email' | 'telephone' | 'photo_url'
-
-interface SelfEditComparableValues {
-  poste: string | null
-  email: string | null
-  telephone: string | null
-  photo_url: string | null
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString()
 }
 
-function buildComparableValues(
-  employee: Employee,
-  values: EmployeeSelfEditValues,
-): { previous: SelfEditComparableValues; next: SelfEditComparableValues } {
-  const previous: SelfEditComparableValues = {
-    poste: normalizeOptional(employee.poste ?? undefined),
-    email: normalizeOptional(employee.email ?? undefined),
-    telephone: normalizeOptional(employee.telephone ?? undefined),
-    photo_url: normalizeOptional(employee.photoUrl ?? undefined),
+function isTokenValid(token: TokenQR | null): boolean {
+  if (!token || token.statutToken !== 'ACTIF') {
+    return false
   }
 
-  const next: SelfEditComparableValues = {
-    poste: normalizeOptional(values.poste),
-    email: normalizeOptional(values.email),
-    telephone: normalizeOptional(values.telephone),
-    photo_url: normalizeOptional(values.photoUrl),
+  if (!token.expiresAt) {
+    return true
   }
 
-  return { previous, next }
+  return new Date(token.expiresAt).getTime() > Date.now()
 }
 
-function getChangedSelfEditFields(
-  employee: Employee,
-  values: EmployeeSelfEditValues,
-): QrRefreshField[] {
-  const { previous, next } = buildComparableValues(employee, values)
-  const trackedFields: QrRefreshField[] = ['poste', 'email', 'telephone', 'photo_url']
+function computeCompleteness(employee: Employee): number {
+  const weightedFields: Array<string | null> = [
+    employee.photoUrl,
+    employee.email,
+    employee.telephone,
+    employee.poste,
+  ]
 
-  return trackedFields.filter((field) => previous[field] !== next[field])
+  const filled = weightedFields.filter((value) => Boolean(value?.trim())).length
+  return filled * 25
+}
+
+interface DetailRowProps {
+  label: string
+  value: string
+}
+
+function DetailRow({ label, value }: DetailRowProps) {
+  return (
+    <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
+    </div>
+  )
 }
 
 export function EmployeeProfilePage() {
   const { employeId } = useRole()
-  const { user, mustChangePassword } = useAuth()
-  const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false)
+  const { user, signOut, mustChangePassword } = useAuth()
 
   const employeeQuery = useEmployeeQuery(employeId)
   const departmentsQuery = useDepartmentsQuery()
-  const myRequestsQuery = useMyRequestsQuery(employeId, 1, 20)
-  const notificationsQuery = useMyNotificationsQuery(user?.id)
-  const unreadNotificationsCountQuery = useUnreadNotificationsCountQuery(user?.id)
+  const tokenQuery = useMyActiveTokenQuery(employeId)
 
   const departmentName = useMemo(() => {
-    if (!employeeQuery.data || !departmentsQuery.data) {
+    const employeeData = employeeQuery.data
+    if (!employeeData || !departmentsQuery.data) {
       return null
     }
 
     return (
-      departmentsQuery.data.find(
-        (department) => department.id === employeeQuery.data?.departementId,
-      )?.nom ?? null
+      departmentsQuery.data.find((department) => department.id === employeeData.departementId)?.nom ??
+      null
     )
   }, [departmentsQuery.data, employeeQuery.data])
 
-  const editForm = useForm<EmployeeSelfEditValues>({
-    resolver: zodResolver(employeeSelfEditSchema),
-    mode: 'onChange',
-    reValidateMode: 'onChange',
-    defaultValues: {
-      poste: '',
-      email: '',
-      telephone: '',
-      photoUrl: '',
-    },
-  })
+  const currentToken = tokenQuery.data ?? null
+  const hasValidPublicToken = isTokenValid(currentToken)
 
-  const telephoneRegister = editForm.register('telephone')
+  const publicProfileUrl = useMemo(() => {
+    if (!currentToken || !hasValidPublicToken) {
+      return null
+    }
 
-  useEffect(() => {
-    if (!employeeQuery.data) {
+    return `${window.location.origin}${getPublicProfileRoute(currentToken.token)}`
+  }, [currentToken, hasValidPublicToken])
+
+  const requestChangesRoute = `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#requests`
+  const securityRoute = `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#security`
+  const myQrRoute = `${ROUTES.EMPLOYEE_PROFILE_MANAGE}#my-qr`
+
+  const handlePreviewPublicProfile = () => {
+    if (!publicProfileUrl) {
       return
     }
 
-    editForm.reset({
-      poste: employeeQuery.data.poste ?? '',
-      email: employeeQuery.data.email ?? '',
-      telephone: employeeQuery.data.telephone ?? '',
-      photoUrl: employeeQuery.data.photoUrl ?? '',
-    })
-  }, [editForm, employeeQuery.data])
-
-  const updateProfileMutation = useUpdateEmployeeMutation({
-    onSuccess: async (updatedEmployee) => {
-      toast.success('Profile updated successfully.')
-      try {
-        await auditService.insertAuditLog({
-          action: 'EMPLOYEE_SELF_UPDATED',
-          targetType: 'Employe',
-          targetId: updatedEmployee.id,
-          detailsJson: {
-            fields: ['poste', 'email', 'telephone', 'photo_url'],
-          },
-        })
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Unable to write audit log')
-      }
-      await employeeQuery.refetch()
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
-
-  const requestForm = useForm<ModificationRequestValues>({
-    resolver: zodResolver(modificationRequestSchema),
-    defaultValues: {
-      champCible: 'poste',
-      ancienneValeur: '',
-      nouvelleValeur: '',
-      motif: '',
-    },
-  })
-
-  const selectedRequestField = useWatch({
-    control: requestForm.control,
-    name: 'champCible',
-  })
-
-  const watchedPoste = useWatch({
-    control: editForm.control,
-    name: 'poste',
-  })
-  const watchedEmail = useWatch({
-    control: editForm.control,
-    name: 'email',
-  })
-  const watchedTelephone = useWatch({
-    control: editForm.control,
-    name: 'telephone',
-  })
-  const watchedPhotoUrl = useWatch({
-    control: editForm.control,
-    name: 'photoUrl',
-  })
-
-  useEffect(() => {
-    if (!employeeQuery.data || !selectedRequestField) {
-      return
-    }
-
-    const currentValue = getEmployeeFieldValue(employeeQuery.data, selectedRequestField)
-    requestForm.setValue('ancienneValeur', currentValue)
-    requestForm.setValue('nouvelleValeur', '')
-  }, [employeeQuery.data, requestForm, selectedRequestField])
-
-  const submitRequestMutation = useSubmitModificationRequestMutation({
-    onSuccess: async (createdRequest) => {
-      toast.success('Request submitted.')
-      requestForm.clearErrors()
-      setIsRequestDialogOpen(false)
-      requestForm.reset({
-        champCible: 'poste',
-        ancienneValeur: employeeQuery.data ? getEmployeeFieldValue(employeeQuery.data, 'poste') : '',
-        nouvelleValeur: '',
-        motif: '',
-      })
-
-      try {
-        await auditService.insertAuditLog({
-          action: 'REQUEST_SUBMITTED',
-          targetType: 'DemandeModification',
-          targetId: createdRequest.id,
-          detailsJson: {
-            champ_cible: createdRequest.champCible,
-            ancienne_valeur: createdRequest.ancienneValeur,
-            nouvelle_valeur: createdRequest.nouvelleValeur,
-          },
-        })
-      } catch (error) {
-        console.error('Failed to write request submission audit log', error)
-      }
-
-      await myRequestsQuery.refetch()
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
-
-  const markNotificationReadMutation = useMarkNotificationReadMutation(user?.id, {
-    onSuccess: async () => {
-      await notificationsQuery.refetch()
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
-
-  const onSubmitSelfEdit = editForm.handleSubmit(async (values) => {
-    if (!employeId) {
-      return
-    }
-
-    const currentEmployee = employeeQuery.data
-    if (!currentEmployee) {
-      return
-    }
-
-    const changedFields = getChangedSelfEditFields(currentEmployee, values)
-
-    await updateProfileMutation.mutateAsync({
-      id: employeId,
-      payload: {
-        poste: normalizeOptional(values.poste),
-        email: normalizeOptional(values.email),
-        telephone: normalizeOptional(values.telephone),
-        photoUrl: normalizeOptional(values.photoUrl),
-      },
-    })
-
-    if (changedFields.length === 0) {
-      return
-    }
-
-    try {
-      await notificationsService.notifyAdminsQrRefreshRequired({
-        employeId,
-        changedFields,
-      })
-    } catch (error) {
-      console.error('Failed to notify admins about QR refresh requirement', error)
-    }
-  })
-
-  const onSubmitRequest = requestForm.handleSubmit(async (values) => {
-    if (!employeId) {
-      return
-    }
-
-    await submitRequestMutation.mutateAsync({
-      employeId,
-      champCible: values.champCible,
-      ancienneValeur: (values.ancienneValeur ?? '').trim() || null,
-      nouvelleValeur: values.nouvelleValeur.trim(),
-      motif: values.motif?.trim() || null,
-    })
-  })
-
-  const handleFocusProfileField = (field: CompletenessField) => {
-    const fieldIdMap: Record<CompletenessField, string> = {
-      poste: 'employee-profile-poste',
-      email: 'employee-profile-email',
-      telephone: 'employee-profile-telephone',
-      photo_url: 'employee-profile-photo-url',
-    }
-
-    const targetId = fieldIdMap[field]
-    const element = document.getElementById(targetId) as HTMLInputElement | null
-    if (!element) {
-      return
-    }
-
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    window.setTimeout(() => {
-      element.focus()
-    }, 200)
+    window.open(publicProfileUrl, '_blank', 'noopener,noreferrer')
   }
 
   if (employeeQuery.isPending) {
     return (
-      <DashboardLayout title="My Profile" subtitle="Loading your profile...">
+      <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
         <div className="space-y-4">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-72 w-full" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
+          <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
+            <Skeleton className="h-[420px] w-full rounded-2xl" />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Skeleton className="h-48 w-full rounded-2xl" />
+              <Skeleton className="h-48 w-full rounded-2xl" />
+              <Skeleton className="h-48 w-full rounded-2xl" />
+              <Skeleton className="h-48 w-full rounded-2xl" />
+            </div>
+          </div>
         </div>
       </DashboardLayout>
     )
@@ -368,12 +139,31 @@ export function EmployeeProfilePage() {
 
   if (employeeQuery.isError) {
     return (
-      <DashboardLayout title="My Profile" subtitle="Could not load profile.">
-        <Card>
-          <CardContent className="space-y-3 p-6">
-            <p className="text-sm text-destructive">{employeeQuery.error.message}</p>
-            <Button variant="outline" onClick={() => void employeeQuery.refetch()}>
+      <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
+        <Alert variant="destructive">
+          <AlertTitle>Failed to load profile</AlertTitle>
+          <AlertDescription className="mt-2 flex flex-wrap items-center gap-3">
+            <span>{employeeQuery.error.message}</span>
+            <Button variant="outline" size="sm" onClick={() => void employeeQuery.refetch()}>
               Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </DashboardLayout>
+    )
+  }
+
+  if (!employeeQuery.data) {
+    return (
+      <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
+        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <CardHeader>
+            <CardTitle>Profile not available</CardTitle>
+            <CardDescription>Your employee profile is not linked yet. Contact HR support.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => void signOut()}>
+              Logout
             </Button>
           </CardContent>
         </Card>
@@ -381,385 +171,203 @@ export function EmployeeProfilePage() {
     )
   }
 
-  if (!employeeQuery.data) {
-    return (
-      <DashboardLayout title="My Profile" subtitle="No employee profile linked.">
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Unable to find your employee profile.
-          </CardContent>
-        </Card>
-      </DashboardLayout>
-    )
-  }
-
   const employee = employeeQuery.data
+  const fullName = `${employee.prenom} ${employee.nom}`
+  const completeness = computeCompleteness(employee)
 
   return (
-    <DashboardLayout
-      title="My Profile"
-      subtitle="View your information and submit profile change requests."
-    >
+    <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
       {mustChangePassword ? (
-        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           You must change your password before using the application.
         </div>
       ) : null}
 
-      <ProfileCompletenessCard
-        values={{
-          poste: watchedPoste ?? '',
-          email: watchedEmail ?? '',
-          telephone: watchedTelephone ?? '',
-          photoUrl: watchedPhotoUrl ?? '',
-        }}
-        onAddNow={handleFocusProfileField}
-      />
+      <section className="mb-5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-3 h-1 w-28 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Profile Overview</h2>
+            <p className="text-sm text-slate-600">
+              Keep your information up to date using the profile management workflow.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePreviewPublicProfile}
+              disabled={!publicProfileUrl}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Preview Public Profile
+            </Button>
+            <Button
+              asChild
+              className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
+            >
+              <Link to={requestChangesRoute}>
+                Request Changes
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
 
-      <div className="mt-4 flex justify-end">
-        <DownloadProfilePdfButton
-          employee={employee}
-          departementName={departmentName ?? employee.departementId}
-          employeId={employeId}
-        />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Profile Overview</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex items-center gap-4">
-              {employee.photoUrl ? (
-                <img
-                  src={employee.photoUrl}
-                  alt={`${employee.prenom} ${employee.nom}`}
-                  className="h-20 w-20 rounded-full border object-cover"
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border bg-slate-100 text-xl font-semibold text-slate-600">
-                  {getInitials(employee.prenom, employee.nom)}
-                </div>
-              )}
-              <div>
-                <p className="text-lg font-semibold">
-                  {employee.prenom} {employee.nom}
-                </p>
-                <p className="text-sm text-muted-foreground">Matricule: {employee.matricule}</p>
-                <Badge variant={employee.isActive ? 'secondary' : 'outline'} className="mt-2">
+      <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
+        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <CardHeader className="space-y-4">
+            <div className="h-1.5 w-20 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
+            <div className="flex flex-col items-center text-center">
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                {employee.photoUrl ? (
+                  <img
+                    src={employee.photoUrl}
+                    alt={fullName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-2xl font-semibold text-slate-600">
+                    {getInitials(employee.prenom, employee.nom)}
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-4 text-xl font-semibold text-slate-900">{fullName}</h3>
+              <p className="text-sm text-slate-500">{employee.poste ?? 'Position not set'}</p>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <Badge variant="secondary" className="gap-1 bg-slate-100 text-slate-700">
+                  <Building2 className="h-3.5 w-3.5" />
+                  {departmentName ?? 'Department not set'}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={employee.isActive ? 'border-emerald-300 text-emerald-700' : ''}
+                >
                   {employee.isActive ? 'Active' : 'Inactive'}
                 </Badge>
               </div>
             </div>
-
-            <div className="grid gap-3 md:grid-cols-2 text-sm">
-              <InfoField label="Departement" value={departmentName ?? employee.departementId} />
-              <InfoField label="Poste" value={employee.poste ?? 'Not set'} />
-              <InfoField label="Email" value={employee.email ?? 'Not set'} />
-              <InfoField label="Telephone" value={employee.telephone ?? 'Not set'} />
-              <InfoField label="Nom" value={employee.nom} />
-              <InfoField label="Prenom" value={employee.prenom} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit my profile</CardTitle>
           </CardHeader>
-          <CardContent>
-            <form className="space-y-3" onSubmit={onSubmitSelfEdit}>
-              <FormField label="Poste" error={editForm.formState.errors.poste?.message}>
-                <Input
-                  id="employee-profile-poste"
-                  {...editForm.register('poste')}
-                  disabled={updateProfileMutation.isPending}
-                />
-              </FormField>
+          <CardContent className="space-y-3">
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Employee ID</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">
+                ID: {employee.matricule}
+              </p>
+            </div>
 
-              <FormField label="Email" error={editForm.formState.errors.email?.message}>
-                <Input
-                  id="employee-profile-email"
-                  type="email"
-                  {...editForm.register('email')}
-                  disabled={updateProfileMutation.isPending}
-                />
-              </FormField>
+            <div className="space-y-2 rounded-xl border border-slate-200/80 bg-slate-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Contact</p>
+              <div className="flex items-start gap-2 text-sm text-slate-700">
+                <Mail className="mt-0.5 h-4 w-4 text-slate-500" />
+                <span className="break-all">{employee.email ?? 'Not provided'}</span>
+              </div>
+              <div className="flex items-start gap-2 text-sm text-slate-700">
+                <Phone className="mt-0.5 h-4 w-4 text-slate-500" />
+                <span>{employee.telephone ?? 'Not provided'}</span>
+              </div>
+            </div>
 
-              <FormField
-                label="Telephone"
-                error={editForm.formState.errors.telephone?.message}
-              >
-                <Input
-                  id="employee-profile-telephone"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="+213612345678"
-                  {...telephoneRegister}
-                  onBlur={(event) => {
-                    telephoneRegister.onBlur(event)
-                    const normalized = normalizePhoneNumberInput(event.target.value)
-                    editForm.setValue('telephone', normalized ?? '', {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                      shouldTouch: true,
-                    })
-                  }}
-                  disabled={updateProfileMutation.isPending}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Format: +213 followed by 5, 6, or 7 and 8 digits.
-                </p>
-              </FormField>
-
-              <FormField label="Photo URL" error={editForm.formState.errors.photoUrl?.message}>
-                <Input
-                  id="employee-profile-photo-url"
-                  {...editForm.register('photoUrl')}
-                  disabled={updateProfileMutation.isPending}
-                />
-              </FormField>
-
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={updateProfileMutation.isPending || !editForm.formState.isValid}
-              >
-                {updateProfileMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                {updateProfileMutation.isPending ? 'Saving...' : 'Save profile'}
-              </Button>
-            </form>
+            <div className="space-y-2 rounded-xl border border-slate-200/80 bg-slate-50 p-3">
+              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-500">
+                <span>Profile completeness</span>
+                <span>{completeness}%</span>
+              </div>
+              <Progress value={completeness} />
+            </div>
           </CardContent>
         </Card>
-      </div>
 
-      <ChangePasswordCard
-        anchorId="security"
-        className="mt-4"
-        title="Security"
-      />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <UserRound className="h-4 w-4 text-slate-600" />
+                Personal Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <DetailRow label="Full name" value={fullName} />
+              <DetailRow label="Email" value={employee.email ?? 'Not provided'} />
+              <DetailRow label="Phone" value={employee.telephone ?? 'Not provided'} />
+            </CardContent>
+          </Card>
 
-      <MyQrCard employeId={employeId} />
+          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
+                Work Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <DetailRow label="Job title" value={employee.poste ?? 'Not set'} />
+              <DetailRow label="Department" value={departmentName ?? 'Not assigned'} />
+              <DetailRow label="Matricule" value={employee.matricule} />
+              <DetailRow label="Profile updated" value={formatDate(employee.updatedAt)} />
+            </CardContent>
+          </Card>
 
-      <Card className="mt-4">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Modification Requests</CardTitle>
-          <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Request a change
+          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-4 w-4 text-slate-600" />
+                Account & Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <DetailRow label="Auth email" value={user?.email ?? employee.email ?? 'Not available'} />
+              <DetailRow label="Role" value="Employee" />
+              <Button asChild variant="outline" className="w-full">
+                <Link to={securityRoute}>Change Password</Link>
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Submit modification request</DialogTitle>
-                <DialogDescription>
-                  Send a request to Admin RH for fields requiring review.
-                </DialogDescription>
-              </DialogHeader>
+            </CardContent>
+          </Card>
 
-              <form className="space-y-4" onSubmit={onSubmitRequest}>
-                <FormField label="Field" error={requestForm.formState.errors.champCible?.message}>
-                  <Controller
-                    control={requestForm.control}
-                    name="champCible"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select field" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MODIFICATION_REQUEST_FIELD_OPTIONS.map((option) => (
-                            <SelectItem key={option.key} value={option.key}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </FormField>
-
-                <FormField label="Current value">
-                  <Input value={requestForm.getValues('ancienneValeur') ?? ''} disabled />
-                </FormField>
-
-                <FormField
-                  label="New value"
-                  error={requestForm.formState.errors.nouvelleValeur?.message}
+          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <QrCode className="h-4 w-4 text-slate-600" />
+                QR & Public Visibility
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-slate-600">
+                Your public profile is available through your QR token and HR visibility settings.
+              </p>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    hasValidPublicToken
+                      ? 'border-emerald-300 text-emerald-700'
+                      : 'border-amber-300 text-amber-700'
+                  }
                 >
-                  <Input {...requestForm.register('nouvelleValeur')} />
-                </FormField>
-
-                <FormField label="Reason (optional)">
-                  <Textarea rows={3} {...requestForm.register('motif')} />
-                </FormField>
-
-                <DialogFooter>
-                  <Button type="submit" disabled={submitRequestMutation.isPending}>
-                    {submitRequestMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <PencilLine className="mr-2 h-4 w-4" />
-                    )}
-                    Submit request
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-
-        <CardContent>
-          {myRequestsQuery.isPending ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : null}
-
-          {myRequestsQuery.isError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              {myRequestsQuery.error.message}
-            </div>
-          ) : null}
-
-          {!myRequestsQuery.isPending && !myRequestsQuery.isError && myRequestsQuery.data ? (
-            myRequestsQuery.data.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No requests submitted yet.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Field</TableHead>
-                    <TableHead>Old</TableHead>
-                    <TableHead>New</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Admin comment</TableHead>
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {myRequestsQuery.data.items.map((request) => (
-                    <TableRow key={request.id}>
-                      <TableCell>{REQUEST_FIELD_LABELS[request.champCible]}</TableCell>
-                      <TableCell>{request.ancienneValeur ?? '-'}</TableCell>
-                      <TableCell>{request.nouvelleValeur ?? '-'}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={getStatusVariant(request.statutDemande)}
-                          className={getStatusClassName(request.statutDemande)}
-                        >
-                          {request.statutDemande}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{request.commentaireTraitement ?? '-'}</TableCell>
-                      <TableCell>{new Date(request.createdAt).toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Workflow Notifications
-            {(unreadNotificationsCountQuery.data ?? 0) > 0 ? (
-              <Badge className="border-transparent bg-red-600 text-white">
-                {unreadNotificationsCountQuery.data}
-              </Badge>
-            ) : null}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {notificationsQuery.isPending ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : null}
-
-          {notificationsQuery.isError ? (
-            <p className="text-sm text-destructive">{notificationsQuery.error.message}</p>
-          ) : null}
-
-          {!notificationsQuery.isPending && !notificationsQuery.isError ? (
-            notificationsQuery.data && notificationsQuery.data.length > 0 ? (
-              <div className="space-y-2">
-                {notificationsQuery.data.slice(0, 8).map((item) => (
-                  <div key={item.id} className="rounded-md border p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">{item.title}</p>
-                        <p className="text-sm text-muted-foreground">{item.body}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(item.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                      {!item.isRead ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={markNotificationReadMutation.isPending}
-                          onClick={() => void markNotificationReadMutation.mutateAsync(item.id)}
-                        >
-                          Mark read
-                        </Button>
-                      ) : (
-                        <Badge variant="secondary">Read</Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  {hasValidPublicToken ? 'Public link active' : 'Public link unavailable'}
+                </Badge>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No notifications yet.</p>
-            )
-          ) : null}
-        </CardContent>
-      </Card>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePreviewPublicProfile}
+                  disabled={!publicProfileUrl}
+                >
+                  Preview QR Profile
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to={myQrRoute}>
+                    Open My QR
+                    <IdCard className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </DashboardLayout>
   )
 }
-
-interface InfoFieldProps {
-  label: string
-  value: string
-}
-
-function InfoField({ label, value }: InfoFieldProps) {
-  return (
-    <p>
-      <span className="font-medium">{label}:</span> {value}
-    </p>
-  )
-}
-
-interface FormFieldProps {
-  label: string
-  error?: string
-  children: ReactNode
-}
-
-function FormField({ label, error, children }: FormFieldProps) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
-  )
-}
-

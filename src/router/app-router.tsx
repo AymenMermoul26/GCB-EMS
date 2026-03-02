@@ -15,6 +15,7 @@ import { AdminRequestsPage } from '@/pages/admin/admin-requests-page'
 import { EmployeesListPage } from '@/pages/admin/EmployeesList'
 import { DepartmentsPage } from '@/pages/admin/DepartmentsPage'
 import { LoginPage } from '@/pages/auth/login-page'
+import { EmployeeProfileManagePage } from '@/pages/employee/employee-profile-manage-page'
 import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
 import { NotFoundPage } from '@/pages/not-found-page'
 import { NotificationsPage } from '@/pages/notifications-page'
@@ -65,6 +66,7 @@ export function AppRouter() {
             <Route element={<EmployeeRoute />}>
               <Route path={ROUTES.EMPLOYEE} element={<Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />} />
               <Route path={ROUTES.EMPLOYEE_PROFILE} element={<EmployeeProfilePage />} />
+              <Route path={ROUTES.EMPLOYEE_PROFILE_MANAGE} element={<EmployeeProfileManagePage />} />
             </Route>
 
             <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />

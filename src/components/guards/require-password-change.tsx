@@ -17,7 +17,7 @@ export function RequirePasswordChange() {
   const isOnEmployeeProfile = location.pathname.startsWith(ROUTES.EMPLOYEE_PROFILE)
 
   if (isEmployee && mustChangePassword && !isOnEmployeeProfile) {
-    return <Navigate to={`${ROUTES.EMPLOYEE_PROFILE}#security`} replace />
+    return <Navigate to={`${ROUTES.EMPLOYEE_PROFILE_MANAGE}#security`} replace />
   }
 
   return <Outlet />

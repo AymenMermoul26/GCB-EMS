@@ -9,6 +9,7 @@ export const ROUTES = {
   ADMIN_AUDIT: '/admin/audit',
   EMPLOYEE: '/employee',
   EMPLOYEE_PROFILE: '/employee/profile',
+  EMPLOYEE_PROFILE_MANAGE: '/employee/profile/manage',
   NOTIFICATIONS: '/notifications',
   PUBLIC_PROFILE_BASE: '/p',
 } as const
