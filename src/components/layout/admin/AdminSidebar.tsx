@@ -94,12 +94,30 @@ interface AdminSidebarMobileProps {
   className?: string
 }
 
-function getIsActive(pathname: string, route: string): boolean {
-  if (pathname === route) {
-    return true
+function splitToPathAndHash(to: string): { path: string; hash: string } {
+  const [path, hash = ''] = to.split('#')
+  return {
+    path,
+    hash: hash ? `#${hash}` : '',
+  }
+}
+
+function getRouteMatchScore(pathname: string, currentHash: string, to: string): number {
+  const { path, hash } = splitToPathAndHash(to)
+
+  if (hash) {
+    return pathname === path && currentHash === hash ? path.length + 1000 : -1
   }
 
-  return pathname.startsWith(`${route}/`)
+  if (pathname === path) {
+    return path.length + 500
+  }
+
+  if (pathname.startsWith(`${path}/`)) {
+    return path.length
+  }
+
+  return -1
 }
 
 function getUserInitial(userEmail?: string | null): string {
@@ -151,9 +169,23 @@ function AdminSidebarContent({
   const compactMode = isMobile ? false : isCollapsed
   const userInitial = useMemo(() => getUserInitial(userEmail), [userEmail])
   const activeItemIndex = useMemo(
-    () => ADMIN_NAV_ITEMS.findIndex((item) => getIsActive(location.pathname, item.to)),
-    [location.pathname],
+    () => {
+      let bestIndex = -1
+      let bestScore = -1
+
+      ADMIN_NAV_ITEMS.forEach((item, index) => {
+        const score = getRouteMatchScore(location.pathname, location.hash, item.to)
+        if (score > bestScore) {
+          bestScore = score
+          bestIndex = index
+        }
+      })
+
+      return bestIndex
+    },
+    [location.hash, location.pathname],
   )
+  const activeKey = activeItemIndex >= 0 ? ADMIN_NAV_ITEMS[activeItemIndex].key : null
   const [animatedActiveItemIndex, setAnimatedActiveItemIndex] = useState(() => {
     if (typeof window === 'undefined') {
       return activeItemIndex
@@ -263,7 +295,7 @@ function AdminSidebarContent({
           )}
           style={{
             top: ACTIVE_PILL_TOP_OFFSET,
-            left: compactMode ? 0 : ACTIVE_PILL_LEFT_OFFSET,
+            left: ACTIVE_PILL_LEFT_OFFSET,
             transform: `translate3d(0, ${activeIndicatorY}px, 0)`,
             height: NAV_ITEM_HEIGHT,
             transitionTimingFunction: MODERN_EASE,
@@ -272,7 +304,7 @@ function AdminSidebarContent({
         />
         {ADMIN_NAV_ITEMS.map((item) => {
           const Icon = item.icon
-          const isActive = getIsActive(location.pathname, item.to)
+          const isActive = activeKey === item.key
           const badgeCount = item.key === 'requests' ? pendingRequestsCount : 0
 
           return (
@@ -287,7 +319,7 @@ function AdminSidebarContent({
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))] focus-visible:ring-offset-2',
                 isActive
                   ? 'text-white'
-                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950',
+                  : 'text-slate-700 hover:translate-x-[2px] hover:bg-slate-100 hover:text-slate-950',
               )}
               style={{ transitionTimingFunction: MODERN_EASE }}
             >

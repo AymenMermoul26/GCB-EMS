@@ -93,7 +93,7 @@ export function NotificationsMenu() {
   }
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="relative z-50" ref={rootRef}>
       <Button
         variant="ghost"
         size="icon"
@@ -109,7 +109,7 @@ export function NotificationsMenu() {
       </Button>
 
       {isOpen ? (
-        <div className="absolute right-0 z-50 mt-2 w-[390px] max-w-[calc(100vw-1.25rem)] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_22px_45px_-25px_rgba(15,23,42,0.55)]">
+        <div className="absolute right-0 z-[70] mt-2 w-[390px] max-w-[calc(100vw-1.25rem)] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_22px_45px_-25px_rgba(15,23,42,0.55)]">
           <div className="border-b border-slate-200/70 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">

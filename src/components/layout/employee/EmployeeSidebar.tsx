@@ -36,10 +36,12 @@ import { useEmployeeQuery } from '@/services/employeesService'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
+const SIDEBAR_COLLAPSE_STORAGE_KEY = 'gcb.employee.sidebar.collapsed'
+const SIDEBAR_LAST_ACTIVE_INDEX_STORAGE_KEY = 'gcb.employee.sidebar.last-active-index'
 const NAV_ITEM_HEIGHT = 50
 const NAV_ITEM_GAP = 8
-const ACTIVE_PILL_TOP_OFFSET = 0
-const ACTIVE_PILL_LEFT_OFFSET = -2
+const ACTIVE_PILL_TOP_OFFSET = 7
+const ACTIVE_PILL_LEFT_OFFSET = -6
 const MODERN_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 
 interface EmployeeNavItem {
@@ -105,17 +107,22 @@ function splitToPathAndHash(to: string): { path: string; hash: string } {
   }
 }
 
-function isRouteActive(pathname: string, currentHash: string, to: string): boolean {
+function getRouteMatchScore(pathname: string, currentHash: string, to: string): number {
   const { path, hash } = splitToPathAndHash(to)
+
   if (hash) {
-    return pathname === path && currentHash === hash
+    return pathname === path && currentHash === hash ? path.length + 1000 : -1
   }
 
   if (pathname === path) {
-    return true
+    return path.length + 500
   }
 
-  return pathname.startsWith(`${path}/`)
+  if (pathname.startsWith(`${path}/`)) {
+    return path.length
+  }
+
+  return -1
 }
 
 function getEmployeeInitials(prenom?: string | null, nom?: string | null): string {
@@ -133,27 +140,81 @@ function EmployeeSidebarContent({
   onNavigate,
 }: EmployeeSidebarProps) {
   const location = useLocation()
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    try {
+      return window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const { employeId } = useRole()
   const { user } = useAuth()
   const employeeQuery = useEmployeeQuery(employeId)
 
-  const activeKey = useMemo(
-    () =>
-      EMPLOYEE_NAV_ITEMS.find((item) =>
-        isRouteActive(location.pathname, location.hash, item.to),
-      )?.key ?? null,
-    [location.hash, location.pathname],
-  )
+  useEffect(() => {
+    if (isMobile) {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(
+        SIDEBAR_COLLAPSE_STORAGE_KEY,
+        isCollapsed ? '1' : '0',
+      )
+    } catch {
+      // Ignore storage errors and keep runtime state.
+    }
+  }, [isCollapsed, isMobile])
+
+  const compactMode = isMobile ? false : isCollapsed
 
   const activeItemIndex = useMemo(
-    () =>
-      EMPLOYEE_NAV_ITEMS.findIndex((item) =>
-        isRouteActive(location.pathname, location.hash, item.to),
-      ),
+    () => {
+      let bestIndex = -1
+      let bestScore = -1
+
+      EMPLOYEE_NAV_ITEMS.forEach((item, index) => {
+        const score = getRouteMatchScore(location.pathname, location.hash, item.to)
+        if (score > bestScore) {
+          bestScore = score
+          bestIndex = index
+        }
+      })
+
+      return bestIndex
+    },
     [location.hash, location.pathname],
   )
 
-  const [animatedActiveItemIndex, setAnimatedActiveItemIndex] = useState(activeItemIndex)
+  const activeKey = activeItemIndex >= 0 ? EMPLOYEE_NAV_ITEMS[activeItemIndex].key : null
+
+  const [animatedActiveItemIndex, setAnimatedActiveItemIndex] = useState(() => {
+    if (typeof window === 'undefined') {
+      return activeItemIndex
+    }
+
+    try {
+      const storedValue = window.localStorage.getItem(
+        SIDEBAR_LAST_ACTIVE_INDEX_STORAGE_KEY,
+      )
+      if (storedValue === null) {
+        return activeItemIndex
+      }
+
+      const parsed = Number(storedValue)
+      if (!Number.isFinite(parsed)) {
+        return activeItemIndex
+      }
+
+      return parsed
+    } catch {
+      return activeItemIndex
+    }
+  })
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -170,6 +231,21 @@ function EmployeeSidebarContent({
       ? animatedActiveItemIndex * (NAV_ITEM_HEIGHT + NAV_ITEM_GAP)
       : 0
 
+  useEffect(() => {
+    if (activeItemIndex < 0) {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(
+        SIDEBAR_LAST_ACTIVE_INDEX_STORAGE_KEY,
+        String(activeItemIndex),
+      )
+    } catch {
+      // Ignore storage errors and keep runtime state.
+    }
+  }, [activeItemIndex])
+
   const employeeInitial = getEmployeeInitials(
     employeeQuery.data?.prenom ?? null,
     employeeQuery.data?.nom ?? null,
@@ -184,31 +260,55 @@ function EmployeeSidebarContent({
   return (
     <aside
       className={cn(
-        'flex h-full w-[280px] flex-col rounded-[28px] border border-white/70 bg-white/85 p-4 shadow-[0_28px_65px_-38px_rgba(15,23,42,0.65)] backdrop-blur supports-[backdrop-filter]:bg-white/70',
+        'flex h-full flex-col rounded-[28px] border border-white/70 bg-white/85 p-4 shadow-[0_28px_65px_-38px_rgba(15,23,42,0.65)] backdrop-blur supports-[backdrop-filter]:bg-white/70',
+        'transition-[width] duration-300 ease-out',
+        compactMode ? 'w-[84px]' : 'w-[280px]',
         className,
       )}
     >
       <div className="flex min-h-16 items-center gap-3 px-1">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_12px_30px_-16px_rgba(255,107,53,0.85)]">
-          <img src="/gcb-logo.svg" alt="Company logo" className="h-8 w-8 object-contain" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">GCB EMS</p>
-          <p className="truncate text-xs text-slate-500">Employee workspace</p>
-        </div>
+        <button
+          type="button"
+          onClick={
+            isMobile
+              ? undefined
+              : () => {
+                  setIsCollapsed((value) => !value)
+                }
+          }
+          aria-label={compactMode ? 'Expand employee sidebar' : 'Collapse employee sidebar'}
+          className={cn(
+            'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-colors',
+            !isMobile &&
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))] focus-visible:ring-offset-2 hover:bg-slate-100/80',
+          )}
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_12px_30px_-16px_rgba(255,107,53,0.85)]">
+            <img src="/gcb-logo.svg" alt="Company logo" className="h-8 w-8 object-contain" />
+          </div>
+          <div
+            className={cn(
+              'min-w-0 overflow-hidden text-left transition-all duration-200',
+              compactMode ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] opacity-100',
+            )}
+          >
+            <p className="truncate text-sm font-semibold text-slate-900">GCB EMS</p>
+            <p className="truncate text-xs text-slate-500">Employee workspace</p>
+          </div>
+        </button>
       </div>
 
       <nav className="relative mt-5 flex-1 space-y-2">
         <span
           className={cn(
             'pointer-events-none absolute z-0 rounded-2xl border border-white/25 bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_20px_38px_-20px_rgba(255,107,53,1)] will-change-transform',
-            'transition-[transform,opacity] duration-500',
+            'transition-[transform,height,opacity] duration-500',
+            compactMode ? 'right-0' : 'right-1',
             animatedActiveItemIndex >= 0 ? 'opacity-100' : 'opacity-0',
           )}
           style={{
             top: ACTIVE_PILL_TOP_OFFSET,
             left: ACTIVE_PILL_LEFT_OFFSET,
-            right: 0,
             transform: `translate3d(0, ${activeIndicatorY}px, 0)`,
             height: NAV_ITEM_HEIGHT,
             transitionTimingFunction: MODERN_EASE,
@@ -224,7 +324,8 @@ function EmployeeSidebarContent({
               to={item.to}
               onClick={() => onNavigate?.()}
               className={cn(
-                'group relative z-10 flex h-[50px] items-center overflow-hidden rounded-2xl px-3.5 py-0 text-sm font-medium leading-none transition-[color,background-color,transform] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))] focus-visible:ring-offset-2',
+                'group relative z-10 flex h-[50px] items-center overflow-hidden rounded-2xl py-0 text-sm font-medium leading-none transition-[color,background-color,transform] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))] focus-visible:ring-offset-2',
+                compactMode ? 'justify-center px-0' : 'justify-start px-3.5',
                 isActive
                   ? 'text-white'
                   : 'text-slate-700 hover:translate-x-[2px] hover:bg-slate-100 hover:text-slate-950',
@@ -234,6 +335,7 @@ function EmployeeSidebarContent({
               <span
                 className={cn(
                   'absolute left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-white/90 transition-opacity',
+                  compactMode && 'hidden',
                   isActive ? 'opacity-100' : 'opacity-0',
                 )}
                 aria-hidden="true"
@@ -241,13 +343,27 @@ function EmployeeSidebarContent({
               <span className="relative z-10 flex h-5 w-5 items-center justify-center">
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
               </span>
-              <span className="relative z-10 ml-3 truncate leading-none">{item.label}</span>
+              <span
+                className={cn(
+                  'relative z-10 ml-3 overflow-hidden whitespace-nowrap leading-none transition-all duration-300',
+                  compactMode ? 'max-w-0 opacity-0' : 'max-w-[170px] opacity-100',
+                  isActive ? 'text-center font-semibold' : 'text-left',
+                )}
+                style={{ transitionTimingFunction: MODERN_EASE }}
+              >
+                {item.label}
+              </span>
             </Link>
           )
         })}
       </nav>
 
-      <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3">
+      <div
+        className={cn(
+          'space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3 transition-all',
+          compactMode && 'items-center p-2.5',
+        )}
+      >
         {employeeQuery.isPending ? (
           <div className="space-y-2">
             <Skeleton className="h-9 w-full" />
@@ -267,17 +383,29 @@ function EmployeeSidebarContent({
               )}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">
+              <p
+                className={cn(
+                  'truncate text-sm font-semibold text-slate-900 transition-all duration-200',
+                  compactMode && 'max-w-0 opacity-0',
+                )}
+              >
                 {employeeQuery.data
                   ? `${employeeQuery.data.prenom} ${employeeQuery.data.nom}`
                   : 'Employee'}
               </p>
-              <p className="truncate text-xs text-slate-500">{userEmail ?? user?.email ?? 'No email'}</p>
+              <p
+                className={cn(
+                  'truncate text-xs text-slate-500 transition-all duration-200',
+                  compactMode && 'max-w-0 opacity-0',
+                )}
+              >
+                {userEmail ?? user?.email ?? 'No email'}
+              </p>
             </div>
           </div>
         )}
 
-        <div className="flex items-center justify-between">
+        <div className={cn('flex items-center justify-between', compactMode && 'justify-center')}>
           <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
             Employee
           </Badge>
@@ -291,15 +419,23 @@ function EmployeeSidebarContent({
           variant="outline"
           className={cn(
             'w-full border-slate-200 text-slate-700 transition-colors hover:border-[rgb(var(--brand-primary))] hover:text-[rgb(var(--brand-primary))]',
-            isMobile && 'h-10',
+            compactMode && 'h-10 w-10 px-0',
+            isMobile && !compactMode && 'h-10',
           )}
           onClick={() => {
             void handleSignOut()
           }}
           aria-label="Sign out"
         >
-          <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-          Logout
+          <LogOut className={cn('h-4 w-4 shrink-0', !compactMode && 'mr-2')} aria-hidden="true" />
+          <span
+            className={cn(
+              'overflow-hidden whitespace-nowrap transition-all duration-200',
+              compactMode ? 'max-w-0 opacity-0' : 'max-w-[90px] opacity-100',
+            )}
+          >
+            Logout
+          </span>
         </Button>
       </div>
     </aside>

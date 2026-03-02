@@ -31,7 +31,7 @@ export function EmployeeLayout({
         />
 
         <div className="flex min-h-[calc(100vh-2rem)] flex-1 flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white/90 shadow-[0_30px_65px_-35px_rgba(15,23,42,0.62)] backdrop-blur supports-[backdrop-filter]:bg-white/75">
-          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
             <div className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <EmployeeSidebarMobile
