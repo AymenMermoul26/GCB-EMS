@@ -23,6 +23,9 @@ import { loginSchema, type LoginInput } from '@/schemas/auth/login.schema'
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
 import loginHeroImage from '@/assets/brand/login-hero.png'
 
+const COMPANY_NAME_FULL =
+  'LA SOCI\u00C9T\u00C9 NATIONALE DE G\u00C9NIE-CIVIL & B\u00C2TIMENT'
+
 interface LocationState {
   from?: {
     pathname?: string
@@ -101,18 +104,18 @@ export function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-[rgba(255,107,53,0.55)] via-[rgba(255,107,53,0.22)] to-[rgba(255,201,71,0.42)]" />
 
         <div className="relative z-10 flex h-full flex-col justify-between p-6 text-white lg:p-10">
-          <div className="inline-flex w-fit items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
+          <div className="inline-flex max-w-[460px] items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
             <img src={gcbLogo} alt="GCB logo" className="h-8 w-8 rounded-md object-cover" />
-            <p className="text-sm font-semibold tracking-wide">GCB EMS</p>
+            <p className="text-xs font-semibold leading-tight tracking-[0.04em]">
+              {COMPANY_NAME_FULL}
+            </p>
           </div>
 
           <div className="max-w-md space-y-5">
             <h1 className="text-2xl font-semibold leading-tight md:text-3xl lg:text-4xl">
               Manage People. Control Access. Scan & Share.
             </h1>
-            <p className="text-sm text-white/85 md:text-base">
-              GCB Employee Management System
-            </p>
+            <p className="text-sm text-white/85 md:text-base">{COMPANY_NAME_FULL}</p>
             <p className="text-sm text-white/80 md:text-base">
               Secure access for employees and HR administration.
             </p>
@@ -133,7 +136,7 @@ export function LoginPage() {
             </ul>
           </div>
 
-          <p className="text-xs text-white/75">(c) GCB - Employee Management System</p>
+          <p className="text-xs text-white/75">{'\u00A9'} {COMPANY_NAME_FULL}</p>
         </div>
       </section>
 

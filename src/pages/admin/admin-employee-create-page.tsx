@@ -218,7 +218,7 @@ export function AdminEmployeeCreatePage() {
             </FieldError>
 
             <FieldError message={form.formState.errors.matricule?.message}>
-              <Label htmlFor="matricule">Matricule</Label>
+              <Label htmlFor="matricule">Employee ID (Matricule)</Label>
               <Input
                 id="matricule"
                 placeholder="Leave empty to auto-generate (GCB-XXXXXX)"
@@ -226,12 +226,12 @@ export function AdminEmployeeCreatePage() {
                 {...form.register('matricule')}
               />
               <p className="text-xs text-muted-foreground">
-                Leave empty to auto-generate the next unique matricule.
+                Leave empty to auto-generate the next unique employee ID.
               </p>
             </FieldError>
 
             <FieldError message={form.formState.errors.poste?.message}>
-              <Label htmlFor="poste">Poste</Label>
+              <Label htmlFor="poste">Job Title</Label>
               <Input
                 id="poste"
                 placeholder="Software Engineer"
