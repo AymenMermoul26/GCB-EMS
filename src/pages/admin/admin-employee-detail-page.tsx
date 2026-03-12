@@ -61,6 +61,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EmployeeBadgeDialog } from '@/components/admin/employee-badge-dialog'
+import { EmployeeInformationSheetDialog } from '@/components/admin/employee-information-sheet-dialog'
 import { env } from '@/config/env'
 import { ROUTES, getPublicProfileRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
@@ -723,6 +724,25 @@ export function AdminEmployeeDetailPage() {
                 setActiveTab('qr-visibility')
                 void onGenerateOrRegenerateToken()
               }}
+            />
+            <EmployeeInformationSheetDialog
+              employee={{
+                id: employee.id,
+                matricule: employee.matricule,
+                nom: employee.nom,
+                prenom: employee.prenom,
+                poste: employee.poste,
+                email: employee.email,
+                telephone: employee.telephone,
+                photoUrl: employee.photoUrl,
+                isActive: employee.isActive,
+                createdAt: employee.createdAt,
+                updatedAt: employee.updatedAt,
+              }}
+              departmentName={departmentName}
+              accountRole={employeeProfile?.role ?? null}
+              isAccountLinked={Boolean(employeeProfile?.userId)}
+              isLoading={employeeQuery.isPending || employeeProfileQuery.isPending}
             />
 
             <Dialog open={isMoreActionsOpen} onOpenChange={setIsMoreActionsOpen}>
