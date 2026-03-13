@@ -393,3 +393,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [functions.send-employee-information-sheet]
 verify_jwt = false
 
+[functions.complete-password-change]
+verify_jwt = false
+

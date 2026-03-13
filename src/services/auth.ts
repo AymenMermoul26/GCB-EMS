@@ -49,6 +49,23 @@ export function subscribeToAuthChanges(
   }
 }
 
+async function clearMustChangePasswordFlag(): Promise<void> {
+  const { data, error } = await supabase.functions.invoke<{
+    ok: boolean
+    must_change_password: boolean
+  }>('complete-password-change', {
+    method: 'POST',
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data?.ok) {
+    throw new Error('Unable to finalize password change.')
+  }
+}
+
 export async function changePasswordWithReauth(
   payload: Pick<ChangePasswordFormValues, 'currentPassword' | 'newPassword'>,
 ): Promise<void> {
@@ -74,9 +91,6 @@ export async function changePasswordWithReauth(
 
   const { error: updateError } = await supabase.auth.updateUser({
     password: payload.newPassword,
-    data: {
-      must_change_password: false,
-    },
   })
 
   if (updateError) {
@@ -86,6 +100,8 @@ export async function changePasswordWithReauth(
 
     throw new Error(updateError.message)
   }
+
+  await clearMustChangePasswordFlag()
 
   const { error: refreshError } = await supabase.auth.refreshSession()
 
@@ -99,9 +115,6 @@ export async function setPasswordOnFirstLogin(
 ): Promise<void> {
   const { error: updateError } = await supabase.auth.updateUser({
     password: payload.newPassword,
-    data: {
-      must_change_password: false,
-    },
   })
 
   if (updateError) {
@@ -113,6 +126,8 @@ export async function setPasswordOnFirstLogin(
 
     throw new Error(updateError.message)
   }
+
+  await clearMustChangePasswordFlag()
 
   const { error: refreshError } = await supabase.auth.refreshSession()
 

@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import gcbLogo from '@/assets/brand/gcb-logo.svg'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -115,7 +116,7 @@ function InformationSheetDocument({
         <header className="flex items-start justify-between gap-6 border-b border-slate-200 pb-6">
           <div className="flex min-w-0 items-center gap-4">
             <img
-              src="/gcb-logo.svg"
+              src={gcbLogo}
               alt="GCB company logo"
               className="h-20 w-20 flex-shrink-0 object-contain"
             />

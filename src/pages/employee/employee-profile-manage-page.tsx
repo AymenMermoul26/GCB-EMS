@@ -396,9 +396,9 @@ export function EmployeeProfileManagePage() {
     })
 
     const fieldLabels: Record<QrRefreshField, string> = {
-      poste: 'Poste',
+      poste: 'Job Title',
       email: 'Email',
-      telephone: 'Telephone',
+      telephone: 'Phone',
       photo_url: 'Photo URL',
     }
 
@@ -540,7 +540,7 @@ export function EmployeeProfileManagePage() {
             <CardContent>
               <form className="space-y-5" onSubmit={onSubmitSelfEdit}>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FormField label="Poste" error={editForm.formState.errors.poste?.message}>
+                  <FormField label="Job Title" error={editForm.formState.errors.poste?.message}>
                     <Input {...editForm.register('poste')} disabled={updateProfileMutation.isPending} />
                   </FormField>
 
@@ -553,7 +553,7 @@ export function EmployeeProfileManagePage() {
                   </FormField>
 
                   <FormField
-                    label="Telephone"
+                    label="Phone"
                     error={editForm.formState.errors.telephone?.message}
                     helperText="Format: +213 followed by 5, 6, or 7 and 8 digits."
                   >
@@ -610,9 +610,9 @@ export function EmployeeProfileManagePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
-              <ReadOnlyRow label="Nom" value={employee.nom} />
-              <ReadOnlyRow label="Prenom" value={employee.prenom} />
-              <ReadOnlyRow label="Matricule" value={employee.matricule} />
+              <ReadOnlyRow label="Last Name" value={employee.nom} />
+              <ReadOnlyRow label="First Name" value={employee.prenom} />
+              <ReadOnlyRow label="Employee ID" value={employee.matricule} />
               <ReadOnlyRow label="Department" value={departmentName ?? employee.departementId} />
             </CardContent>
           </Card>

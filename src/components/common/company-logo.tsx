@@ -1,3 +1,4 @@
+import gcbLogo from '@/assets/brand/gcb-logo.svg'
 import { cn } from '@/lib/utils'
 
 interface CompanyLogoProps {
@@ -14,9 +15,9 @@ export function CompanyLogo({
   return (
     <div className={cn('flex items-center gap-3', className)}>
       <img
-        src="/gcb-logo.svg"
+        src={gcbLogo}
         alt="GCB company logo"
-        className={cn('h-10 w-10 rounded-md object-cover', imageClassName)}
+        className={cn('h-10 w-10 rounded-md object-contain', imageClassName)}
       />
       {withName ? (
         <div className="leading-tight">

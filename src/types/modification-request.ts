@@ -67,11 +67,11 @@ export const MODIFICATION_REQUEST_FIELD_OPTIONS: Array<{
   key: ModificationRequestField
   label: string
 }> = [
-  { key: 'poste', label: 'Poste' },
+  { key: 'poste', label: 'Job Title' },
   { key: 'email', label: 'Email' },
-  { key: 'telephone', label: 'Telephone' },
+  { key: 'telephone', label: 'Phone' },
   { key: 'photo_url', label: 'Photo URL' },
-  { key: 'nom', label: 'Nom' },
-  { key: 'prenom', label: 'Prenom' },
+  { key: 'nom', label: 'Last Name' },
+  { key: 'prenom', label: 'First Name' },
 ]
 

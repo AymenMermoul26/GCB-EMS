@@ -59,8 +59,8 @@ export const optionalAlgerianMobileSchema = z
 const createMatriculeSchema = z.string().trim().optional()
 
 const employeeBaseFields = {
-  nom: requiredText('Nom'),
-  prenom: requiredText('Prenom'),
+  nom: requiredText('Last name'),
+  prenom: requiredText('First name'),
   departementId: z.string().uuid('Department is required'),
   poste: optionalText,
   email: optionalEmail,
@@ -74,7 +74,7 @@ export const employeeCreateSchema = z.object({
 })
 
 export const employeeUpdateSchema = z.object({
-  matricule: requiredText('Matricule'),
+  matricule: requiredText('Employee ID'),
   ...employeeBaseFields,
 })
 

@@ -2,12 +2,12 @@ import type { Employee, UpdateEmployeePayload } from '@/types/employee'
 import type { ModificationRequestField } from '@/types/modification-request'
 
 export const REQUEST_FIELD_LABELS: Record<ModificationRequestField, string> = {
-  poste: 'Poste',
+  poste: 'Job Title',
   email: 'Email',
-  telephone: 'Telephone',
+  telephone: 'Phone',
   photo_url: 'Photo URL',
-  nom: 'Nom',
-  prenom: 'Prenom',
+  nom: 'Last Name',
+  prenom: 'First Name',
 }
 
 export function getEmployeeFieldValue(

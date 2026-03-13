@@ -293,6 +293,10 @@ export function EmployeesListPage() {
     navigate(`${getAdminEmployeeRoute(employeeId)}#qr`)
   }
 
+  const handleOpenEmployeeEdit = (employeeId: string) => {
+    navigate(`${getAdminEmployeeRoute(employeeId)}#edit`)
+  }
+
   return (
     <DashboardLayout
       title="Employees"
@@ -614,7 +618,7 @@ export function EmployeesListPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleOpenEmployeeDetails(employee.id)}
+                        onClick={() => handleOpenEmployeeEdit(employee.id)}
                       >
                         <UserPen className="mr-1 h-4 w-4" />
                         Edit
@@ -647,12 +651,12 @@ export function EmployeesListPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Photo</TableHead>
-                    <TableHead>Matricule</TableHead>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Prenom</TableHead>
-                    <TableHead>Poste</TableHead>
-                    <TableHead>Departement</TableHead>
-                    <TableHead>Statut</TableHead>
+                    <TableHead>Employee ID</TableHead>
+                    <TableHead>Last Name</TableHead>
+                    <TableHead>First Name</TableHead>
+                    <TableHead>Job Title</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="w-[250px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -697,7 +701,7 @@ export function EmployeesListPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleOpenEmployeeDetails(employee.id)}
+                            onClick={() => handleOpenEmployeeEdit(employee.id)}
                           >
                             <UserPen className="mr-1 h-4 w-4" />
                             Edit
@@ -730,7 +734,7 @@ export function EmployeesListPage() {
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              Page {page} · Showing {from}-{to} of {total}
+              Page {page} ï¿½ Showing {from}-{to} of {total}
             </p>
             <div className="flex gap-2">
               <Button

@@ -19,7 +19,7 @@ import {
   UserX,
 } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -150,17 +150,25 @@ function requestStatusBadgeClass(status: string): string {
 }
 
 const VISIBILITY_FIELDS: Array<{ key: EmployeeVisibilityFieldKey; label: string }> = [
-  { key: 'nom', label: 'Nom' },
-  { key: 'prenom', label: 'Prenom' },
-  { key: 'poste', label: 'Poste' },
+  { key: 'nom', label: 'Last Name' },
+  { key: 'prenom', label: 'First Name' },
+  { key: 'poste', label: 'Job Title' },
   { key: 'email', label: 'Email' },
-  { key: 'telephone', label: 'Telephone' },
+  { key: 'telephone', label: 'Phone' },
   { key: 'photo_url', label: 'Photo URL' },
-  { key: 'departement', label: 'Departement' },
-  { key: 'matricule', label: 'Matricule' },
+  { key: 'departement', label: 'Department' },
+  { key: 'matricule', label: 'Employee ID' },
 ]
 
 type DetailTab = 'overview' | 'qr-visibility' | 'requests'
+
+function getInitialTab(hash: string): DetailTab {
+  if (hash === '#qr') {
+    return 'qr-visibility'
+  }
+
+  return 'overview'
+}
 
 export function AdminEmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -170,9 +178,7 @@ export function AdminEmployeeDetailPage() {
 
   const queryClient = useQueryClient()
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<DetailTab>(() =>
-    location.hash === '#qr' ? 'qr-visibility' : 'overview',
-  )
+  const [activeTab, setActiveTab] = useState<DetailTab>(() => getInitialTab(location.hash))
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState(false)
   const [accountEmailInput, setAccountEmailInput] = useState<string | null>(null)
@@ -315,7 +321,7 @@ export function AdminEmployeeDetailPage() {
     return map
   }, [visibilityQuery.data])
 
-  const scrollToEditForm = () => {
+  const scrollToEditForm = useCallback(() => {
     const section = editSectionRef.current
     if (!section) {
       return
@@ -327,7 +333,7 @@ export function AdminEmployeeDetailPage() {
       top: Math.max(targetY, 0),
       behavior: 'smooth',
     })
-  }
+  }, [])
 
   const goToEditSection = () => {
     if (activeTab !== 'overview') {
@@ -338,6 +344,20 @@ export function AdminEmployeeDetailPage() {
 
     scrollToEditForm()
   }
+
+  useEffect(() => {
+    if (location.hash !== '#edit') {
+      return
+    }
+
+    const timerId = window.setTimeout(() => {
+      scrollToEditForm()
+    }, 140)
+
+    return () => {
+      window.clearTimeout(timerId)
+    }
+  }, [location.hash, scrollToEditForm])
 
   const onToggleVisibility = async (fieldKey: EmployeeVisibilityFieldKey, isPublic: boolean) => {
     try {
@@ -490,7 +510,7 @@ export function AdminEmployeeDetailPage() {
 
     try {
       await copyTextToClipboard(employee.matricule)
-      toast.success('Matricule copied.')
+      toast.success('Employee ID copied.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to copy matricule')
     }
@@ -847,9 +867,9 @@ export function AdminEmployeeDetailPage() {
               </div>
 
               <div className="space-y-2 text-sm">
-                <InfoLine label="Matricule" value={employee.matricule} mono />
+                <InfoLine label="Employee ID" value={employee.matricule} mono />
                 <InfoLine label="Department" value={departmentName} />
-                <InfoLine label="Poste" value={formatOptionalValue(currentPoste || employee.poste)} />
+                <InfoLine label="Job Title" value={formatOptionalValue(currentPoste || employee.poste)} />
               </div>
 
               <Separator />
@@ -872,7 +892,7 @@ export function AdminEmployeeDetailPage() {
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => void onCopyEmployeeMatricule()}>
                   <Copy className="mr-1 h-4 w-4" />
-                  Copy Matricule
+                  Copy Employee ID
                 </Button>
               </div>
             </CardContent>
@@ -913,13 +933,13 @@ export function AdminEmployeeDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
-                    <InfoGrid label="Nom" value={employee.nom} />
-                    <InfoGrid label="Prenom" value={employee.prenom} />
-                    <InfoGrid label="Matricule" value={employee.matricule} mono />
-                    <InfoGrid label="Poste" value={formatOptionalValue(employee.poste)} />
+                    <InfoGrid label="Last Name" value={employee.nom} />
+                    <InfoGrid label="First Name" value={employee.prenom} />
+                    <InfoGrid label="Employee ID" value={employee.matricule} mono />
+                    <InfoGrid label="Job Title" value={formatOptionalValue(employee.poste)} />
                     <InfoGrid label="Department" value={departmentName} />
                     <InfoGrid label="Email" value={formatOptionalValue(employee.email)} />
-                    <InfoGrid label="Telephone" value={formatOptionalValue(employee.telephone)} />
+                    <InfoGrid label="Phone" value={formatOptionalValue(employee.telephone)} />
                     <InfoGrid label="Created at" value={formatDateTime(employee.createdAt)} />
                     <InfoGrid label="Updated at" value={formatDateTime(employee.updatedAt)} />
                     <InfoGrid label="Account role" value={employeeProfile?.role ?? 'Not linked'} />
@@ -942,7 +962,7 @@ export function AdminEmployeeDetailPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <FieldError message={form.formState.errors.matricule?.message}>
-                        <Label htmlFor="matricule">Matricule</Label>
+                        <Label htmlFor="matricule">Employee ID</Label>
                         <Input
                           id="matricule"
                           disabled={isFormDisabled}
@@ -989,17 +1009,17 @@ export function AdminEmployeeDetailPage() {
                         ) : null}
                       </FieldError>
                       <FieldError message={form.formState.errors.nom?.message}>
-                        <Label htmlFor="nom">Nom</Label>
+                        <Label htmlFor="nom">Last Name</Label>
                         <Input id="nom" disabled={isFormDisabled} {...form.register('nom')} />
                       </FieldError>
 
                       <FieldError message={form.formState.errors.prenom?.message}>
-                        <Label htmlFor="prenom">Prenom</Label>
+                        <Label htmlFor="prenom">First Name</Label>
                         <Input id="prenom" disabled={isFormDisabled} {...form.register('prenom')} />
                       </FieldError>
 
                       <FieldError message={form.formState.errors.poste?.message}>
-                        <Label htmlFor="poste">Poste</Label>
+                        <Label htmlFor="poste">Job Title</Label>
                         <Input id="poste" disabled={isFormDisabled} {...form.register('poste')} />
                       </FieldError>
 
@@ -1014,7 +1034,7 @@ export function AdminEmployeeDetailPage() {
                       </FieldError>
 
                       <FieldError message={form.formState.errors.telephone?.message}>
-                        <Label htmlFor="telephone">Telephone</Label>
+                        <Label htmlFor="telephone">Phone</Label>
                         <Input
                           id="telephone"
                           type="tel"

@@ -304,7 +304,7 @@ export function EmployeeProfilePage() {
             <CardContent className="space-y-2">
               <DetailRow label="Job title" value={employee.poste ?? 'Not set'} />
               <DetailRow label="Department" value={departmentName ?? 'Not assigned'} />
-              <DetailRow label="Matricule" value={employee.matricule} />
+              <DetailRow label="Employee ID" value={employee.matricule} />
               <DetailRow label="Profile updated" value={formatDate(employee.updatedAt)} />
             </CardContent>
           </Card>

@@ -218,7 +218,7 @@ export function AdminEmployeeCreatePage() {
             </FieldError>
 
             <FieldError message={form.formState.errors.matricule?.message}>
-              <Label htmlFor="matricule">Employee ID (Matricule)</Label>
+              <Label htmlFor="matricule">Employee ID</Label>
               <Input
                 id="matricule"
                 placeholder="Leave empty to auto-generate (GCB-XXXXXX)"

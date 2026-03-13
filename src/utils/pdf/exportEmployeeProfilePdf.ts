@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf'
 import * as QRCode from 'qrcode'
 
+import gcbLogo from '@/assets/brand/gcb-logo.svg'
+
 interface ExportEmployeeProfilePdfPayload {
   appName: string
   logoUrl?: string | null
@@ -147,7 +149,7 @@ export async function exportEmployeeProfilePdf(
   const fullName = `${payload.employee.prenom} ${payload.employee.nom}`.trim()
   const generatedAt = new Date().toLocaleString()
   const photoDataUrl = await loadImageAsDataUrl(payload.employee.photoUrl)
-  const logoDataUrl = await toPngDataUrl(payload.logoUrl ?? '/gcb-logo.svg')
+  const logoDataUrl = await toPngDataUrl(payload.logoUrl ?? gcbLogo)
 
   const logoWidth = 26
   const logoHeight = 26
@@ -191,8 +193,8 @@ export async function exportEmployeeProfilePdf(
   doc.text('Identity', 62, 43)
   doc.setFontSize(11)
   drawLabelValue(doc, 'Name', fullName || 'Not provided', 62, 51)
-  drawLabelValue(doc, 'Matricule', payload.employee.matricule, 62, 58)
-  drawLabelValue(doc, 'Poste', valueOrFallback(payload.employee.poste), 62, 65)
+  drawLabelValue(doc, 'Employee ID', payload.employee.matricule, 62, 58)
+  drawLabelValue(doc, 'Job Title', valueOrFallback(payload.employee.poste), 62, 65)
   drawLabelValue(doc, 'Department', payload.employee.departement, 62, 72)
 
   doc.setFont('helvetica', 'bold')

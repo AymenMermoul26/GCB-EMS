@@ -17,6 +17,7 @@ import {
 } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
+import gcbLogo from '@/assets/brand/gcb-logo.svg'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -284,7 +285,7 @@ function EmployeeSidebarContent({
           )}
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_12px_30px_-16px_rgba(255,107,53,0.85)]">
-            <img src="/gcb-logo.svg" alt="Company logo" className="h-8 w-8 object-contain" />
+            <img src={gcbLogo} alt="Company logo" className="h-8 w-8 object-contain" />
           </div>
           <div
             className={cn(

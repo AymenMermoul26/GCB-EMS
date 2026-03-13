@@ -32,6 +32,10 @@ interface EmployeeRow {
   updated_at: string
 }
 
+interface EmployeeRoleRow {
+  employe_id: string
+}
+
 function normalizeSingleRowResult<T>(
   rows: T[] | null,
   context: string,
@@ -115,6 +119,20 @@ function toUpdatePayload(payload: UpdateEmployeePayload) {
   return updatePayload
 }
 
+async function getAdminEmployeeIds(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('ProfilUtilisateur')
+    .select('employe_id')
+    .eq('role', 'ADMIN_RH')
+    .returns<EmployeeRoleRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return [...new Set((data ?? []).map((row) => row.employe_id).filter(Boolean))]
+}
+
 export async function listEmployees(
   params: EmployeesListParams = {},
 ): Promise<EmployeesListResponse> {
@@ -124,6 +142,7 @@ export async function listEmployees(
   const ascending = params.sort?.direction === 'asc'
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
+  const adminEmployeeIds = await getAdminEmployeeIds()
 
   let query = supabase
     .from('Employe')
@@ -132,7 +151,7 @@ export async function listEmployees(
 
   if (params.search) {
     const value = `%${params.search.trim()}%`
-    query = query.or(`matricule.ilike.${value},nom.ilike.${value},prenom.ilike.${value}`)
+    query = query.or(`matricule.ilike.${value},nom.ilike.${value},prenom.ilike.${value},email.ilike.${value}`)
   }
 
   if (params.departementId) {
@@ -141,6 +160,10 @@ export async function listEmployees(
 
   if (params.isActive !== undefined) {
     query = query.eq('is_active', params.isActive)
+  }
+
+  if (adminEmployeeIds.length > 0) {
+    query = query.not('id', 'in', `(${adminEmployeeIds.join(',')})`)
   }
 
   const { data, count, error } = await query.range(from, to).returns<EmployeeRow[]>()

@@ -2,6 +2,7 @@
 import { Building2, Download, Loader2, Printer, QrCode } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
@@ -360,27 +361,23 @@ export function EmployeeBadgeDialog({
     <>
       <style>
         {`
+          .employee-badge-print-root {
+            display: none;
+          }
+
           @media print {
             @page {
               size: 85.6mm 53.98mm;
               margin: 0;
             }
 
-            body.badge-printing * {
-              visibility: hidden !important;
-            }
-
-            body.badge-printing .employee-badge-print-root,
-            body.badge-printing .employee-badge-print-root * {
-              visibility: visible !important;
+            body.badge-printing > *:not(.employee-badge-print-root) {
+              display: none !important;
             }
 
             body.badge-printing .employee-badge-print-root {
               display: block !important;
-              position: fixed;
-              inset: 0;
               background: #ffffff;
-              z-index: 9999;
               padding: 0;
               margin: 0;
             }
@@ -559,36 +556,41 @@ export function EmployeeBadgeDialog({
         </DialogContent>
       </Dialog>
 
-      <div className="employee-badge-print-root hidden">
-        <div className="employee-badge-print-page">
-          <BadgeFace
-            side="front"
-            fullName={fullName}
-            poste={safePoste}
-            matricule={employee.matricule}
-            departmentName={departmentName}
-            photoUrl={employee.photoUrl}
-            initials={initials}
-            publicProfileUrl={publicProfileUrl}
-            qrCanvasId={`${qrCanvasId}-print-front`}
-            logoSrc={logoSrc}
-          />
-        </div>
-        <div className="employee-badge-print-page">
-          <BadgeFace
-            side="back"
-            fullName={fullName}
-            poste={safePoste}
-            matricule={employee.matricule}
-            departmentName={departmentName}
-            photoUrl={employee.photoUrl}
-            initials={initials}
-            publicProfileUrl={publicProfileUrl}
-            qrCanvasId={`${qrCanvasId}-print-back`}
-            logoSrc={logoSrc}
-          />
-        </div>
-      </div>
+      {typeof document !== 'undefined'
+        ? createPortal(
+            <div className="employee-badge-print-root" aria-hidden="true">
+              <div className="employee-badge-print-page">
+                <BadgeFace
+                  side="front"
+                  fullName={fullName}
+                  poste={safePoste}
+                  matricule={employee.matricule}
+                  departmentName={departmentName}
+                  photoUrl={employee.photoUrl}
+                  initials={initials}
+                  publicProfileUrl={publicProfileUrl}
+                  qrCanvasId={`${qrCanvasId}-print-front`}
+                  logoSrc={logoSrc}
+                />
+              </div>
+              <div className="employee-badge-print-page">
+                <BadgeFace
+                  side="back"
+                  fullName={fullName}
+                  poste={safePoste}
+                  matricule={employee.matricule}
+                  departmentName={departmentName}
+                  photoUrl={employee.photoUrl}
+                  initials={initials}
+                  publicProfileUrl={publicProfileUrl}
+                  qrCanvasId={`${qrCanvasId}-print-back`}
+                  logoSrc={logoSrc}
+                />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   )
 }

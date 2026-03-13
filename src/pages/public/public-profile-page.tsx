@@ -23,7 +23,7 @@ interface ProfileEntry {
 }
 
 const PUBLIC_FIELD_LABELS: Record<string, string> = {
-  matricule: 'Matricule',
+  matricule: 'Employee ID',
   nom: 'Last Name',
   prenom: 'First Name',
   poste: 'Position',
