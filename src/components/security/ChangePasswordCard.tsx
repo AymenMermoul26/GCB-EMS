@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { type UseFormRegisterReturn, useForm } from 'react-hook-form'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { cn } from '@/lib/utils'
 import {
@@ -28,12 +30,21 @@ interface ChangePasswordCardProps {
 
 type PasswordFieldKey = 'currentPassword' | 'newPassword' | 'confirmNewPassword'
 
+interface SecurityLocationState {
+  from?: {
+    pathname?: string
+  }
+}
+
 export function ChangePasswordCard({
   className,
   title,
   description,
   anchorId,
 }: ChangePasswordCardProps) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const locationState = location.state as SecurityLocationState | null
   const { refreshAuthState, mustChangePassword } = useAuth()
   const [submitFeedback, setSubmitFeedback] = useState<{
     type: 'success' | 'error'
@@ -107,6 +118,14 @@ export function ChangePasswordCard({
         newPassword: '',
         confirmNewPassword: '',
       })
+
+      const nextRoute =
+        locationState?.from?.pathname &&
+        locationState.from.pathname !== ROUTES.EMPLOYEE_SECURITY
+          ? locationState.from.pathname
+          : ROUTES.EMPLOYEE_PROFILE
+
+      navigate(nextRoute, { replace: true })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to set password'
       toast.error(message)

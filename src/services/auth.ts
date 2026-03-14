@@ -1,4 +1,4 @@
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 
 import { supabase } from '@/lib/supabaseClient'
 import type { LoginInput } from '@/schemas/auth/login.schema'
@@ -35,6 +35,26 @@ export async function getSession(): Promise<Session | null> {
   }
 
   return data.session
+}
+
+export async function refreshSession(): Promise<Session | null> {
+  const { data, error } = await supabase.auth.refreshSession()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data.session
+}
+
+export async function getCurrentUser(): Promise<User | null> {
+  const { data, error } = await supabase.auth.getUser()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data.user ?? null
 }
 
 export function subscribeToAuthChanges(
@@ -140,6 +160,8 @@ export const authService = {
   signInWithPassword,
   signOut,
   getSession,
+  refreshSession,
+  getCurrentUser,
   subscribeToAuthChanges,
   changePasswordWithReauth,
   setPasswordOnFirstLogin,

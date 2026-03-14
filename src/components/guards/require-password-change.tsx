@@ -17,7 +17,13 @@ export function RequirePasswordChange() {
   const isOnSecurityPage = location.pathname === ROUTES.EMPLOYEE_SECURITY
 
   if (isEmployee && mustChangePassword && !isOnSecurityPage) {
-    return <Navigate to={ROUTES.EMPLOYEE_SECURITY} replace />
+    return (
+      <Navigate
+        to={ROUTES.EMPLOYEE_SECURITY}
+        replace
+        state={{ from: location }}
+      />
+    )
   }
 
   return <Outlet />

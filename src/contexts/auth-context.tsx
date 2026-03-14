@@ -12,6 +12,7 @@ import {
 import type { AppRole } from '@/constants/roles'
 import type { LoginInput } from '@/schemas/auth/login.schema'
 import {
+  getCurrentUser,
   getSession,
   signInWithPassword,
   signOut as signOutRequest,
@@ -54,9 +55,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setEmployeId(roleInfo?.employeId ?? null)
   }, [])
 
-  const applySession = useCallback((nextSession: Session | null) => {
+  const applySession = useCallback((nextSession: Session | null, nextUserOverride?: User | null) => {
     setSession(nextSession)
-    const nextUser = nextSession?.user ?? null
+    const nextUser = nextUserOverride ?? nextSession?.user ?? null
     setUser(nextUser)
     setMustChangePassword(readMustChangePassword(nextUser))
   }, [])
@@ -81,8 +82,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const refreshAuthState = useCallback(async () => {
     const nextSession = await getSession()
-    applySession(nextSession)
-    await resolveAndCacheRole(nextSession?.user.id ?? null)
+    const nextUser = nextSession ? await getCurrentUser() : null
+    applySession(nextSession, nextUser)
+    await resolveAndCacheRole(nextUser?.id ?? nextSession?.user.id ?? null)
   }, [applySession, resolveAndCacheRole])
 
   useEffect(() => {
@@ -91,13 +93,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const bootstrap = async () => {
       try {
         const nextSession = await getSession()
+        const nextUser = nextSession ? await getCurrentUser() : null
 
         if (!mounted) {
           return
         }
 
-        applySession(nextSession)
-        await resolveAndCacheRole(nextSession?.user.id ?? null)
+        applySession(nextSession, nextUser)
+        await resolveAndCacheRole(nextUser?.id ?? nextSession?.user.id ?? null)
       } finally {
         if (mounted) {
           setIsLoading(false)

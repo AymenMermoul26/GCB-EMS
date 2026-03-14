@@ -49,7 +49,11 @@ export function EmployeeSecurityPage() {
         <ChangePasswordCard
           className="rounded-2xl border border-slate-200/80 shadow-sm"
           title="Change Password"
-          description="Use your current password and set a strong new one."
+          description={
+            mustChangePassword
+              ? 'You must update your password before continuing.'
+              : 'Use your current password and set a strong new one.'
+          }
         />
 
         <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
