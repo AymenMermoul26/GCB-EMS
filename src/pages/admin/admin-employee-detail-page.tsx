@@ -15,6 +15,7 @@ import {
   Save,
   Send,
   ShieldCheck,
+  UserCheck,
   UserPen,
   UserX,
 } from 'lucide-react'
@@ -66,6 +67,7 @@ import { env } from '@/config/env'
 import { ROUTES, getPublicProfileRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
+import { cn } from '@/lib/utils'
 import {
   useEmployeeProfileQuery,
   useInviteEmployeeAccountMutation,
@@ -74,6 +76,7 @@ import {
 import { auditService } from '@/services/auditService'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import {
+  useActivateEmployeeMutation,
   useDeactivateEmployeeMutation,
   useEmployeeQuery,
   useUpdateEmployeeMutation,
@@ -180,7 +183,7 @@ export function AdminEmployeeDetailPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<DetailTab>(() => getInitialTab(location.hash))
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [employeeToDeactivate, setEmployeeToDeactivate] = useState(false)
+  const [employeeStatusAction, setEmployeeStatusAction] = useState<'activate' | 'deactivate' | null>(null)
   const [accountEmailInput, setAccountEmailInput] = useState<string | null>(null)
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false)
   const editSectionRef = useRef<HTMLDivElement | null>(null)
@@ -251,13 +254,53 @@ export function AdminEmployeeDetailPage() {
     },
   })
 
+  const activateMutation = useActivateEmployeeMutation({
+    onSuccess: async (employee) => {
+      toast.success('Employee activated.')
+      setEmployeeStatusAction(null)
+      queryClient.setQueryData(['employee', employee.id], employee)
+      await queryClient.invalidateQueries({ queryKey: ['employees'] })
+      try {
+        await auditService.insertAuditLog({
+          action: 'EMPLOYEE_ACTIVATED',
+          targetType: 'Employe',
+          targetId: employee.id,
+          detailsJson: {
+            employe_id: employee.id,
+            matricule: employee.matricule,
+            is_active: true,
+          },
+        })
+      } catch (auditError) {
+        console.error('Failed to write employee activation audit log', auditError)
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
   const deactivateMutation = useDeactivateEmployeeMutation({
     onSuccess: async (employee) => {
       toast.success('Employee deactivated.')
-      setEmployeeToDeactivate(false)
+      setEmployeeStatusAction(null)
       queryClient.setQueryData(['employee', employee.id], employee)
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employeeToken', employee.id] })
+      try {
+        await auditService.insertAuditLog({
+          action: 'EMPLOYEE_DEACTIVATED',
+          targetType: 'Employe',
+          targetId: employee.id,
+          detailsJson: {
+            employe_id: employee.id,
+            matricule: employee.matricule,
+            is_active: false,
+          },
+        })
+      } catch (auditError) {
+        console.error('Failed to write employee deactivation audit log', auditError)
+      }
     },
     onError: (error) => {
       toast.error(error.message)
@@ -289,6 +332,7 @@ export function AdminEmployeeDetailPage() {
 
   const employee = employeeQuery.data
   const isInactive = Boolean(employee && !employee.isActive)
+  const isStatusMutationPending = activateMutation.isPending || deactivateMutation.isPending
   const isFormDisabled = isInactive || updateMutation.isPending || employeeQuery.isPending
   const token = employeeTokenQuery.data
   const employeeProfile = employeeProfileQuery.data
@@ -343,6 +387,19 @@ export function AdminEmployeeDetailPage() {
     }
 
     scrollToEditForm()
+  }
+
+  const onConfirmEmployeeStatusChange = async () => {
+    if (!employee) {
+      return
+    }
+
+    if (employee.isActive) {
+      await deactivateMutation.mutateAsync(employee.id)
+      return
+    }
+
+    await activateMutation.mutateAsync(employee.id)
   }
 
   useEffect(() => {
@@ -703,18 +760,46 @@ export function AdminEmployeeDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
-              onClick={goToEditSection}
-            >
-              <UserPen className="mr-2 h-4 w-4" />
-              Edit Employee
-            </Button>
+            {employee.isActive ? (
+              <Button
+                type="button"
+                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                onClick={goToEditSection}
+              >
+                <UserPen className="mr-2 h-4 w-4" />
+                Edit Employee
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                disabled={isStatusMutationPending}
+                onClick={() => setEmployeeStatusAction('activate')}
+              >
+                {activateMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <UserCheck className="mr-2 h-4 w-4" />
+                )}
+                {activateMutation.isPending ? 'Activating...' : 'Activate Employee'}
+              </Button>
+            )}
+            {employee.isActive ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={isStatusMutationPending}
+                onClick={() => setEmployeeStatusAction('deactivate')}
+              >
+                <UserX className="mr-2 h-4 w-4" />
+                Deactivate Employee
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
-              disabled={isInactive || generateTokenMutation.isPending}
+              disabled={isInactive || generateTokenMutation.isPending || isStatusMutationPending}
               onClick={() => {
                 setActiveTab('qr-visibility')
                 void onGenerateOrRegenerateToken()
@@ -818,16 +903,24 @@ export function AdminEmployeeDetailPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant="destructive"
-                    className="w-full justify-start"
-                    disabled={!employee.isActive}
+                    variant={employee.isActive ? 'destructive' : 'outline'}
+                    className={cn(
+                      'w-full justify-start',
+                      !employee.isActive &&
+                        'border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95',
+                    )}
+                    disabled={isStatusMutationPending}
                     onClick={() => {
-                      setEmployeeToDeactivate(true)
+                      setEmployeeStatusAction(employee.isActive ? 'deactivate' : 'activate')
                       setIsMoreActionsOpen(false)
                     }}
                   >
-                    <UserX className="mr-2 h-4 w-4" />
-                    Deactivate employee
+                    {employee.isActive ? (
+                      <UserX className="mr-2 h-4 w-4" />
+                    ) : (
+                      <UserCheck className="mr-2 h-4 w-4" />
+                    )}
+                    {employee.isActive ? 'Deactivate employee' : 'Activate employee'}
                   </Button>
                 </div>
               </DialogContent>
@@ -837,29 +930,62 @@ export function AdminEmployeeDetailPage() {
       </div>
       <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-4">
-          <Card className="overflow-hidden rounded-2xl border border-slate-200/80 shadow-sm">
-            <div className="h-1.5 w-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
+          <Card
+            className={cn(
+              'overflow-hidden rounded-2xl border shadow-sm',
+              employee.isActive
+                ? 'border-slate-200/80'
+                : 'border-slate-300/90 bg-slate-100/80',
+            )}
+          >
+            <div
+              className={cn(
+                'h-1.5 w-full',
+                employee.isActive
+                  ? 'bg-gradient-to-br from-[#ff6b35] to-[#ffc947]'
+                  : 'bg-slate-300',
+              )}
+            />
             <CardContent className="space-y-4 p-5">
               <div className="flex flex-col items-center gap-3 text-center">
                 {currentPhotoUrl && currentPhotoUrl.trim().length > 0 ? (
                   <img
                     src={currentPhotoUrl}
                     alt={`${currentPrenom || employee.prenom} ${currentNom || employee.nom}`}
-                    className="h-24 w-24 rounded-full border object-cover"
+                    className={cn(
+                      'h-24 w-24 rounded-full border object-cover',
+                      isInactive && 'grayscale',
+                    )}
                   />
                 ) : (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full border bg-slate-100 text-2xl font-semibold text-slate-600">
+                  <div
+                    className={cn(
+                      'flex h-24 w-24 items-center justify-center rounded-full border text-2xl font-semibold',
+                      isInactive
+                        ? 'bg-slate-200 text-slate-500'
+                        : 'bg-slate-100 text-slate-600',
+                    )}
+                  >
                     {getInitials(currentPrenom || employee.prenom, currentNom || employee.nom)}
                   </div>
                 )}
 
                 <div>
-                  <p className="text-lg font-semibold text-slate-900">
+                  <p
+                    className={cn(
+                      'text-lg font-semibold',
+                      employee.isActive ? 'text-slate-900' : 'text-slate-700',
+                    )}
+                  >
                     {currentPrenom || employee.prenom} {currentNom || employee.nom}
                   </p>
                   <Badge
                     variant={employee.isActive ? 'secondary' : 'outline'}
-                    className={employee.isActive ? 'bg-emerald-100 text-emerald-800' : 'text-slate-500'}
+                    className={
+                      employee.isActive
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'border-slate-300 bg-slate-200/70 text-slate-700'
+                    }
                   >
                     {employee.isActive ? 'Active' : 'Inactive'}
                   </Badge>
@@ -894,6 +1020,24 @@ export function AdminEmployeeDetailPage() {
                   <Copy className="mr-1 h-4 w-4" />
                   Copy Employee ID
                 </Button>
+                <Button
+                  size="sm"
+                  variant={employee.isActive ? 'destructive' : 'outline'}
+                  className={
+                    employee.isActive
+                      ? undefined
+                      : 'border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95'
+                  }
+                  disabled={isStatusMutationPending}
+                  onClick={() => setEmployeeStatusAction(employee.isActive ? 'deactivate' : 'activate')}
+                >
+                  {employee.isActive ? (
+                    <UserX className="mr-1 h-4 w-4" />
+                  ) : (
+                    <UserCheck className="mr-1 h-4 w-4" />
+                  )}
+                  {employee.isActive ? 'Deactivate' : 'Activate'}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -918,8 +1062,8 @@ export function AdminEmployeeDetailPage() {
 
             <TabsContent value="overview" className="space-y-4">
               {isInactive ? (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-                  This employee is inactive. Reactivate is not supported yet.
+                <div className="rounded-xl border border-slate-300 bg-slate-100/90 p-3 text-sm text-slate-700">
+                  This employee is currently inactive. Reactivate the profile to restore availability in the system.
                 </div>
               ) : null}
 
@@ -1490,24 +1634,39 @@ export function AdminEmployeeDetailPage() {
         </div>
       </div>
 
-      <AlertDialog open={employeeToDeactivate} onOpenChange={setEmployeeToDeactivate}>
+      <AlertDialog
+        open={employeeStatusAction !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEmployeeStatusAction(null)
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate employee</AlertDialogTitle>
+            <AlertDialogTitle>
+              {employeeStatusAction === 'deactivate' ? 'Deactivate employee?' : 'Activate employee?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Deactivate {employee.prenom} {employee.nom}? Their active QR token will be revoked.
+              {employeeStatusAction === 'deactivate'
+                ? `Deactivate ${employee.prenom} ${employee.nom}? This employee will be marked inactive and treated as unavailable in the system. Their active QR token will be revoked.`
+                : `Activate ${employee.prenom} ${employee.nom}? This employee will be restored as active and available in the system.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deactivateMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isStatusMutationPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={deactivateMutation.isPending}
+              disabled={isStatusMutationPending}
               onClick={(event) => {
                 event.preventDefault()
-                void deactivateMutation.mutateAsync(employee.id)
+                void onConfirmEmployeeStatusChange()
               }}
             >
-              {deactivateMutation.isPending ? 'Deactivating...' : 'Confirm'}
+              {isStatusMutationPending
+                ? employeeStatusAction === 'deactivate'
+                  ? 'Deactivating...'
+                  : 'Activating...'
+                : 'Confirm'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

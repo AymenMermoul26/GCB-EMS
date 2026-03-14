@@ -268,6 +268,10 @@ export async function deactivateEmployee(id: string): Promise<Employee> {
   return employee
 }
 
+export async function activateEmployee(id: string): Promise<Employee> {
+  return updateEmployee(id, { isActive: true })
+}
+
 export function useEmployeesQuery(params: EmployeesListParams = {}) {
   return useQuery({
     queryKey: ['employees', params],
@@ -329,6 +333,26 @@ export function useDeactivateEmployeeMutation(
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
+      await queryClient.invalidateQueries({ queryKey: ['employeeToken', data.id] })
+      await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
+      await options?.onSuccess?.(data, variables, onMutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export function useActivateEmployeeMutation(
+  options?: UseMutationOptions<Employee, Error, string>,
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: activateEmployee,
+    onSuccess: async (data, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['employees'] })
+      await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
+      await queryClient.invalidateQueries({ queryKey: ['employeeToken', data.id] })
+      await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
       await options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
@@ -340,5 +364,6 @@ export const employeesService = {
   getEmployee,
   createEmployee,
   updateEmployee,
+  activateEmployee,
   deactivateEmployee,
 }

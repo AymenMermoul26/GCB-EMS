@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+﻿import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   Building2,
   Eye,
@@ -11,6 +11,7 @@ import {
   Plus,
   QrCode,
   Search,
+  UserCheck,
   UserPen,
   UserX,
 } from 'lucide-react'
@@ -67,9 +68,12 @@ import {
 import { ROUTES, getAdminEmployeeRoute } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
+import { cn } from '@/lib/utils'
+import { auditService } from '@/services/auditService'
 import { departmentsService, useDepartmentsQuery } from '@/services/departmentsService'
 import {
   employeesService,
+  useActivateEmployeeMutation,
   useDeactivateEmployeeMutation,
 } from '@/services/employeesService'
 import type { Employee, EmployeesListParams } from '@/types/employee'
@@ -133,6 +137,12 @@ function isEmptyValue(value: string | null | undefined) {
   return !value || value.trim().length === 0
 }
 
+function getEmployeeStatusBadgeClass(isActive: boolean): string {
+  return isActive
+    ? 'bg-emerald-50 text-emerald-700'
+    : 'border-slate-300 bg-slate-200/70 text-slate-700'
+}
+
 export function EmployeesListPage() {
   const navigate = useNavigate()
 
@@ -144,7 +154,7 @@ export function EmployeesListPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [exporting, setExporting] = useState(false)
-  const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
+  const [employeeStatusTarget, setEmployeeStatusTarget] = useState<Employee | null>(null)
 
   const debouncedSearch = useDebouncedValue(searchInput, 400)
   const sort = useMemo(() => ({ field: 'updated_at', direction: 'desc' } as const), [])
@@ -201,16 +211,57 @@ export function EmployeesListPage() {
     departmentFilter !== 'all' ||
     statusFilter !== 'all'
 
-  const deactivateMutation = useDeactivateEmployeeMutation({
-    onSuccess: () => {
-      toast.success('Employee deactivated.')
-      setEmployeeToDeactivate(null)
+  const activateMutation = useActivateEmployeeMutation({
+    onSuccess: async (employee) => {
+      toast.success('Employee activated.')
+      setEmployeeStatusTarget(null)
+      try {
+        await auditService.insertAuditLog({
+          action: 'EMPLOYEE_ACTIVATED',
+          targetType: 'Employe',
+          targetId: employee.id,
+          detailsJson: {
+            employe_id: employee.id,
+            matricule: employee.matricule,
+            is_active: true,
+          },
+        })
+      } catch (error) {
+        console.error('Failed to write employee activation audit log', error)
+      }
       void employeesQuery.refetch()
     },
     onError: (error) => {
       toast.error(error.message)
     },
   })
+
+  const deactivateMutation = useDeactivateEmployeeMutation({
+    onSuccess: async (employee) => {
+      toast.success('Employee deactivated.')
+      setEmployeeStatusTarget(null)
+      try {
+        await auditService.insertAuditLog({
+          action: 'EMPLOYEE_DEACTIVATED',
+          targetType: 'Employe',
+          targetId: employee.id,
+          detailsJson: {
+            employe_id: employee.id,
+            matricule: employee.matricule,
+            is_active: false,
+          },
+        })
+      } catch (error) {
+        console.error('Failed to write employee deactivation audit log', error)
+      }
+      void employeesQuery.refetch()
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+  const isStatusMutationPending =
+    activateMutation.isPending || deactivateMutation.isPending
 
   const handleClearFilters = () => {
     setSearchInput('')
@@ -295,6 +346,19 @@ export function EmployeesListPage() {
 
   const handleOpenEmployeeEdit = (employeeId: string) => {
     navigate(`${getAdminEmployeeRoute(employeeId)}#edit`)
+  }
+
+  const handleConfirmStatusChange = async () => {
+    if (!employeeStatusTarget) {
+      return
+    }
+
+    if (employeeStatusTarget.isActive) {
+      await deactivateMutation.mutateAsync(employeeStatusTarget.id)
+      return
+    }
+
+    await activateMutation.mutateAsync(employeeStatusTarget.id)
   }
 
   return (
@@ -546,7 +610,12 @@ export function EmployeesListPage() {
               {employees.map((employee) => (
                 <Card
                   key={employee.id}
-                  className="group rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                  className={cn(
+                    'group rounded-2xl border shadow-sm transition-all duration-200',
+                    employee.isActive
+                      ? 'border-slate-200/80 bg-white hover:-translate-y-0.5 hover:shadow-md'
+                      : 'border-slate-300/90 bg-slate-100/80 text-slate-600 hover:border-slate-300 hover:bg-slate-100',
+                  )}
                 >
                   <CardContent className="flex h-full flex-col gap-4 p-5">
                     <div className="flex items-start justify-between gap-3">
@@ -555,52 +624,109 @@ export function EmployeesListPage() {
                           <img
                             src={employee.photoUrl}
                             alt={`${employee.prenom} ${employee.nom}`}
-                            className="h-12 w-12 rounded-full border object-cover"
+                            className={cn(
+                              'h-12 w-12 rounded-full border object-cover',
+                              !employee.isActive && 'grayscale',
+                            )}
                           />
                         ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-slate-100 text-sm font-semibold text-slate-600">
+                          <div
+                            className={cn(
+                              'flex h-12 w-12 items-center justify-center rounded-full border text-sm font-semibold',
+                              employee.isActive
+                                ? 'bg-slate-100 text-slate-600'
+                                : 'bg-slate-200 text-slate-500',
+                            )}
+                          >
                             {getInitials(employee)}
                           </div>
                         )}
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900">
+                          <p
+                            className={cn(
+                              'truncate font-semibold',
+                              employee.isActive ? 'text-slate-900' : 'text-slate-700',
+                            )}
+                          >
                             {employee.prenom} {employee.nom}
                           </p>
-                          <p className="truncate text-xs text-muted-foreground">
+                          <p
+                            className={cn(
+                              'truncate text-xs',
+                              employee.isActive ? 'text-muted-foreground' : 'text-slate-500',
+                            )}
+                          >
                             {employee.poste ?? 'No role assigned'}
                           </p>
                         </div>
                       </div>
                       <Badge
                         variant={employee.isActive ? 'secondary' : 'outline'}
-                        className={employee.isActive ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500'}
+                        className={getEmployeeStatusBadgeClass(employee.isActive)}
                       >
                         {employee.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
 
-                    <div className="space-y-2 text-sm text-slate-700">
+                    <div
+                      className={cn(
+                        'space-y-2 text-sm',
+                        employee.isActive ? 'text-slate-700' : 'text-slate-600',
+                      )}
+                    >
                       <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-slate-400" />
+                        <Building2
+                          className={cn(
+                            'h-4 w-4',
+                            employee.isActive ? 'text-slate-400' : 'text-slate-500',
+                          )}
+                        />
                         <span className="truncate">
                           {formatDepartmentName(departmentNameById, employee.departementId)}
                         </span>
                       </div>
 
-                      <div className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-600">
+                      <div
+                        className={cn(
+                          'inline-flex max-w-full items-center rounded-full px-2.5 py-1 font-mono text-xs',
+                          employee.isActive
+                            ? 'bg-slate-100 text-slate-600'
+                            : 'bg-slate-200 text-slate-700',
+                        )}
+                      >
                         {employee.matricule}
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-slate-400" />
-                        <span className="truncate text-xs text-muted-foreground">
+                        <Mail
+                          className={cn(
+                            'h-4 w-4',
+                            employee.isActive ? 'text-slate-400' : 'text-slate-500',
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            'truncate text-xs',
+                            employee.isActive ? 'text-muted-foreground' : 'text-slate-500',
+                          )}
+                        >
                           {isEmptyValue(employee.email) ? 'No email' : employee.email}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-slate-400" />
-                        <span className="truncate text-xs text-muted-foreground">
+                        <Phone
+                          className={cn(
+                            'h-4 w-4',
+                            employee.isActive ? 'text-slate-400' : 'text-slate-500',
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            'truncate text-xs',
+                            employee.isActive ? 'text-muted-foreground' : 'text-slate-500',
+                          )}
+                        >
                           {isEmptyValue(employee.telephone) ? 'No phone' : employee.telephone}
                         </span>
                       </div>
@@ -627,18 +753,28 @@ export function EmployeesListPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenEmployeeQr(employee.id)}
+                        disabled={!employee.isActive}
                       >
                         <QrCode className="mr-1 h-4 w-4" />
                         QR
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
-                        disabled={!employee.isActive}
-                        onClick={() => setEmployeeToDeactivate(employee)}
+                        variant={employee.isActive ? 'destructive' : 'outline'}
+                        className={
+                          employee.isActive
+                            ? undefined
+                            : 'border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95'
+                        }
+                        disabled={isStatusMutationPending}
+                        onClick={() => setEmployeeStatusTarget(employee)}
                       >
-                        <UserX className="mr-1 h-4 w-4" />
-                        Deactivate
+                        {employee.isActive ? (
+                          <UserX className="mr-1 h-4 w-4" />
+                        ) : (
+                          <UserCheck className="mr-1 h-4 w-4" />
+                        )}
+                        {employee.isActive ? 'Deactivate' : 'Activate'}
                       </Button>
                     </div>
                   </CardContent>
@@ -662,29 +798,60 @@ export function EmployeesListPage() {
                 </TableHeader>
                 <TableBody>
                   {employees.map((employee) => (
-                    <TableRow key={employee.id}>
+                    <TableRow
+                      key={employee.id}
+                      className={cn(
+                        employee.isActive
+                          ? 'hover:bg-muted/30'
+                          : 'bg-slate-50/80 text-slate-600 hover:bg-slate-100/80',
+                      )}
+                    >
                       <TableCell>
                         {employee.photoUrl ? (
                           <img
                             src={employee.photoUrl}
                             alt={`${employee.prenom} ${employee.nom}`}
-                            className="h-10 w-10 rounded-full border object-cover"
+                            className={cn(
+                              'h-10 w-10 rounded-full border object-cover',
+                              !employee.isActive && 'grayscale',
+                            )}
                           />
                         ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-slate-100 text-xs font-semibold text-slate-600">
+                          <div
+                            className={cn(
+                              'flex h-10 w-10 items-center justify-center rounded-full border text-xs font-semibold',
+                              employee.isActive
+                                ? 'bg-slate-100 text-slate-600'
+                                : 'bg-slate-200 text-slate-500',
+                            )}
+                          >
                             {getInitials(employee)}
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="font-medium">{employee.matricule}</TableCell>
-                      <TableCell>{employee.nom}</TableCell>
-                      <TableCell>{employee.prenom}</TableCell>
+                      <TableCell
+                        className={cn(
+                          'font-medium',
+                          employee.isActive ? 'text-slate-900' : 'text-slate-700',
+                        )}
+                      >
+                        {employee.matricule}
+                      </TableCell>
+                      <TableCell className={employee.isActive ? 'text-slate-900' : 'text-slate-700'}>
+                        {employee.nom}
+                      </TableCell>
+                      <TableCell className={employee.isActive ? 'text-slate-900' : 'text-slate-700'}>
+                        {employee.prenom}
+                      </TableCell>
                       <TableCell>{employee.poste ?? '-'}</TableCell>
                       <TableCell>
                         {formatDepartmentName(departmentNameById, employee.departementId)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={employee.isActive ? 'secondary' : 'outline'}>
+                        <Badge
+                          variant={employee.isActive ? 'secondary' : 'outline'}
+                          className={getEmployeeStatusBadgeClass(employee.isActive)}
+                        >
                           {employee.isActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
@@ -710,18 +877,28 @@ export function EmployeesListPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => handleOpenEmployeeQr(employee.id)}
+                            disabled={!employee.isActive}
                           >
                             <QrCode className="mr-1 h-4 w-4" />
                             QR
                           </Button>
                           <Button
                             size="sm"
-                            variant="destructive"
-                            disabled={!employee.isActive}
-                            onClick={() => setEmployeeToDeactivate(employee)}
+                            variant={employee.isActive ? 'destructive' : 'outline'}
+                            className={
+                              employee.isActive
+                                ? undefined
+                                : 'border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95'
+                            }
+                            disabled={isStatusMutationPending}
+                            onClick={() => setEmployeeStatusTarget(employee)}
                           >
-                            <UserX className="mr-1 h-4 w-4" />
-                            Deactivate
+                            {employee.isActive ? (
+                              <UserX className="mr-1 h-4 w-4" />
+                            ) : (
+                              <UserCheck className="mr-1 h-4 w-4" />
+                            )}
+                            {employee.isActive ? 'Deactivate' : 'Activate'}
                           </Button>
                         </div>
                       </TableCell>
@@ -734,7 +911,7 @@ export function EmployeesListPage() {
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              Page {page} � Showing {from}-{to} of {total}
+              Page {page} - Showing {from}-{to} of {total}
             </p>
             <div className="flex gap-2">
               <Button
@@ -759,37 +936,45 @@ export function EmployeesListPage() {
       ) : null}
 
       <AlertDialog
-        open={Boolean(employeeToDeactivate)}
+        open={Boolean(employeeStatusTarget)}
         onOpenChange={(open) => {
           if (!open) {
-            setEmployeeToDeactivate(null)
+            setEmployeeStatusTarget(null)
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate employee</AlertDialogTitle>
+            <AlertDialogTitle>
+              {employeeStatusTarget?.isActive ? 'Deactivate employee?' : 'Activate employee?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {employeeToDeactivate
-                ? `Deactivate ${employeeToDeactivate.prenom} ${employeeToDeactivate.nom}? Their active QR token will be revoked.`
-                : 'Confirm deactivation.'}
+              {employeeStatusTarget
+                ? employeeStatusTarget.isActive
+                  ? `Deactivate ${employeeStatusTarget.prenom} ${employeeStatusTarget.nom}? This employee will be marked inactive and treated as unavailable in the system. Their active QR token will be revoked.`
+                  : `Activate ${employeeStatusTarget.prenom} ${employeeStatusTarget.nom}? This employee will be restored as active and available in the system.`
+                : 'Confirm status change.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deactivateMutation.isPending}>
+            <AlertDialogCancel disabled={isStatusMutationPending}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                if (!employeeToDeactivate) {
+                if (!employeeStatusTarget) {
                   return
                 }
-                void deactivateMutation.mutateAsync(employeeToDeactivate.id)
+                void handleConfirmStatusChange()
               }}
-              disabled={deactivateMutation.isPending}
+              disabled={isStatusMutationPending}
             >
-              {deactivateMutation.isPending ? 'Deactivating...' : 'Confirm'}
+              {isStatusMutationPending
+                ? employeeStatusTarget?.isActive
+                  ? 'Deactivating...'
+                  : 'Activating...'
+                : 'Confirm'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -797,3 +982,4 @@ export function EmployeesListPage() {
     </DashboardLayout>
   )
 }
+
