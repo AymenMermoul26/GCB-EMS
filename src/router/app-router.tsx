@@ -9,6 +9,7 @@ import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { AuditLogPage } from '@/pages/admin/AuditLogPage'
+import { AdminDashboardPage } from '@/pages/admin/admin-dashboard-page'
 import { AdminEmployeeCreatePage } from '@/pages/admin/admin-employee-create-page'
 import { AdminEmployeeDetailPage } from '@/pages/admin/admin-employee-detail-page'
 import { AdminRequestsPage } from '@/pages/admin/admin-requests-page'
@@ -40,7 +41,7 @@ function HomeRedirect() {
   }
 
   if (role === APP_ROLES.ADMIN_RH) {
-    return <Navigate to={ROUTES.ADMIN_EMPLOYEES} replace />
+    return <Navigate to={ROUTES.ADMIN_DASHBOARD} replace />
   }
 
   return <Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />
@@ -57,7 +58,8 @@ export function AppRouter() {
         <Route element={<ProtectedRoute />}>
           <Route element={<RequirePasswordChange />}>
             <Route element={<AdminRoute />}>
-              <Route path={ROUTES.ADMIN} element={<Navigate to={ROUTES.ADMIN_EMPLOYEES} replace />} />
+              <Route path={ROUTES.ADMIN} element={<Navigate to={ROUTES.ADMIN_DASHBOARD} replace />} />
+              <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboardPage />} />
               <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
               <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
               <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />

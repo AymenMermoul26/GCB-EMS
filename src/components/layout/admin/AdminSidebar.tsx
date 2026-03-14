@@ -3,6 +3,7 @@ import {
   Building2,
   ClipboardList,
   FileClock,
+  LayoutDashboard,
   LogOut,
   Menu,
   Users,
@@ -49,6 +50,12 @@ interface AdminNavItem {
 }
 
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    to: ROUTES.ADMIN_DASHBOARD,
+    icon: LayoutDashboard,
+  },
   {
     key: 'employees',
     label: 'Employees',

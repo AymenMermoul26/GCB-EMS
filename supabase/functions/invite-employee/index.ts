@@ -32,7 +32,7 @@ const corsHeaders = {
 
 const SECURITY_NOTIFICATION_TITLE = 'Security'
 const SECURITY_NOTIFICATION_BODY = 'Welcome! Please change your password to a strong one.'
-const SECURITY_NOTIFICATION_LINK = '/employee/profile#security'
+const SECURITY_NOTIFICATION_LINK = '/employee/security'
 
 function jsonResponse(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {

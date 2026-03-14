@@ -2,6 +2,7 @@ export const ROUTES = {
   ROOT: '/',
   LOGIN: '/login',
   ADMIN: '/admin',
+  ADMIN_DASHBOARD: '/admin/dashboard',
   ADMIN_EMPLOYEES: '/admin/employees',
   ADMIN_EMPLOYEES_NEW: '/admin/employees/new',
   ADMIN_DEPARTMENTS: '/admin/departments',

@@ -30,8 +30,10 @@ export interface SendEmployeeInformationSheetResponse {
 }
 
 interface FunctionErrorBody {
+  code?: string
   error?: string
   message?: string
+  details?: string
 }
 
 function normalizeOptionalInput(value?: string): string | undefined {
@@ -40,6 +42,7 @@ function normalizeOptionalInput(value?: string): string | undefined {
 }
 
 function mapEmployeeSheetHttpError(status: number, body: FunctionErrorBody | null): string {
+  const code = (body?.code ?? '').trim()
   const rawMessage = (body?.error ?? body?.message ?? '').trim()
   const normalized = rawMessage.toLowerCase()
 
@@ -57,6 +60,18 @@ function mapEmployeeSheetHttpError(status: number, body: FunctionErrorBody | nul
 
   if (status === 403) {
     return rawMessage || 'Only administrators can send employee information sheets.'
+  }
+
+  if (code === 'EMAIL_CONFIG_MISSING') {
+    return rawMessage || 'Email service is not configured.'
+  }
+
+  if (code === 'EMAIL_PROVIDER_FAILURE') {
+    if (normalized.includes('domain') && normalized.includes('verify')) {
+      return 'Email provider rejected the configured sender domain. Verify gcb.com in Resend or update RESEND_FROM_EMAIL to a verified sender address.'
+    }
+
+    return rawMessage || 'Email provider rejected the request.'
   }
 
   if (rawMessage.length > 0) {

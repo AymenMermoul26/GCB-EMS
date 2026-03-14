@@ -47,6 +47,19 @@ function jsonResponse(status: number, body: Record<string, unknown>) {
   })
 }
 
+function errorResponse(
+  status: number,
+  code: string,
+  error: string,
+  details?: string,
+) {
+  return jsonResponse(status, {
+    code,
+    error,
+    ...(details ? { details } : {}),
+  })
+}
+
 function normalizePayload(rawBody: unknown): SendEmployeeInformationSheetPayload {
   if (!rawBody || typeof rawBody !== 'object' || Array.isArray(rawBody)) {
     return {}
@@ -280,18 +293,20 @@ Deno.serve(async (request) => {
   const resendFromEmail = Deno.env.get('RESEND_FROM_EMAIL')
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return jsonResponse(500, { error: 'Server configuration error.' })
+    return errorResponse(500, 'SERVER_CONFIG_ERROR', 'Server configuration error.')
   }
 
   if (!resendApiKey || !resendFromEmail) {
-    return jsonResponse(500, {
-      error: 'Email service is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.',
-    })
+    return errorResponse(
+      500,
+      'EMAIL_CONFIG_MISSING',
+      'Email service is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.',
+    )
   }
 
   const accessToken = extractBearerToken(request.headers.get('Authorization'))
   if (!accessToken) {
-    return jsonResponse(401, { error: 'Missing Authorization header.' })
+    return errorResponse(401, 'AUTH_MISSING', 'Missing Authorization header.')
   }
 
   const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey)
@@ -299,7 +314,7 @@ Deno.serve(async (request) => {
   const caller = authData.user
 
   if (authError || !caller) {
-    return jsonResponse(401, { error: 'Unauthorized.' })
+    return errorResponse(401, 'AUTH_UNAUTHORIZED', 'Unauthorized.')
   }
 
   const { data: callerProfiles, error: callerProfileError } = await adminClient
@@ -310,18 +325,18 @@ Deno.serve(async (request) => {
     .returns<Array<{ role: string }>>()
 
   if (callerProfileError) {
-    return jsonResponse(500, { error: callerProfileError.message })
+    return errorResponse(500, 'PROFILE_LOOKUP_FAILED', callerProfileError.message)
   }
 
   if (callerProfiles?.[0]?.role !== 'ADMIN_RH') {
-    return jsonResponse(403, { error: 'Forbidden. Admin RH role required.' })
+    return errorResponse(403, 'AUTH_FORBIDDEN', 'Forbidden. Admin RH role required.')
   }
 
   let payload: SendEmployeeInformationSheetPayload
   try {
     payload = normalizePayload(await request.json())
   } catch {
-    return jsonResponse(400, { error: 'Invalid JSON payload.' })
+    return errorResponse(400, 'INVALID_JSON', 'Invalid JSON payload.')
   }
 
   const employeId = payload.employe_id?.trim()
@@ -329,11 +344,11 @@ Deno.serve(async (request) => {
   const customMessage = normalizeOptionalText(payload.custom_message)
 
   if (!employeId) {
-    return jsonResponse(400, { error: 'employe_id is required.' })
+    return errorResponse(400, 'VALIDATION_ERROR', 'employe_id is required.')
   }
 
   if (!recipientEmail || !isValidEmail(recipientEmail)) {
-    return jsonResponse(400, { error: 'Invalid recipient email format.' })
+    return errorResponse(400, 'VALIDATION_ERROR', 'Invalid recipient email format.')
   }
 
   const appBaseUrl =
@@ -343,9 +358,11 @@ Deno.serve(async (request) => {
     normalizeBaseUrl(request.headers.get('origin'))
 
   if (!appBaseUrl) {
-    return jsonResponse(500, {
-      error: 'Application base URL is not configured. Set APP_BASE_URL or provide a valid app_base_url.',
-    })
+    return errorResponse(
+      500,
+      'APP_BASE_URL_MISSING',
+      'Application base URL is not configured. Set APP_BASE_URL or provide a valid app_base_url.',
+    )
   }
 
   const { data: employeeRows, error: employeeError } = await adminClient
@@ -356,12 +373,12 @@ Deno.serve(async (request) => {
     .returns<EmployeRow[]>()
 
   if (employeeError) {
-    return jsonResponse(500, { error: employeeError.message })
+    return errorResponse(500, 'EMPLOYEE_LOOKUP_FAILED', employeeError.message)
   }
 
   const employee = employeeRows?.[0]
   if (!employee) {
-    return jsonResponse(404, { error: 'Employee not found.' })
+    return errorResponse(404, 'EMPLOYEE_NOT_FOUND', 'Employee not found.')
   }
 
   const { data: departmentRows, error: departmentError } = await adminClient
@@ -372,7 +389,7 @@ Deno.serve(async (request) => {
     .returns<DepartmentRow[]>()
 
   if (departmentError) {
-    return jsonResponse(500, { error: departmentError.message })
+    return errorResponse(500, 'DEPARTMENT_LOOKUP_FAILED', departmentError.message)
   }
 
   const { data: profileRows, error: profileError } = await adminClient
@@ -383,7 +400,7 @@ Deno.serve(async (request) => {
     .returns<ProfilUtilisateurRow[]>()
 
   if (profileError) {
-    return jsonResponse(500, { error: profileError.message })
+    return errorResponse(500, 'PROFILE_LOOKUP_FAILED', profileError.message)
   }
 
   const profile = profileRows?.[0]
@@ -428,9 +445,22 @@ Deno.serve(async (request) => {
       text,
     })
   } catch (error) {
-    return jsonResponse(502, {
-      error: error instanceof Error ? error.message : 'Unable to send email.',
-    })
+    const providerMessage =
+      error instanceof Error ? error.message : 'Unable to send email through the configured provider.'
+    const normalizedProviderMessage = providerMessage.toLowerCase()
+    const friendlyProviderMessage =
+      normalizedProviderMessage.includes('domain') && normalizedProviderMessage.includes('verified')
+        ? 'Email provider rejected the configured sender domain. Verify the gcb.com domain in Resend or update RESEND_FROM_EMAIL to a verified sender address.'
+        : providerMessage
+
+    console.error('Employee information sheet email provider failure:', providerMessage)
+
+    return errorResponse(
+      502,
+      'EMAIL_PROVIDER_FAILURE',
+      friendlyProviderMessage,
+      providerMessage,
+    )
   }
 
   let auditLogged = true
