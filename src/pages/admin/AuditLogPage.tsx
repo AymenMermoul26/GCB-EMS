@@ -1,4 +1,6 @@
 import {
+  Activity,
+  AlertTriangle,
   CalendarDays,
   Eye,
   Filter,
@@ -6,6 +8,8 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  ShieldCheck,
+  Users,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -47,18 +51,100 @@ import { cn } from '@/lib/utils'
 import { useAuditLogQuery } from '@/services/auditLogService'
 import type { AuditAction, AuditLogItem } from '@/types/audit-log'
 
+interface ActionPresentation {
+  label: string
+  category: string
+  tone: 'slate' | 'emerald' | 'amber' | 'rose' | 'sky' | 'orange'
+  critical?: boolean
+}
+
+const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
+  EMPLOYEE_ACTIVATED: {
+    label: 'Employee Activated',
+    category: 'Employee',
+    tone: 'emerald',
+  },
+  EMPLOYEE_CREATED: {
+    label: 'Employee Created',
+    category: 'Employee',
+    tone: 'sky',
+  },
+  EMPLOYEE_UPDATED: {
+    label: 'Employee Updated',
+    category: 'Employee',
+    tone: 'slate',
+  },
+  EMPLOYEE_DEACTIVATED: {
+    label: 'Employee Deactivated',
+    category: 'Employee',
+    tone: 'rose',
+    critical: true,
+  },
+  EMPLOYEE_SELF_UPDATED: {
+    label: 'Employee Self Updated',
+    category: 'Employee',
+    tone: 'amber',
+  },
+  REQUEST_SUBMITTED: {
+    label: 'Request Submitted',
+    category: 'Request',
+    tone: 'amber',
+  },
+  REQUEST_APPROVED: {
+    label: 'Request Approved',
+    category: 'Request',
+    tone: 'emerald',
+  },
+  REQUEST_REJECTED: {
+    label: 'Request Rejected',
+    category: 'Request',
+    tone: 'rose',
+    critical: true,
+  },
+  QR_REGENERATED: {
+    label: 'QR Regenerated',
+    category: 'QR',
+    tone: 'sky',
+  },
+  QR_REVOKED: {
+    label: 'QR Revoked',
+    category: 'QR',
+    tone: 'rose',
+    critical: true,
+  },
+  QR_REFRESH_REQUIRED_CREATED: {
+    label: 'QR Refresh Required',
+    category: 'QR',
+    tone: 'amber',
+    critical: true,
+  },
+  VISIBILITY_UPDATED: {
+    label: 'Visibility Updated',
+    category: 'Public Profile',
+    tone: 'slate',
+  },
+  EMPLOYEE_SHEET_SENT: {
+    label: 'Information Sheet Sent',
+    category: 'Communication',
+    tone: 'orange',
+  },
+}
+
 const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'ALL', label: 'All actions' },
-  { value: 'EMPLOYEE_CREATED', label: 'EMPLOYEE_CREATED' },
-  { value: 'EMPLOYEE_UPDATED', label: 'EMPLOYEE_UPDATED' },
-  { value: 'EMPLOYEE_DEACTIVATED', label: 'EMPLOYEE_DEACTIVATED' },
-  { value: 'REQUEST_SUBMITTED', label: 'REQUEST_SUBMITTED' },
-  { value: 'REQUEST_APPROVED', label: 'REQUEST_APPROVED' },
-  { value: 'REQUEST_REJECTED', label: 'REQUEST_REJECTED' },
-  { value: 'QR_REGENERATED', label: 'QR_REGENERATED' },
-  { value: 'QR_REVOKED', label: 'QR_REVOKED' },
-  { value: 'VISIBILITY_UPDATED', label: 'VISIBILITY_UPDATED' },
-  { value: 'EMPLOYEE_SELF_UPDATED', label: 'EMPLOYEE_SELF_UPDATED' },
+  { value: 'EMPLOYEE_ACTIVATED', label: 'Employee Activated' },
+  { value: 'EMPLOYEE_CREATED', label: 'Employee Created' },
+  { value: 'EMPLOYEE_UPDATED', label: 'Employee Updated' },
+  { value: 'EMPLOYEE_DEACTIVATED', label: 'Employee Deactivated' },
+  { value: 'EMPLOYEE_SELF_UPDATED', label: 'Employee Self Updated' },
+  { value: 'REQUEST_SUBMITTED', label: 'Request Submitted' },
+  { value: 'REQUEST_APPROVED', label: 'Request Approved' },
+  { value: 'REQUEST_REJECTED', label: 'Request Rejected' },
+  { value: 'QR_REGENERATED', label: 'QR Regenerated' },
+  { value: 'QR_REVOKED', label: 'QR Revoked' },
+  { value: 'QR_REFRESH_REQUIRED_CREATED', label: 'QR Refresh Required' },
+  { value: 'VISIBILITY_UPDATED', label: 'Visibility Updated' },
+  { value: 'EMPLOYEE_SHEET_SENT', label: 'Information Sheet Sent' },
 ]
 
 function shortId(value: string | null): string {
@@ -69,31 +155,99 @@ function shortId(value: string | null): string {
   return value.length > 8 ? `${value.slice(0, 8)}...` : value
 }
 
-function actionLabel(action: string): string {
-  return action.replaceAll('_', ' ')
+function getActionPresentation(action: string): ActionPresentation {
+  return (
+    ACTION_PRESENTATION[action] ?? {
+      label: action
+        .replaceAll('_', ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, (character) => character.toUpperCase()),
+      category: 'System',
+      tone: 'slate',
+    }
+  )
 }
 
 function actionBadgeClass(action: string): string {
-  const criticalActions = new Set([
-    'EMPLOYEE_DEACTIVATED',
-    'REQUEST_REJECTED',
-    'QR_REVOKED',
-  ])
-  const warningActions = new Set([
-    'REQUEST_SUBMITTED',
-    'VISIBILITY_UPDATED',
-    'QR_REGENERATED',
-  ])
+  switch (getActionPresentation(action).tone) {
+    case 'emerald':
+      return 'border-transparent bg-emerald-100 text-emerald-800'
+    case 'amber':
+      return 'border-transparent bg-amber-100 text-amber-800'
+    case 'rose':
+      return 'border-transparent bg-rose-100 text-rose-700'
+    case 'sky':
+      return 'border-transparent bg-sky-100 text-sky-800'
+    case 'orange':
+      return 'border-transparent bg-orange-100 text-orange-800'
+    default:
+      return 'border-transparent bg-slate-100 text-slate-700'
+  }
+}
 
-  if (criticalActions.has(action)) {
-    return 'border-transparent bg-rose-100 text-rose-700'
+function formatFieldLabel(value: string): string {
+  return value
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function formatMetadataValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '-'
   }
 
-  if (warningActions.has(action)) {
-    return 'border-transparent bg-amber-100 text-amber-800'
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized.length > 0 ? normalized : '-'
   }
 
-  return 'border-transparent bg-slate-100 text-slate-700'
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
+      .join(', ')
+  }
+
+  return JSON.stringify(value, null, 2)
+}
+
+function getMetadataEntries(detailsJson: Record<string, unknown>) {
+  return Object.entries(detailsJson).map(([key, value]) => ({
+    key,
+    label: formatFieldLabel(key),
+    formattedValue: formatMetadataValue(value),
+    multiline: Array.isArray(value) || (value !== null && typeof value === 'object'),
+  }))
+}
+
+function getEntityLabel(targetType: string): string {
+  if (targetType === 'Employe') {
+    return 'Employee'
+  }
+
+  if (targetType === 'DemandeModification') {
+    return 'Request'
+  }
+
+  if (targetType === 'TokenQR') {
+    return 'QR Token'
+  }
+
+  if (targetType === 'employee_visibility') {
+    return 'Visibility'
+  }
+
+  return targetType
+}
+
+function isCriticalAction(action: string): boolean {
+  return getActionPresentation(action).critical === true
 }
 
 function hasEmployeeTarget(log: AuditLogItem): boolean {
@@ -108,6 +262,7 @@ export function AuditLogPage() {
   const [targetSearch, setTargetSearch] = useState('') // server-side employee target filter
   const [quickSearch, setQuickSearch] = useState('') // client-side action/actor/target search
   const [actorFilter, setActorFilter] = useState<string>('ALL')
+  const [entityFilter, setEntityFilter] = useState<string>('ALL')
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -134,10 +289,18 @@ export function AuditLogPage() {
     () => ['ALL', ...new Set(items.map((item) => item.actorLabel))],
     [items],
   )
+  const entityOptions = useMemo(
+    () => ['ALL', ...new Set(items.map((item) => item.targetType))],
+    [items],
+  )
   const visibleItems = useMemo(() => {
     const term = debouncedQuickSearch.trim().toLowerCase()
     return items.filter((log) => {
       if (actorFilter !== 'ALL' && log.actorLabel !== actorFilter) {
+        return false
+      }
+
+      if (entityFilter !== 'ALL' && log.targetType !== entityFilter) {
         return false
       }
 
@@ -146,6 +309,8 @@ export function AuditLogPage() {
       }
 
       const target = [
+        getActionPresentation(log.action).label,
+        getActionPresentation(log.action).category,
         log.action,
         log.actorLabel,
         log.targetLabel,
@@ -158,7 +323,30 @@ export function AuditLogPage() {
 
       return target.includes(term)
     })
-  }, [actorFilter, debouncedQuickSearch, items])
+  }, [actorFilter, debouncedQuickSearch, entityFilter, items])
+
+  const criticalItems = useMemo(
+    () => visibleItems.filter((item) => isCriticalAction(item.action)).slice(0, 4),
+    [visibleItems],
+  )
+  const todayCount = useMemo(
+    () =>
+      visibleItems.filter((item) => {
+        const now = new Date()
+        const candidate = new Date(item.createdAt)
+
+        return (
+          candidate.getFullYear() === now.getFullYear() &&
+          candidate.getMonth() === now.getMonth() &&
+          candidate.getDate() === now.getDate()
+        )
+      }).length,
+    [visibleItems],
+  )
+  const actorCount = useMemo(
+    () => new Set(visibleItems.map((item) => item.actorLabel)).size,
+    [visibleItems],
+  )
 
   const hasActiveFilters =
     action !== 'ALL' ||
@@ -167,6 +355,7 @@ export function AuditLogPage() {
     targetSearch.trim().length > 0 ||
     quickSearch.trim().length > 0 ||
     actorFilter !== 'ALL' ||
+    entityFilter !== 'ALL' ||
     pageSize !== 20
 
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1
@@ -179,6 +368,7 @@ export function AuditLogPage() {
     setTargetSearch('')
     setQuickSearch('')
     setActorFilter('ALL')
+    setEntityFilter('ALL')
     setPage(1)
     setPageSize(20)
     setIsFilterDialogOpen(false)
@@ -260,6 +450,75 @@ export function AuditLogPage() {
         </Alert>
       ) : null}
 
+      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          title="Visible Events"
+          value={auditLogQuery.isPending ? null : visibleItems.length}
+          helper="Current rows after search and local filters"
+          icon={<Activity className="h-5 w-5" />}
+          accentClass="bg-[linear-gradient(135deg,rgba(255,107,53,0.16),rgba(255,201,71,0.24))] text-[rgb(var(--brand-primary))]"
+        />
+        <SummaryCard
+          title="Today"
+          value={auditLogQuery.isPending ? null : todayCount}
+          helper="Events from today in the current view"
+          icon={<ShieldCheck className="h-5 w-5" />}
+          accentClass="bg-emerald-100 text-emerald-700"
+        />
+        <SummaryCard
+          title="Critical Events"
+          value={auditLogQuery.isPending ? null : criticalItems.length}
+          helper="High-attention actions in the current view"
+          icon={<AlertTriangle className="h-5 w-5" />}
+          accentClass="bg-rose-100 text-rose-700"
+        />
+        <SummaryCard
+          title="Actors"
+          value={auditLogQuery.isPending ? null : actorCount}
+          helper="Distinct actors in the visible result set"
+          icon={<Users className="h-5 w-5" />}
+          accentClass="bg-sky-100 text-sky-700"
+        />
+      </div>
+
+      {criticalItems.length > 0 && !auditLogQuery.isPending ? (
+        <Card className="mb-6 rounded-2xl border border-slate-200/80 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Recent critical events</CardTitle>
+            <CardDescription>
+              High-attention actions from the current filtered view.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {criticalItems.map((log) => {
+              const presentation = getActionPresentation(log.action)
+
+              return (
+                <button
+                  key={log.id}
+                  type="button"
+                  onClick={() => setSelectedLog(log)}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className={actionBadgeClass(log.action)}>{presentation.label}</Badge>
+                        <span className="text-xs text-slate-500">{presentation.category}</span>
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-slate-900">{log.targetLabel}</p>
+                      <p className="mt-1 line-clamp-2 text-sm text-slate-600">{log.detailsPreview}</p>
+                    </div>
+                    <Eye className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</p>
+                </button>
+              )
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-base font-semibold">Events</CardTitle>
@@ -315,27 +574,40 @@ export function AuditLogPage() {
                     <TableBody>
                       {visibleItems.map((log) => (
                         <TableRow key={log.id} className="hover:bg-muted/30">
-                          <TableCell>{new Date(log.createdAt).toLocaleString()}</TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              <Badge className={actionBadgeClass(log.action)}>
-                                {actionLabel(log.action)}
-                              </Badge>
+                              <p className="text-sm font-medium text-slate-900">
+                                {new Date(log.createdAt).toLocaleString()}
+                              </p>
+                              <p className="font-mono text-xs text-slate-500">{shortId(log.id)}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge className={actionBadgeClass(log.action)}>
+                                  {getActionPresentation(log.action).label}
+                                </Badge>
+                                <Badge variant="outline" className="text-[11px]">
+                                  {getActionPresentation(log.action).category}
+                                </Badge>
+                              </div>
                               <p className="font-mono text-xs text-muted-foreground">{log.action}</p>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <p className="text-sm">{log.actorLabel}</p>
+                            <p className="text-sm font-medium text-slate-900">{log.actorLabel}</p>
                             <p className="font-mono text-xs text-muted-foreground">{shortId(log.actorUserId)}</p>
                           </TableCell>
                           <TableCell>
-                            <p className="text-sm">{log.targetLabel}</p>
-                            <p className="font-mono text-xs text-muted-foreground">
-                              {log.targetType} - {shortId(log.targetId)}
+                            <p className="text-sm font-medium text-slate-900">{log.targetLabel}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {getEntityLabel(log.targetType)}
+                              {log.targetId ? ` | ${shortId(log.targetId)}` : ''}
                             </p>
                           </TableCell>
                           <TableCell>
-                            <p className="line-clamp-2 text-xs text-muted-foreground">
+                            <p className="line-clamp-2 text-sm text-muted-foreground">
                               {log.detailsPreview}
                             </p>
                           </TableCell>
@@ -407,7 +679,9 @@ export function AuditLogPage() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Filter audit log</DialogTitle>
-            <DialogDescription>Narrow the event stream by action, actor, date, and target.</DialogDescription>
+            <DialogDescription>
+              Narrow the event stream by action, actor, entity, date, and target employee.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -463,7 +737,7 @@ export function AuditLogPage() {
               <Label htmlFor="audit-target-search">Target employee</Label>
               <Input
                 id="audit-target-search"
-                placeholder="Search target employee (matricule, nom, prenom)"
+                placeholder="Search target employee by employee ID, first name, or last name"
                 value={targetSearch}
                 onChange={(event) => {
                   setTargetSearch(event.target.value)
@@ -472,7 +746,7 @@ export function AuditLogPage() {
               />
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="audit-actor-filter">Actor</Label>
               <Select value={actorFilter} onValueChange={(value) => setActorFilter(value)}>
                 <SelectTrigger id="audit-actor-filter">
@@ -482,6 +756,22 @@ export function AuditLogPage() {
                   {actorOptions.map((item) => (
                     <SelectItem key={item} value={item}>
                       {item === 'ALL' ? 'All actors' : item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="audit-entity-filter">Entity</Label>
+              <Select value={entityFilter} onValueChange={(value) => setEntityFilter(value)}>
+                <SelectTrigger id="audit-entity-filter">
+                  <SelectValue placeholder="Entity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {entityOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item === 'ALL' ? 'All entities' : getEntityLabel(item)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -532,7 +822,7 @@ export function AuditLogPage() {
               Audit Details
             </DialogTitle>
             <DialogDescription>
-              Full event metadata for the selected audit entry.
+              Review the event summary, actor, target, and recorded metadata.
             </DialogDescription>
           </DialogHeader>
           {selectedLog ? (
@@ -542,10 +832,13 @@ export function AuditLogPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Action</p>
                   <div className="mt-2 flex items-center gap-2">
                     <Badge className={actionBadgeClass(selectedLog.action)}>
-                      {actionLabel(selectedLog.action)}
+                      {getActionPresentation(selectedLog.action).label}
                     </Badge>
-                    <span className="font-mono text-xs text-muted-foreground">{selectedLog.action}</span>
+                    <Badge variant="outline" className="text-[11px]">
+                      {getActionPresentation(selectedLog.action).category}
+                    </Badge>
                   </div>
+                  <p className="mt-2 font-mono text-xs text-muted-foreground">{selectedLog.action}</p>
                 </div>
                 <div className="rounded-xl border p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Timestamp</p>
@@ -559,15 +852,46 @@ export function AuditLogPage() {
                 <div className="rounded-xl border p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Target</p>
                   <p className="mt-2 text-sm">{selectedLog.targetLabel}</p>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {selectedLog.targetType} - {selectedLog.targetId ?? '-'}
+                  <p className="text-xs text-muted-foreground">
+                    {getEntityLabel(selectedLog.targetType)}
+                    {selectedLog.targetId ? ` | ${selectedLog.targetId}` : ''}
                   </p>
                 </div>
               </div>
 
+              <div className="rounded-xl border bg-slate-50/60 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Readable summary
+                </p>
+                <p className="mt-2 text-sm text-slate-700">{selectedLog.detailsPreview}</p>
+              </div>
+
+              {getMetadataEntries(selectedLog.detailsJson).length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {getMetadataEntries(selectedLog.detailsJson).map((entry) => (
+                    <div key={entry.key} className="rounded-xl border bg-slate-50/60 p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {entry.label}
+                      </p>
+                      {entry.multiline ? (
+                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
+                          {entry.formattedValue}
+                        </pre>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-800">{entry.formattedValue}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No structured metadata was recorded for this event.
+                </div>
+              )}
+
               <div className="rounded-xl border">
                 <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Details JSON
+                  Raw JSON
                 </div>
                 <pre className="max-h-[360px] overflow-auto bg-slate-950 p-4 text-xs text-slate-100">
                   {JSON.stringify(selectedLog.detailsJson, null, 2)}
@@ -585,6 +909,43 @@ interface AuditRowActionsProps {
   log: AuditLogItem
   onView: () => void
   onOpenEmployee?: () => void
+}
+
+interface SummaryCardProps {
+  title: string
+  value: number | null
+  helper: string
+  icon: ReactNode
+  accentClass: string
+}
+
+function SummaryCard({
+  title,
+  value,
+  helper,
+  icon,
+  accentClass,
+}: SummaryCardProps) {
+  return (
+    <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-slate-500">{title}</p>
+            {value === null ? (
+              <Skeleton className="mt-2 h-8 w-20" />
+            ) : (
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+            )}
+          </div>
+          <div className={cn('flex h-11 w-11 items-center justify-center rounded-2xl', accentClass)}>
+            {icon}
+          </div>
+        </div>
+        <p className="text-sm text-slate-500">{helper}</p>
+      </CardContent>
+    </Card>
+  )
 }
 
 function AuditRowActions({ log, onView, onOpenEmployee }: AuditRowActionsProps) {

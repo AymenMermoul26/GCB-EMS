@@ -52,13 +52,55 @@ function normalizeDetailsJson(value: unknown): Record<string, unknown> {
   return {}
 }
 
-function toDetailsPreview(detailsJson: Record<string, unknown>): string {
-  const serialized = JSON.stringify(detailsJson)
-  if (serialized.length <= 100) {
-    return serialized
+function readText(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized.length > 0 ? normalized : null
   }
 
-  return `${serialized.slice(0, 100)}...`
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return null
+}
+
+function formatFieldLabel(value: string): string {
+  return value
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function stringifyPreviewValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    const rendered = value
+      .map((item) => readText(item) ?? JSON.stringify(item))
+      .filter(Boolean)
+      .join(', ')
+    return rendered || '[]'
+  }
+
+  const text = readText(value)
+  if (text) {
+    return text
+  }
+
+  if (value && typeof value === 'object') {
+    return JSON.stringify(value)
+  }
+
+  return String(value)
+}
+
+function truncatePreview(value: string, maxLength = 120): string {
+  if (value.length <= maxLength) {
+    return value
+  }
+
+  return `${value.slice(0, maxLength - 3)}...`
 }
 
 function formatEmployeeLabel(employee?: EmployeeLookupRow | null): string {
@@ -75,6 +117,115 @@ function toStartOfDay(date: string): string {
 
 function toEndOfDay(date: string): string {
   return `${date}T23:59:59.999`
+}
+
+function toDetailsPreview(action: string, detailsJson: Record<string, unknown>): string {
+  const matricule = readText(detailsJson.matricule)
+  const recipientEmail = readText(detailsJson.recipient_email)
+  const subject = readText(detailsJson.subject)
+  const fieldKey = readText(detailsJson.field_key)
+  const isPublic = detailsJson.is_public === true
+  const tokenStatus = readText(detailsJson.statut_token)
+  const changedFields = Array.isArray(detailsJson.changed_fields)
+    ? detailsJson.changed_fields
+        .map((item) => readText(item))
+        .filter((item): item is string => Boolean(item))
+    : []
+
+  switch (action) {
+    case 'EMPLOYEE_ACTIVATED':
+      return matricule ? `Reactivated employee ${matricule}.` : 'Reactivated an employee profile.'
+    case 'EMPLOYEE_CREATED':
+      return matricule ? `Created employee ${matricule}.` : 'Created a new employee profile.'
+    case 'EMPLOYEE_UPDATED':
+      return matricule ? `Updated employee ${matricule}.` : 'Updated an employee profile.'
+    case 'EMPLOYEE_DEACTIVATED':
+      return matricule ? `Deactivated employee ${matricule}.` : 'Deactivated an employee profile.'
+    case 'EMPLOYEE_SELF_UPDATED':
+      return changedFields.length > 0
+        ? `Employee updated: ${changedFields.map(formatFieldLabel).join(', ')}.`
+        : 'Employee submitted direct profile updates.'
+    case 'REQUEST_SUBMITTED':
+      return changedFields.length > 0
+        ? `Request submitted for ${changedFields.map(formatFieldLabel).join(', ')}.`
+        : 'Submitted an employee modification request.'
+    case 'REQUEST_APPROVED':
+      return changedFields.length > 0
+        ? `Approved request for ${changedFields.map(formatFieldLabel).join(', ')}.`
+        : 'Approved an employee modification request.'
+    case 'REQUEST_REJECTED':
+      return readText(detailsJson.commentaire_traitement)
+        ? `Rejected request: ${readText(detailsJson.commentaire_traitement)}`
+        : 'Rejected an employee modification request.'
+    case 'QR_REGENERATED':
+      return tokenStatus ? `Generated QR token with status ${tokenStatus}.` : 'Generated or refreshed a QR token.'
+    case 'QR_REVOKED':
+      return 'Revoked the active QR token.'
+    case 'QR_REFRESH_REQUIRED_CREATED':
+      return changedFields.length > 0
+        ? `QR refresh required after updates to ${changedFields.map(formatFieldLabel).join(', ')}.`
+        : 'Created a QR refresh alert.'
+    case 'VISIBILITY_UPDATED':
+      return fieldKey
+        ? `${formatFieldLabel(fieldKey)} visibility set to ${isPublic ? 'public' : 'private'}.`
+        : 'Updated public profile visibility.'
+    case 'EMPLOYEE_SHEET_SENT':
+      if (recipientEmail && subject) {
+        return `Sent employee information sheet to ${recipientEmail} with subject "${subject}".`
+      }
+      if (recipientEmail) {
+        return `Sent employee information sheet to ${recipientEmail}.`
+      }
+      return 'Sent an employee information sheet by email.'
+    default: {
+      const summaryEntries = Object.entries(detailsJson)
+        .filter(([, value]) => value !== null && value !== undefined && value !== '')
+        .slice(0, 2)
+
+      if (summaryEntries.length === 0) {
+        return 'No additional event details.'
+      }
+
+      return truncatePreview(
+        summaryEntries
+          .map(([key, value]) => `${formatFieldLabel(key)}: ${stringifyPreviewValue(value)}`)
+          .join(' | '),
+      )
+    }
+  }
+}
+
+function formatTargetLabel(
+  row: AuditLogRow,
+  detailsJson: Record<string, unknown>,
+  employeeById: Map<string, EmployeeLookupRow>,
+): string {
+  if (!row.target_id) {
+    return row.target_type
+  }
+
+  if (row.target_type === 'Employe') {
+    return formatEmployeeLabel(employeeById.get(row.target_id))
+  }
+
+  if (row.target_type === 'DemandeModification') {
+    const fieldKey = readText(detailsJson.field_key) ?? readText(detailsJson.champ_cible)
+    if (fieldKey) {
+      return `Modification request | ${formatFieldLabel(fieldKey)}`
+    }
+
+    return `Modification request (${row.target_id.slice(0, 8)})`
+  }
+
+  if (row.target_type === 'TokenQR') {
+    return `QR token (${row.target_id.slice(0, 8)})`
+  }
+
+  if (row.target_type === 'employee_visibility') {
+    return 'Employee visibility settings'
+  }
+
+  return `${row.target_type} (${row.target_id.slice(0, 8)})`
 }
 
 export async function listLogs(
@@ -218,15 +369,6 @@ export async function listLogs(
       }
     }
 
-    let targetLabel = row.target_type
-    if (row.target_id) {
-      if (row.target_type === 'Employe') {
-        targetLabel = formatEmployeeLabel(employeeById.get(row.target_id))
-      } else {
-        targetLabel = `${row.target_type} (${row.target_id.slice(0, 8)})`
-      }
-    }
-
     return {
       id: row.id,
       actorUserId: row.actor_user_id,
@@ -234,9 +376,9 @@ export async function listLogs(
       action: row.action,
       targetType: row.target_type,
       targetId: row.target_id,
-      targetLabel,
+      targetLabel: formatTargetLabel(row, detailsJson, employeeById),
       detailsJson,
-      detailsPreview: toDetailsPreview(detailsJson),
+      detailsPreview: toDetailsPreview(row.action, detailsJson),
       createdAt: row.created_at,
     }
   })

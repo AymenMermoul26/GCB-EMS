@@ -1,4 +1,5 @@
 export type AuditAction =
+  | 'EMPLOYEE_ACTIVATED'
   | 'EMPLOYEE_CREATED'
   | 'EMPLOYEE_UPDATED'
   | 'EMPLOYEE_DEACTIVATED'
@@ -9,6 +10,8 @@ export type AuditAction =
   | 'QR_REGENERATED'
   | 'QR_REVOKED'
   | 'VISIBILITY_UPDATED'
+  | 'QR_REFRESH_REQUIRED_CREATED'
+  | 'EMPLOYEE_SHEET_SENT'
 
 export interface AuditLogItem {
   id: string
