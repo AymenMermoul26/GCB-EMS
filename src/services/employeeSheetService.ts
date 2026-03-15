@@ -130,6 +130,10 @@ async function invokeSendEmployeeInformationSheet(
     throw new Error('Employee information sheet email failed.')
   }
 
+  if (data.warning) {
+    console.warn(`[send-employee-information-sheet] ${data.warning}`)
+  }
+
   return data
 }
 
@@ -167,14 +171,17 @@ export function useSendEmployeeInformationSheetMutation(
   >,
 ) {
   const queryClient = useQueryClient()
-  const { onSuccess, ...restOptions } = options ?? {}
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
   return useMutation({
     mutationFn: sendEmployeeInformationSheet,
     ...restOptions,
     onSuccess: async (data, variables, onMutateResult, context) => {
-      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
       await onSuccess?.(data, variables, onMutateResult, context)
+    },
+    onSettled: async (data, error, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await onSettled?.(data, error, variables, onMutateResult, context)
     },
   })
 }

@@ -80,10 +80,27 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     tone: 'rose',
     critical: true,
   },
+  EMPLOYEE_INVITE_SENT: {
+    label: 'Invite Email Sent',
+    category: 'Communication',
+    tone: 'orange',
+  },
+  EMPLOYEE_INVITE_FAILED: {
+    label: 'Invite Email Failed',
+    category: 'Communication',
+    tone: 'rose',
+    critical: true,
+  },
   EMPLOYEE_SELF_UPDATED: {
     label: 'Employee Self Updated',
     category: 'Employee',
     tone: 'amber',
+  },
+  EMPLOYEE_SHEET_SEND_FAILED: {
+    label: 'Information Sheet Failed',
+    category: 'Communication',
+    tone: 'rose',
+    critical: true,
   },
   REQUEST_SUBMITTED: {
     label: 'Request Submitted',
@@ -136,7 +153,10 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'EMPLOYEE_CREATED', label: 'Employee Created' },
   { value: 'EMPLOYEE_UPDATED', label: 'Employee Updated' },
   { value: 'EMPLOYEE_DEACTIVATED', label: 'Employee Deactivated' },
+  { value: 'EMPLOYEE_INVITE_SENT', label: 'Invite Email Sent' },
+  { value: 'EMPLOYEE_INVITE_FAILED', label: 'Invite Email Failed' },
   { value: 'EMPLOYEE_SELF_UPDATED', label: 'Employee Self Updated' },
+  { value: 'EMPLOYEE_SHEET_SEND_FAILED', label: 'Information Sheet Failed' },
   { value: 'REQUEST_SUBMITTED', label: 'Request Submitted' },
   { value: 'REQUEST_APPROVED', label: 'Request Approved' },
   { value: 'REQUEST_REJECTED', label: 'Request Rejected' },

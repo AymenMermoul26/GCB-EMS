@@ -124,6 +124,8 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
   const recipientEmail = readText(detailsJson.recipient_email)
   const subject = readText(detailsJson.subject)
   const fieldKey = readText(detailsJson.field_key)
+  const triggerSource = readText(detailsJson.trigger_source)
+  const failureReason = readText(detailsJson.failure_reason)
   const isPublic = detailsJson.is_public === true
   const tokenStatus = readText(detailsJson.statut_token)
   const changedFields = Array.isArray(detailsJson.changed_fields)
@@ -141,10 +143,37 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return matricule ? `Updated employee ${matricule}.` : 'Updated an employee profile.'
     case 'EMPLOYEE_DEACTIVATED':
       return matricule ? `Deactivated employee ${matricule}.` : 'Deactivated an employee profile.'
+    case 'EMPLOYEE_INVITE_SENT':
+      if (recipientEmail && triggerSource === 'resend_invite') {
+        return `Re-sent employee invite email to ${recipientEmail}.`
+      }
+      return recipientEmail
+        ? `Sent employee invite email to ${recipientEmail}.`
+        : 'Sent an employee invite email.'
+    case 'EMPLOYEE_INVITE_FAILED':
+      if (recipientEmail && failureReason) {
+        return `Employee invite email to ${recipientEmail} failed: ${failureReason}`
+      }
+      if (recipientEmail) {
+        return `Employee invite email to ${recipientEmail} failed.`
+      }
+      return failureReason
+        ? `Employee invite email failed: ${failureReason}`
+        : 'Employee invite email failed.'
     case 'EMPLOYEE_SELF_UPDATED':
       return changedFields.length > 0
         ? `Employee updated: ${changedFields.map(formatFieldLabel).join(', ')}.`
         : 'Employee submitted direct profile updates.'
+    case 'EMPLOYEE_SHEET_SEND_FAILED':
+      if (recipientEmail && failureReason) {
+        return `Information sheet email to ${recipientEmail} failed: ${failureReason}`
+      }
+      if (recipientEmail) {
+        return `Information sheet email to ${recipientEmail} failed.`
+      }
+      return failureReason
+        ? `Information sheet email failed: ${failureReason}`
+        : 'Information sheet email failed.'
     case 'REQUEST_SUBMITTED':
       return changedFields.length > 0
         ? `Request submitted for ${changedFields.map(formatFieldLabel).join(', ')}.`

@@ -237,6 +237,69 @@ function buildEmailText(params: {
     .join('\n')
 }
 
+function getEmployeeFullName(employee: EmployeRow): string {
+  return `${employee.prenom} ${employee.nom}`.replace(/\s+/g, ' ').trim()
+}
+
+async function insertEmployeeSheetAuditLog(params: {
+  adminClient: ReturnType<typeof createClient>
+  actorUserId: string
+  action: 'EMPLOYEE_SHEET_SENT' | 'EMPLOYEE_SHEET_SEND_FAILED'
+  employee: EmployeRow
+  recipientEmail: string
+  subject: string
+  senderEmail: string | null
+  failureReason?: string
+}): Promise<{ logged: boolean; warning?: string }> {
+  const timestamp = new Date().toISOString()
+  const detailsJson: Record<string, unknown> = {
+    recipient_email: params.recipientEmail,
+    employee_id: params.employee.id,
+    employee_name: getEmployeeFullName(params.employee),
+    matricule: params.employee.matricule,
+    email_type: 'employee_information_sheet',
+    document_type: 'employee_information_sheet',
+    trigger_source: 'employee_information_sheet_dialog',
+    provider: 'resend',
+    status: params.action === 'EMPLOYEE_SHEET_SENT' ? 'sent' : 'failed',
+    subject: params.subject,
+    sender_user_id: params.actorUserId,
+    sender_email: params.senderEmail,
+  }
+
+  if (params.action === 'EMPLOYEE_SHEET_SENT') {
+    detailsJson.sent_at = timestamp
+  } else {
+    detailsJson.failed_at = timestamp
+    detailsJson.failure_reason =
+      params.failureReason ?? 'Employee information sheet email could not be sent.'
+  }
+
+  const { error } = await params.adminClient
+    .from('audit_log')
+    .insert({
+      actor_user_id: params.actorUserId,
+      action: params.action,
+      target_type: 'Employe',
+      target_id: params.employee.id,
+      details_json: detailsJson,
+    })
+
+  if (error) {
+    console.error(`Failed to insert audit_log row for ${params.action}:`, error.message)
+
+    return {
+      logged: false,
+      warning:
+        params.action === 'EMPLOYEE_SHEET_SENT'
+          ? 'Email sent, but audit logging could not be completed.'
+          : 'Employee information sheet email failed, and the audit event could not be recorded.',
+    }
+  }
+
+  return { logged: true }
+}
+
 async function sendEmailViaResend(params: {
   apiKey: string
   fromAddress: string
@@ -455,39 +518,35 @@ Deno.serve(async (request) => {
 
     console.error('Employee information sheet email provider failure:', providerMessage)
 
-    return errorResponse(
-      502,
-      'EMAIL_PROVIDER_FAILURE',
-      friendlyProviderMessage,
-      providerMessage,
-    )
-  }
-
-  let auditLogged = true
-  let warning: string | undefined
-
-  const { error: auditError } = await adminClient
-    .from('audit_log')
-    .insert({
-      actor_user_id: caller.id,
-      action: 'EMPLOYEE_SHEET_SENT',
-      target_type: 'Employe',
-      target_id: employee.id,
-      details_json: {
-        recipient_email: recipientEmail,
-        subject,
-        sender_user_id: caller.id,
-        sender_email: caller.email ?? null,
-        internal_link: internalLink,
-        sent_at: new Date().toISOString(),
-      },
+    const auditResult = await insertEmployeeSheetAuditLog({
+      adminClient,
+      actorUserId: caller.id,
+      action: 'EMPLOYEE_SHEET_SEND_FAILED',
+      employee,
+      recipientEmail,
+      subject,
+      senderEmail: caller.email ?? null,
+      failureReason: friendlyProviderMessage,
     })
 
-  if (auditError) {
-    auditLogged = false
-    warning = 'Email sent, but audit logging could not be completed.'
-    console.error('Failed to insert audit_log row for employee information sheet:', auditError.message)
+    return jsonResponse(502, {
+      code: 'EMAIL_PROVIDER_FAILURE',
+      error: friendlyProviderMessage,
+      details: providerMessage,
+      audit_logged: auditResult.logged,
+      ...(auditResult.warning ? { warning: auditResult.warning } : {}),
+    })
   }
+
+  const auditResult = await insertEmployeeSheetAuditLog({
+    adminClient,
+    actorUserId: caller.id,
+    action: 'EMPLOYEE_SHEET_SENT',
+    employee,
+    recipientEmail,
+    subject,
+    senderEmail: caller.email ?? null,
+  })
 
   return jsonResponse(200, {
     ok: true,
@@ -495,8 +554,8 @@ Deno.serve(async (request) => {
     recipient_email: recipientEmail,
     subject,
     link: internalLink,
-    audit_logged: auditLogged,
-    warning,
+    audit_logged: auditResult.logged,
+    warning: auditResult.warning,
   })
 })
 

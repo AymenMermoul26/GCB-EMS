@@ -3,6 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 interface InviteEmployeePayload {
   employe_id?: string
   email?: string
+  trigger_source?: string
 }
 
 interface ProfilUtilisateurRow {
@@ -14,6 +15,9 @@ interface ProfilUtilisateurRow {
 
 interface EmployeRow {
   id: string
+  matricule: string
+  nom: string
+  prenom: string
 }
 
 interface UserLookupRow {
@@ -23,6 +27,13 @@ interface UserLookupRow {
 interface NotificationLookupRow {
   id: string
 }
+
+interface InviteResolutionResult {
+  userId: string
+  emailSent: boolean
+}
+
+type InviteTriggerSource = 'invite' | 'resend_invite'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,6 +64,88 @@ function isAlreadyRegisteredError(message: string): boolean {
     normalized.includes('user already exists') ||
     normalized.includes('already exists')
   )
+}
+
+class InviteFlowError extends Error {
+  readonly shouldLogEmailFailure: boolean
+
+  constructor(message: string, shouldLogEmailFailure = false) {
+    super(message)
+    this.name = 'InviteFlowError'
+    this.shouldLogEmailFailure = shouldLogEmailFailure
+  }
+}
+
+function normalizeTriggerSource(value: string | undefined): InviteTriggerSource {
+  const normalized = value?.trim().toLowerCase()
+  return normalized === 'resend_invite' ? 'resend_invite' : 'invite'
+}
+
+function getEmployeeFullName(employee: EmployeRow): string {
+  return `${employee.prenom} ${employee.nom}`.replace(/\s+/g, ' ').trim()
+}
+
+async function insertInviteAuditLog(params: {
+  adminClient: ReturnType<typeof createClient>
+  actorUserId: string
+  action: 'EMPLOYEE_INVITE_SENT' | 'EMPLOYEE_INVITE_FAILED'
+  employee: EmployeRow
+  recipientEmail: string
+  triggerSource: InviteTriggerSource
+  authUserId?: string | null
+  mustChangePassword?: boolean
+  failureReason?: string
+}): Promise<{ logged: boolean; warning?: string }> {
+  const timestamp = new Date().toISOString()
+  const detailsJson: Record<string, unknown> = {
+    recipient_email: params.recipientEmail,
+    employee_id: params.employee.id,
+    employee_name: getEmployeeFullName(params.employee),
+    matricule: params.employee.matricule,
+    email_type: 'employee_invite',
+    trigger_source: params.triggerSource,
+    provider: 'supabase_auth',
+    status: params.action === 'EMPLOYEE_INVITE_SENT' ? 'sent' : 'failed',
+  }
+
+  if (params.authUserId) {
+    detailsJson.auth_user_id = params.authUserId
+  }
+
+  if (params.mustChangePassword !== undefined) {
+    detailsJson.must_change_password = params.mustChangePassword
+  }
+
+  if (params.action === 'EMPLOYEE_INVITE_SENT') {
+    detailsJson.sent_at = timestamp
+  } else {
+    detailsJson.failed_at = timestamp
+    detailsJson.failure_reason = params.failureReason ?? 'Invite email could not be sent.'
+  }
+
+  const { error } = await params.adminClient
+    .from('audit_log')
+    .insert({
+      actor_user_id: params.actorUserId,
+      action: params.action,
+      target_type: 'Employe',
+      target_id: params.employee.id,
+      details_json: detailsJson,
+    })
+
+  if (error) {
+    console.error(`Failed to insert audit_log row for ${params.action}:`, error.message)
+
+    return {
+      logged: false,
+      warning:
+        params.action === 'EMPLOYEE_INVITE_SENT'
+          ? 'Invite email sent, but audit logging could not be completed.'
+          : 'Invite email failed, and the audit event could not be recorded.',
+    }
+  }
+
+  return { logged: true }
 }
 
 async function findAuthUserIdByEmail(
@@ -93,23 +186,29 @@ async function inviteOrResolveAuthUser(
   adminClient: ReturnType<typeof createClient>,
   normalizedEmail: string,
   redirectTo?: string,
-): Promise<string> {
+): Promise<InviteResolutionResult> {
   const inviteResult = await adminClient.auth.admin.inviteUserByEmail(
     normalizedEmail,
     redirectTo ? { redirectTo } : undefined,
   )
 
   if (!inviteResult.error && inviteResult.data.user?.id) {
-    return inviteResult.data.user.id
+    return {
+      userId: inviteResult.data.user.id,
+      emailSent: true,
+    }
   }
 
   if (inviteResult.error && !isAlreadyRegisteredError(inviteResult.error.message)) {
-    throw new Error(inviteResult.error.message)
+    throw new InviteFlowError(inviteResult.error.message, true)
   }
 
   const existingUserId = await findAuthUserIdByEmail(adminClient, normalizedEmail)
   if (existingUserId) {
-    return existingUserId
+    return {
+      userId: existingUserId,
+      emailSent: false,
+    }
   }
 
   const createResult = await adminClient.auth.admin.createUser({
@@ -119,22 +218,28 @@ async function inviteOrResolveAuthUser(
 
   if (createResult.error) {
     if (!isAlreadyRegisteredError(createResult.error.message)) {
-      throw new Error(createResult.error.message)
+      throw new InviteFlowError(createResult.error.message)
     }
 
     const fallbackUserId = await findAuthUserIdByEmail(adminClient, normalizedEmail)
     if (fallbackUserId) {
-      return fallbackUserId
+      return {
+        userId: fallbackUserId,
+        emailSent: false,
+      }
     }
 
-    throw new Error('Unable to resolve auth user by email.')
+    throw new InviteFlowError('Unable to resolve auth user by email.')
   }
 
   if (!createResult.data.user?.id) {
-    throw new Error('Auth user creation returned an empty user id.')
+    throw new InviteFlowError('Auth user creation returned an empty user id.')
   }
 
-  return createResult.data.user.id
+  return {
+    userId: createResult.data.user.id,
+    emailSent: false,
+  }
 }
 
 function normalizePayload(rawBody: unknown): InviteEmployeePayload {
@@ -344,6 +449,7 @@ Deno.serve(async (request) => {
 
   const employeId = payload.employe_id?.trim()
   const normalizedEmail = payload.email?.trim().toLowerCase()
+  const triggerSource = normalizeTriggerSource(payload.trigger_source)
 
   if (!employeId) {
     return jsonResponse(400, { error: 'employe_id is required.' })
@@ -355,7 +461,7 @@ Deno.serve(async (request) => {
 
   const { data: employeeRows, error: employeeError } = await adminClient
     .from('Employe')
-    .select('id')
+    .select('id, matricule, nom, prenom')
     .eq('id', employeId)
     .limit(1)
     .returns<EmployeRow[]>()
@@ -367,6 +473,8 @@ Deno.serve(async (request) => {
   if (!employeeRows || employeeRows.length === 0) {
     return jsonResponse(404, { error: 'Employee not found.' })
   }
+
+  const employee = employeeRows[0]
 
   const { data: existingProfiles, error: existingProfileError } = await adminClient
     .from('ProfilUtilisateur')
@@ -426,13 +534,48 @@ Deno.serve(async (request) => {
 
     const linkedAppMetadata = asRecord(linkedUserResponse.user?.app_metadata)
     const linkedMustChangePassword = readMustChangePasswordFlag(linkedAppMetadata.must_change_password)
+    let auditLogged: boolean | undefined
+    let warning: string | undefined
+    let emailSent = false
 
     const resendResult = await adminClient.auth.admin.inviteUserByEmail(
       normalizedEmail,
       inviteRedirectTo ? { redirectTo: inviteRedirectTo } : undefined,
     )
     if (resendResult.error && !isAlreadyRegisteredError(resendResult.error.message)) {
-      return jsonResponse(400, { error: resendResult.error.message })
+      const auditResult = await insertInviteAuditLog({
+        adminClient,
+        actorUserId: user.id,
+        action: 'EMPLOYEE_INVITE_FAILED',
+        employee,
+        recipientEmail: normalizedEmail,
+        triggerSource,
+        authUserId: profile.user_id,
+        mustChangePassword: linkedMustChangePassword,
+        failureReason: resendResult.error.message,
+      })
+
+      return jsonResponse(400, {
+        error: resendResult.error.message,
+        audit_logged: auditResult.logged,
+        ...(auditResult.warning ? { warning: auditResult.warning } : {}),
+      })
+    }
+
+    if (!resendResult.error) {
+      emailSent = true
+      const auditResult = await insertInviteAuditLog({
+        adminClient,
+        actorUserId: user.id,
+        action: 'EMPLOYEE_INVITE_SENT',
+        employee,
+        recipientEmail: normalizedEmail,
+        triggerSource,
+        authUserId: profile.user_id,
+        mustChangePassword: linkedMustChangePassword,
+      })
+      auditLogged = auditResult.logged
+      warning = auditResult.warning
     }
 
     if (linkedMustChangePassword) {
@@ -450,21 +593,61 @@ Deno.serve(async (request) => {
       user_id: profile.user_id,
       email: linkedEmail || normalizedEmail,
       status: 'INVITED',
+      email_sent: emailSent,
       must_change_password: linkedMustChangePassword,
+      ...(auditLogged !== undefined ? { audit_logged: auditLogged } : {}),
+      ...(warning ? { warning } : {}),
     })
   }
 
-  let authUserId: string
+  let inviteResolution: InviteResolutionResult
   try {
-    authUserId = await inviteOrResolveAuthUser(
+    inviteResolution = await inviteOrResolveAuthUser(
       adminClient,
       normalizedEmail,
       inviteRedirectTo,
     )
   } catch (error) {
+    if (error instanceof InviteFlowError && error.shouldLogEmailFailure) {
+      const auditResult = await insertInviteAuditLog({
+        adminClient,
+        actorUserId: user.id,
+        action: 'EMPLOYEE_INVITE_FAILED',
+        employee,
+        recipientEmail: normalizedEmail,
+        triggerSource,
+        failureReason: error.message,
+      })
+
+      return jsonResponse(400, {
+        error: error.message,
+        audit_logged: auditResult.logged,
+        ...(auditResult.warning ? { warning: auditResult.warning } : {}),
+      })
+    }
+
     return jsonResponse(400, {
       error: error instanceof Error ? error.message : 'Unable to invite auth user.',
     })
+  }
+
+  const authUserId = inviteResolution.userId
+  let auditLogged: boolean | undefined
+  let warning: string | undefined
+
+  if (inviteResolution.emailSent) {
+    const auditResult = await insertInviteAuditLog({
+      adminClient,
+      actorUserId: user.id,
+      action: 'EMPLOYEE_INVITE_SENT',
+      employee,
+      recipientEmail: normalizedEmail,
+      triggerSource,
+      authUserId,
+      mustChangePassword: true,
+    })
+    auditLogged = auditResult.logged
+    warning = auditResult.warning
   }
 
   const { data: linkedElsewhereRows, error: linkedElsewhereError } = await adminClient
@@ -509,6 +692,9 @@ Deno.serve(async (request) => {
     user_id: authUserId,
     email: normalizedEmail,
     status: 'INVITED',
+    email_sent: inviteResolution.emailSent,
     must_change_password: true,
+    ...(auditLogged !== undefined ? { audit_logged: auditLogged } : {}),
+    ...(warning ? { warning } : {}),
   })
 })

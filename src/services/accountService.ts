@@ -36,11 +36,16 @@ export interface InviteEmployeeAccountPayload {
   email: string
 }
 
+type InviteTriggerSource = 'invite' | 'resend_invite'
+
 export interface InviteEmployeeAccountResponse {
   employe_id: string
   user_id: string
   email: string
   status: 'INVITED'
+  email_sent?: boolean
+  audit_logged?: boolean
+  warning?: string
   must_change_password?: boolean
 }
 
@@ -114,6 +119,7 @@ function mapInviteErrorMessage(status: number, body: FunctionErrorBody | null): 
 async function callInviteEmployeeFunction(
   payload: InviteEmployeeAccountPayload,
   accessToken: string,
+  triggerSource: InviteTriggerSource,
 ): Promise<{ ok: true; data: InviteEmployeeAccountResponse } | { ok: false; error: Error }> {
   try {
     const response = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/invite-employee`, {
@@ -126,6 +132,7 @@ async function callInviteEmployeeFunction(
       body: JSON.stringify({
         employe_id: payload.employeId,
         email: payload.email.trim().toLowerCase(),
+        trigger_source: triggerSource,
       }),
     })
 
@@ -146,6 +153,10 @@ async function callInviteEmployeeFunction(
     const data = parsedBody as InviteEmployeeAccountResponse | null
     if (!data?.user_id) {
       return { ok: false, error: new Error('Invite function returned an invalid response.') }
+    }
+
+    if (data.warning) {
+      console.warn(`[invite-employee] ${data.warning}`)
     }
 
     return { ok: true, data }
@@ -181,7 +192,7 @@ export async function inviteEmployeeAccount(
   payload: InviteEmployeeAccountPayload,
 ): Promise<InviteEmployeeAccountResponse> {
   const accessToken = await getFreshAccessTokenOrThrow()
-  const firstAttempt = await callInviteEmployeeFunction(payload, accessToken)
+  const firstAttempt = await callInviteEmployeeFunction(payload, accessToken, 'invite')
 
   if (firstAttempt.ok) {
     return firstAttempt.data
@@ -205,6 +216,7 @@ export async function inviteEmployeeAccount(
   const secondAttempt = await callInviteEmployeeFunction(
     payload,
     refreshedSessionData.session.access_token,
+    'invite',
   )
 
   if (secondAttempt.ok) {
@@ -217,7 +229,39 @@ export async function inviteEmployeeAccount(
 export async function resendInvite(
   payload: InviteEmployeeAccountPayload,
 ): Promise<InviteEmployeeAccountResponse> {
-  return inviteEmployeeAccount(payload)
+  const accessToken = await getFreshAccessTokenOrThrow()
+  const firstAttempt = await callInviteEmployeeFunction(payload, accessToken, 'resend_invite')
+
+  if (firstAttempt.ok) {
+    return firstAttempt.data
+  }
+
+  const normalized = firstAttempt.error.message.toLowerCase()
+  const shouldRetryAfterRefresh =
+    normalized.includes('invalid jwt') ||
+    normalized.includes('session token is invalid') ||
+    normalized.includes('session expired')
+
+  if (!shouldRetryAfterRefresh) {
+    throw firstAttempt.error
+  }
+
+  const { data: refreshedSessionData, error: refreshError } = await supabase.auth.refreshSession()
+  if (refreshError || !refreshedSessionData.session?.access_token) {
+    throw new Error('Session token is invalid. Please sign out and sign in again.')
+  }
+
+  const secondAttempt = await callInviteEmployeeFunction(
+    payload,
+    refreshedSessionData.session.access_token,
+    'resend_invite',
+  )
+
+  if (secondAttempt.ok) {
+    return secondAttempt.data
+  }
+
+  throw secondAttempt.error
 }
 
 export function useEmployeeProfileQuery(employeId?: string | null) {
@@ -232,16 +276,21 @@ export function useInviteEmployeeAccountMutation(
   options?: UseMutationOptions<InviteEmployeeAccountResponse, Error, InviteEmployeeAccountPayload>,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
   return useMutation({
     mutationFn: inviteEmployeeAccount,
+    ...restOptions,
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employee', variables.employeId] })
       await queryClient.invalidateQueries({ queryKey: ['employeeProfile', variables.employeId] })
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
-      await options?.onSuccess?.(data, variables, onMutateResult, context)
+      await onSuccess?.(data, variables, onMutateResult, context)
     },
-    ...options,
+    onSettled: async (data, error, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await onSettled?.(data, error, variables, onMutateResult, context)
+    },
   })
 }
 
@@ -249,16 +298,21 @@ export function useResendInviteMutation(
   options?: UseMutationOptions<InviteEmployeeAccountResponse, Error, InviteEmployeeAccountPayload>,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
   return useMutation({
     mutationFn: resendInvite,
+    ...restOptions,
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employee', variables.employeId] })
       await queryClient.invalidateQueries({ queryKey: ['employeeProfile', variables.employeId] })
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
-      await options?.onSuccess?.(data, variables, onMutateResult, context)
+      await onSuccess?.(data, variables, onMutateResult, context)
     },
-    ...options,
+    onSettled: async (data, error, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await onSettled?.(data, error, variables, onMutateResult, context)
+    },
   })
 }
 
