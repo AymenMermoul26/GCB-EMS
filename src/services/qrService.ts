@@ -6,6 +6,12 @@ import {
 } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
+import {
+  getQrLifecycleContext,
+  logQrIssued,
+  logQrRevoked,
+  type QrLifecycleContext,
+} from '@/services/qrAuditService'
 import type { TokenQR } from '@/types/token'
 
 interface TokenQRRow {
@@ -37,6 +43,14 @@ function createTokenValue() {
 export async function generateOrRegenerateToken(
   employeId: string,
 ): Promise<TokenQR> {
+  let qrLifecycleContext: QrLifecycleContext | null = null
+
+  try {
+    qrLifecycleContext = await getQrLifecycleContext(employeId)
+  } catch (error) {
+    console.error('Failed to load QR lifecycle audit context before issuing a token', error)
+  }
+
   const { error: revokeError } = await supabase
     .from('TokenQR')
     .update({ statut_token: 'REVOQUE' })
@@ -60,6 +74,28 @@ export async function generateOrRegenerateToken(
   if (error) {
     throw new Error(error.message)
   }
+
+  if (qrLifecycleContext?.activeToken) {
+    await logQrRevoked({
+      employeId,
+      employee: qrLifecycleContext.employee,
+      tokenId: qrLifecycleContext.activeToken.id,
+      previousTokenStatus: qrLifecycleContext.activeToken.statut_token,
+      triggerSource: 'manual_admin_qr_action',
+      reason: 'regeneration_replaced_previous_active_qr',
+      replacedByTokenId: data.id,
+    })
+  }
+
+  await logQrIssued({
+    employeId,
+    employee: qrLifecycleContext?.employee ?? null,
+    previousToken: qrLifecycleContext?.activeToken ?? null,
+    latestTokenBeforeChange: qrLifecycleContext?.latestToken ?? null,
+    pendingRefreshRequirement: qrLifecycleContext?.pendingRefreshRequirement ?? null,
+    nextToken: data,
+    triggerSource: 'manual_admin_qr_action',
+  })
 
   return mapToken(data)
 }
@@ -112,6 +148,14 @@ export async function getMyActiveToken(
 export async function revokeActiveToken(
   employeId: string,
 ): Promise<TokenQR | null> {
+  let qrLifecycleContext: QrLifecycleContext | null = null
+
+  try {
+    qrLifecycleContext = await getQrLifecycleContext(employeId)
+  } catch (error) {
+    console.error('Failed to load QR lifecycle audit context before revoking a token', error)
+  }
+
   const { data, error } = await supabase
     .from('TokenQR')
     .update({ statut_token: 'REVOQUE' })
@@ -127,6 +171,15 @@ export async function revokeActiveToken(
   if (!data || data.length === 0) {
     return null
   }
+
+  await logQrRevoked({
+    employeId,
+    employee: qrLifecycleContext?.employee ?? null,
+    tokenId: data[0].id,
+    previousTokenStatus: qrLifecycleContext?.activeToken?.statut_token ?? 'ACTIF',
+    triggerSource: 'manual_admin_qr_action',
+    reason: 'manual_admin_revoke',
+  })
 
   return mapToken(data[0])
 }
@@ -152,16 +205,21 @@ export function useGenerateOrRegenerateTokenMutation(
   options?: UseMutationOptions<TokenQR, Error, string>,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
   return useMutation({
     mutationFn: generateOrRegenerateToken,
+    ...restOptions,
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employee', variables] })
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employeeToken', variables] })
-      await options?.onSuccess?.(data, variables, onMutateResult, context)
+      await onSuccess?.(data, variables, onMutateResult, context)
     },
-    ...options,
+    onSettled: async (data, error, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await onSettled?.(data, error, variables, onMutateResult, context)
+    },
   })
 }
 
@@ -169,16 +227,21 @@ export function useRevokeActiveTokenMutation(
   options?: UseMutationOptions<TokenQR | null, Error, string>,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
   return useMutation({
     mutationFn: revokeActiveToken,
+    ...restOptions,
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employee', variables] })
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employeeToken', variables] })
-      await options?.onSuccess?.(data, variables, onMutateResult, context)
+      await onSuccess?.(data, variables, onMutateResult, context)
     },
-    ...options,
+    onSettled: async (data, error, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await onSettled?.(data, error, variables, onMutateResult, context)
+    },
   })
 }
 

@@ -74,6 +74,10 @@ function formatFieldLabel(value: string): string {
     .replace(/\b\w/g, (character) => character.toUpperCase())
 }
 
+function formatEventSourceLabel(value: string): string {
+  return formatFieldLabel(value).replace(/\bQr\b/g, 'QR')
+}
+
 function stringifyPreviewValue(value: unknown): string {
   if (Array.isArray(value)) {
     const rendered = value
@@ -126,8 +130,10 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
   const fieldKey = readText(detailsJson.field_key)
   const triggerSource = readText(detailsJson.trigger_source)
   const failureReason = readText(detailsJson.failure_reason)
+  const reason = readText(detailsJson.reason)
   const isPublic = detailsJson.is_public === true
-  const tokenStatus = readText(detailsJson.statut_token)
+  const tokenStatus =
+    readText(detailsJson.resulting_token_status) ?? readText(detailsJson.statut_token)
   const changedFields = Array.isArray(detailsJson.changed_fields)
     ? detailsJson.changed_fields
         .map((item) => readText(item))
@@ -186,11 +192,32 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return readText(detailsJson.commentaire_traitement)
         ? `Rejected request: ${readText(detailsJson.commentaire_traitement)}`
         : 'Rejected an employee modification request.'
+    case 'QR_GENERATED':
+      return matricule ? `Generated a new active QR for ${matricule}.` : 'Generated a new active QR token.'
     case 'QR_REGENERATED':
-      return tokenStatus ? `Generated QR token with status ${tokenStatus}.` : 'Generated or refreshed a QR token.'
+      if (detailsJson.refresh_required_resolved === true && changedFields.length > 0) {
+        return `Regenerated QR after updates to ${changedFields.map(formatFieldLabel).join(', ')}.`
+      }
+      if (reason === 'manual_regeneration') {
+        return 'Regenerated the active QR token.'
+      }
+      return tokenStatus ? `Issued a replacement QR token with status ${tokenStatus}.` : 'Generated or refreshed a QR token.'
     case 'QR_REVOKED':
+      if (reason === 'employee_deactivated') {
+        return 'Revoked the active QR token because the employee was deactivated.'
+      }
+      if (reason === 'regeneration_replaced_previous_active_qr') {
+        return 'Revoked the previous QR token during regeneration.'
+      }
       return 'Revoked the active QR token.'
+    case 'QR_REFRESH_COMPLETED':
+      return changedFields.length > 0
+        ? `Completed QR refresh after updates to ${changedFields.map(formatFieldLabel).join(', ')}.`
+        : 'Completed a pending QR refresh by issuing a new active QR token.'
     case 'QR_REFRESH_REQUIRED_CREATED':
+      if (changedFields.length > 0 && triggerSource) {
+        return `QR refresh required from ${formatEventSourceLabel(triggerSource).toLowerCase()} changes to ${changedFields.map(formatFieldLabel).join(', ')}.`
+      }
       return changedFields.length > 0
         ? `QR refresh required after updates to ${changedFields.map(formatFieldLabel).join(', ')}.`
         : 'Created a QR refresh alert.'

@@ -99,6 +99,10 @@ function buildNotificationBody(
   return `${fullName} (${employee.matricule}) updated: ${changedFieldsLabel}. Please regenerate the QR code.`
 }
 
+function buildEmployeeFullName(employee: EmployeIdentityRow) {
+  return `${employee.prenom} ${employee.nom}`.replace(/\s+/g, ' ').trim()
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -259,20 +263,37 @@ Deno.serve(async (request) => {
       target_type: 'Employe',
       target_id: employeId,
       details_json: {
+        employe_id: employeId,
+        employee_name: buildEmployeeFullName(employee),
+        matricule: employee.matricule,
         changed_fields: changedFields,
         actor_user_id: caller.id,
+        trigger_source: 'employee_self_update',
+        reason: 'employee_profile_changed_requires_qr_refresh',
+        resulting_state: 'refresh_required',
+        notification_title: QR_REFRESH_NOTIFICATION_TITLE,
+        notification_link: link,
         admins_notified: adminsNotified,
         deduped,
       },
     })
 
   if (auditInsertError) {
-    return jsonResponse(500, { error: auditInsertError.message })
+    console.error('Failed to insert QR refresh required audit log:', auditInsertError.message)
+
+    return jsonResponse(200, {
+      ok: true,
+      admins_notified: adminsNotified,
+      deduped,
+      audit_logged: false,
+      warning: 'Admins were notified, but the QR refresh audit event could not be recorded.',
+    })
   }
 
   return jsonResponse(200, {
     ok: true,
     admins_notified: adminsNotified,
     deduped,
+    audit_logged: true,
   })
 })

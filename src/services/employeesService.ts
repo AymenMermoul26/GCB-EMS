@@ -6,6 +6,11 @@ import {
 } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
+import {
+  getQrLifecycleContext,
+  logQrRevoked,
+  type QrLifecycleContext,
+} from '@/services/qrAuditService'
 import type {
   CreateEmployeePayload,
   Employee,
@@ -253,6 +258,14 @@ export async function updateEmployee(
 }
 
 export async function deactivateEmployee(id: string): Promise<Employee> {
+  let qrLifecycleContext: QrLifecycleContext | null = null
+
+  try {
+    qrLifecycleContext = await getQrLifecycleContext(id)
+  } catch (error) {
+    console.error('Failed to load QR lifecycle audit context before employee deactivation', error)
+  }
+
   const employee = await updateEmployee(id, { isActive: false })
 
   const { error } = await supabase
@@ -263,6 +276,17 @@ export async function deactivateEmployee(id: string): Promise<Employee> {
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  if (qrLifecycleContext?.activeToken) {
+    await logQrRevoked({
+      employeId: id,
+      employee: qrLifecycleContext.employee,
+      tokenId: qrLifecycleContext.activeToken.id,
+      previousTokenStatus: qrLifecycleContext.activeToken.statut_token,
+      triggerSource: 'employee_status_change',
+      reason: 'employee_deactivated',
+    })
   }
 
   return employee
@@ -327,17 +351,22 @@ export function useDeactivateEmployeeMutation(
   options?: UseMutationOptions<Employee, Error, string>,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
   return useMutation({
     mutationFn: deactivateEmployee,
+    ...restOptions,
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['employeeToken', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
-      await options?.onSuccess?.(data, variables, onMutateResult, context)
+      await onSuccess?.(data, variables, onMutateResult, context)
     },
-    ...options,
+    onSettled: async (data, error, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await onSettled?.(data, error, variables, onMutateResult, context)
+    },
   })
 }
 
@@ -345,17 +374,22 @@ export function useActivateEmployeeMutation(
   options?: UseMutationOptions<Employee, Error, string>,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
   return useMutation({
     mutationFn: activateEmployee,
+    ...restOptions,
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['employeeToken', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
-      await options?.onSuccess?.(data, variables, onMutateResult, context)
+      await onSuccess?.(data, variables, onMutateResult, context)
     },
-    ...options,
+    onSettled: async (data, error, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await onSettled?.(data, error, variables, onMutateResult, context)
+    },
   })
 }
 

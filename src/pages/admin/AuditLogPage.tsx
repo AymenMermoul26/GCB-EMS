@@ -118,6 +118,11 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     tone: 'rose',
     critical: true,
   },
+  QR_GENERATED: {
+    label: 'QR Generated',
+    category: 'QR',
+    tone: 'sky',
+  },
   QR_REGENERATED: {
     label: 'QR Regenerated',
     category: 'QR',
@@ -128,6 +133,11 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     category: 'QR',
     tone: 'rose',
     critical: true,
+  },
+  QR_REFRESH_COMPLETED: {
+    label: 'QR Refresh Completed',
+    category: 'QR',
+    tone: 'emerald',
   },
   QR_REFRESH_REQUIRED_CREATED: {
     label: 'QR Refresh Required',
@@ -160,8 +170,10 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'REQUEST_SUBMITTED', label: 'Request Submitted' },
   { value: 'REQUEST_APPROVED', label: 'Request Approved' },
   { value: 'REQUEST_REJECTED', label: 'Request Rejected' },
+  { value: 'QR_GENERATED', label: 'QR Generated' },
   { value: 'QR_REGENERATED', label: 'QR Regenerated' },
   { value: 'QR_REVOKED', label: 'QR Revoked' },
+  { value: 'QR_REFRESH_COMPLETED', label: 'QR Refresh Completed' },
   { value: 'QR_REFRESH_REQUIRED_CREATED', label: 'QR Refresh Required' },
   { value: 'VISIBILITY_UPDATED', label: 'Visibility Updated' },
   { value: 'EMPLOYEE_SHEET_SENT', label: 'Information Sheet Sent' },

@@ -458,7 +458,7 @@ export function AdminEmployeeDetailPage() {
     const hadActiveToken = token?.statutToken === 'ACTIF'
 
     try {
-      const nextToken = await generateTokenMutation.mutateAsync(employee.id)
+      await generateTokenMutation.mutateAsync(employee.id)
       toast.success(hadActiveToken ? 'QR token regenerated.' : 'QR token generated.')
 
       if (user?.id) {
@@ -472,21 +472,6 @@ export function AdminEmployeeDetailPage() {
         } catch (notificationError) {
           console.error('Failed to clear QR refresh notifications', notificationError)
         }
-      }
-
-      try {
-        await auditService.insertAuditLog({
-          action: 'QR_REGENERATED',
-          targetType: 'TokenQR',
-          targetId: nextToken.id,
-          detailsJson: {
-            employe_id: employee.id,
-            token_id: nextToken.id,
-            statut_token: nextToken.statutToken,
-          },
-        })
-      } catch (auditError) {
-        console.error('Failed to write QR regenerate audit log', auditError)
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to generate QR token')
@@ -504,20 +489,6 @@ export function AdminEmployeeDetailPage() {
         toast.success('Active QR token revoked.')
       } else {
         toast.success('No active QR token found.')
-      }
-
-      try {
-        await auditService.insertAuditLog({
-          action: 'QR_REVOKED',
-          targetType: 'TokenQR',
-          targetId: revokedToken?.id ?? null,
-          detailsJson: {
-            employe_id: employee.id,
-            token_id: revokedToken?.id ?? null,
-          },
-        })
-      } catch (auditError) {
-        console.error('Failed to write QR revoke audit log', auditError)
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to revoke QR token')
