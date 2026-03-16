@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bell,
   Building2,
   ClipboardList,
@@ -55,6 +56,12 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     label: 'Dashboard',
     to: ROUTES.ADMIN_DASHBOARD,
     icon: LayoutDashboard,
+  },
+  {
+    key: 'monitoring',
+    label: 'Monitoring',
+    to: ROUTES.ADMIN_MONITORING,
+    icon: Activity,
   },
   {
     key: 'employees',
