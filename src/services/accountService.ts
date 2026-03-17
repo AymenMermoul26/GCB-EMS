@@ -44,6 +44,7 @@ export interface InviteEmployeeAccountResponse {
   email: string
   status: 'INVITED'
   email_sent?: boolean
+  email_delivery_type?: 'invite' | 'magiclink'
   audit_logged?: boolean
   warning?: string
   must_change_password?: boolean
@@ -289,6 +290,8 @@ export function useInviteEmployeeAccountMutation(
     },
     onSettled: async (data, error, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['adminMonitoringDashboard'] })
       await onSettled?.(data, error, variables, onMutateResult, context)
     },
   })
@@ -311,6 +314,8 @@ export function useResendInviteMutation(
     },
     onSettled: async (data, error, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['auditLog'] })
+      await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['adminMonitoringDashboard'] })
       await onSettled?.(data, error, variables, onMutateResult, context)
     },
   })

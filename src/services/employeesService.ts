@@ -12,6 +12,7 @@ import {
   type QrLifecycleContext,
 } from '@/services/qrAuditService'
 import type {
+  AdminEmployee,
   CreateEmployeePayload,
   Employee,
   EmployeesListParams,
@@ -20,7 +21,8 @@ import type {
 } from '@/types/employee'
 
 const EMPLOYEE_SELECT =
-  'id, departement_id, matricule, nom, prenom, poste, email, telephone, photo_url, is_active, created_at, updated_at'
+  'id, departement_id, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, numero_securite_sociale, diplome, specialite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at'
+const EMPLOYEE_ADMIN_SELECT = `${EMPLOYEE_SELECT}, observations`
 
 interface EmployeeRow {
   id: string
@@ -28,13 +30,31 @@ interface EmployeeRow {
   matricule: string
   nom: string
   prenom: string
+  sexe: string | null
+  date_naissance: string | null
+  lieu_naissance: string | null
+  nationalite: string | null
+  situation_familiale: string | null
+  nombre_enfants: number | null
+  adresse: string | null
+  numero_securite_sociale: string | null
+  diplome: string | null
+  specialite: string | null
+  historique_postes: string | null
   poste: string | null
+  categorie_professionnelle: string | null
+  type_contrat: string | null
+  date_recrutement: string | null
   email: string | null
   telephone: string | null
   photo_url: string | null
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+interface AdminEmployeeRow extends EmployeeRow {
+  observations: string | null
 }
 
 interface EmployeeRoleRow {
@@ -64,13 +84,34 @@ function mapEmployee(row: EmployeeRow): Employee {
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
+    sexe: row.sexe,
+    dateNaissance: row.date_naissance,
+    lieuNaissance: row.lieu_naissance,
+    nationalite: row.nationalite,
+    situationFamiliale: row.situation_familiale,
+    nombreEnfants: row.nombre_enfants,
+    adresse: row.adresse,
+    numeroSecuriteSociale: row.numero_securite_sociale,
+    diplome: row.diplome,
+    specialite: row.specialite,
+    historiquePostes: row.historique_postes,
     poste: row.poste,
+    categorieProfessionnelle: row.categorie_professionnelle,
+    typeContrat: row.type_contrat,
+    dateRecrutement: row.date_recrutement,
     email: row.email,
     telephone: row.telephone,
     photoUrl: row.photo_url,
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+function mapAdminEmployee(row: AdminEmployeeRow): AdminEmployee {
+  return {
+    ...mapEmployee(row),
+    observations: row.observations,
   }
 }
 
@@ -82,7 +123,22 @@ function toInsertPayload(payload: CreateEmployeePayload) {
     matricule: normalizedMatricule && normalizedMatricule.length > 0 ? normalizedMatricule : null,
     nom: payload.nom,
     prenom: payload.prenom,
+    sexe: payload.sexe ?? null,
+    date_naissance: payload.dateNaissance ?? null,
+    lieu_naissance: payload.lieuNaissance ?? null,
+    nationalite: payload.nationalite ?? null,
+    situation_familiale: payload.situationFamiliale ?? null,
+    nombre_enfants: payload.nombreEnfants ?? null,
+    adresse: payload.adresse ?? null,
+    numero_securite_sociale: payload.numeroSecuriteSociale ?? null,
+    diplome: payload.diplome ?? null,
+    specialite: payload.specialite ?? null,
+    historique_postes: payload.historiquePostes ?? null,
+    observations: payload.observations ?? null,
     poste: payload.poste ?? null,
+    categorie_professionnelle: payload.categorieProfessionnelle ?? null,
+    type_contrat: payload.typeContrat ?? null,
+    date_recrutement: payload.dateRecrutement ?? null,
     email: payload.email ?? null,
     telephone: payload.telephone ?? null,
     photo_url: payload.photoUrl ?? null,
@@ -105,8 +161,53 @@ function toUpdatePayload(payload: UpdateEmployeePayload) {
   if (payload.prenom !== undefined) {
     updatePayload.prenom = payload.prenom
   }
+  if (payload.sexe !== undefined) {
+    updatePayload.sexe = payload.sexe
+  }
+  if (payload.dateNaissance !== undefined) {
+    updatePayload.date_naissance = payload.dateNaissance
+  }
+  if (payload.lieuNaissance !== undefined) {
+    updatePayload.lieu_naissance = payload.lieuNaissance
+  }
+  if (payload.nationalite !== undefined) {
+    updatePayload.nationalite = payload.nationalite
+  }
+  if (payload.situationFamiliale !== undefined) {
+    updatePayload.situation_familiale = payload.situationFamiliale
+  }
+  if (payload.nombreEnfants !== undefined) {
+    updatePayload.nombre_enfants = payload.nombreEnfants
+  }
+  if (payload.adresse !== undefined) {
+    updatePayload.adresse = payload.adresse
+  }
+  if (payload.numeroSecuriteSociale !== undefined) {
+    updatePayload.numero_securite_sociale = payload.numeroSecuriteSociale
+  }
+  if (payload.diplome !== undefined) {
+    updatePayload.diplome = payload.diplome
+  }
+  if (payload.specialite !== undefined) {
+    updatePayload.specialite = payload.specialite
+  }
+  if (payload.historiquePostes !== undefined) {
+    updatePayload.historique_postes = payload.historiquePostes
+  }
+  if (payload.observations !== undefined) {
+    updatePayload.observations = payload.observations
+  }
   if (payload.poste !== undefined) {
     updatePayload.poste = payload.poste
+  }
+  if (payload.categorieProfessionnelle !== undefined) {
+    updatePayload.categorie_professionnelle = payload.categorieProfessionnelle
+  }
+  if (payload.typeContrat !== undefined) {
+    updatePayload.type_contrat = payload.typeContrat
+  }
+  if (payload.dateRecrutement !== undefined) {
+    updatePayload.date_recrutement = payload.dateRecrutement
   }
   if (payload.email !== undefined) {
     updatePayload.email = payload.email
@@ -213,6 +314,34 @@ export async function getEmployee(id: string): Promise<Employee | null> {
   return mapEmployee(row)
 }
 
+export async function getAdminEmployee(id: string): Promise<AdminEmployee | null> {
+  const { data, error } = await supabase
+    .from('Employe')
+    .select(EMPLOYEE_ADMIN_SELECT)
+    .eq('id', id)
+    .limit(2)
+    .returns<AdminEmployeeRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const { row, hasMultiple } = normalizeSingleRowResult(
+    data ?? null,
+    'employeesService.getAdminEmployee',
+  )
+
+  if (hasMultiple) {
+    throw new Error('Data integrity issue: multiple employee rows matched this profile.')
+  }
+
+  if (!row) {
+    return null
+  }
+
+  return mapAdminEmployee(row)
+}
+
 export async function createEmployee(
   payload: CreateEmployeePayload,
 ): Promise<Employee> {
@@ -255,6 +384,37 @@ export async function updateEmployee(
   }
 
   return mapEmployee(row)
+}
+
+export async function updateAdminEmployee(
+  id: string,
+  payload: UpdateEmployeePayload,
+): Promise<AdminEmployee> {
+  const { data, error } = await supabase
+    .from('Employe')
+    .update(toUpdatePayload(payload))
+    .eq('id', id)
+    .select(EMPLOYEE_ADMIN_SELECT)
+    .returns<AdminEmployeeRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const { row, hasMultiple } = normalizeSingleRowResult(
+    data ?? null,
+    'employeesService.updateAdminEmployee',
+  )
+
+  if (hasMultiple) {
+    throw new Error('Data integrity issue: multiple employee rows were updated.')
+  }
+
+  if (!row) {
+    throw new Error('Unable to update employee profile. Record not found or access denied.')
+  }
+
+  return mapAdminEmployee(row)
 }
 
 export async function deactivateEmployee(id: string): Promise<Employee> {
@@ -311,6 +471,14 @@ export function useEmployeeQuery(employeeId?: string | null) {
   })
 }
 
+export function useAdminEmployeeQuery(employeeId?: string | null) {
+  return useQuery({
+    queryKey: ['adminEmployee', employeeId],
+    queryFn: () => getAdminEmployee(employeeId as string),
+    enabled: Boolean(employeeId),
+  })
+}
+
 export function useCreateEmployeeMutation(
   options?: UseMutationOptions<Employee, Error, CreateEmployeePayload>,
 ) {
@@ -347,6 +515,27 @@ export function useUpdateEmployeeMutation(
   })
 }
 
+export function useUpdateAdminEmployeeMutation(
+  options?: UseMutationOptions<
+    AdminEmployee,
+    Error,
+    { id: string; payload: UpdateEmployeePayload }
+  >,
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, payload }) => updateAdminEmployee(id, payload),
+    onSuccess: async (data, variables, onMutateResult, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['employees'] })
+      await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
+      await queryClient.invalidateQueries({ queryKey: ['adminEmployee', data.id] })
+      await options?.onSuccess?.(data, variables, onMutateResult, context)
+    },
+    ...options,
+  })
+}
+
 export function useDeactivateEmployeeMutation(
   options?: UseMutationOptions<Employee, Error, string>,
 ) {
@@ -359,6 +548,7 @@ export function useDeactivateEmployeeMutation(
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
+      await queryClient.invalidateQueries({ queryKey: ['adminEmployee', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['employeeToken', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
       await onSuccess?.(data, variables, onMutateResult, context)
@@ -382,6 +572,7 @@ export function useActivateEmployeeMutation(
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
+      await queryClient.invalidateQueries({ queryKey: ['adminEmployee', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['employeeToken', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['adminDashboard'] })
       await onSuccess?.(data, variables, onMutateResult, context)
@@ -396,8 +587,10 @@ export function useActivateEmployeeMutation(
 export const employeesService = {
   listEmployees,
   getEmployee,
+  getAdminEmployee,
   createEmployee,
   updateEmployee,
+  updateAdminEmployee,
   activateEmployee,
   deactivateEmployee,
 }

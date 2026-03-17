@@ -31,9 +31,12 @@ interface NotificationLookupRow {
 interface InviteResolutionResult {
   userId: string
   emailSent: boolean
+  emailDeliveryType?: InviteEmailDeliveryType
+  requiresExistingUserAccessEmail?: boolean
 }
 
 type InviteTriggerSource = 'invite' | 'resend_invite'
+type InviteEmailDeliveryType = 'invite' | 'magiclink'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -92,6 +95,7 @@ async function insertInviteAuditLog(params: {
   employee: EmployeRow
   recipientEmail: string
   triggerSource: InviteTriggerSource
+  emailDeliveryType?: InviteEmailDeliveryType
   authUserId?: string | null
   mustChangePassword?: boolean
   failureReason?: string
@@ -106,6 +110,10 @@ async function insertInviteAuditLog(params: {
     trigger_source: params.triggerSource,
     provider: 'supabase_auth',
     status: params.action === 'EMPLOYEE_INVITE_SENT' ? 'sent' : 'failed',
+  }
+
+  if (params.emailDeliveryType) {
+    detailsJson.delivery_type = params.emailDeliveryType
   }
 
   if (params.authUserId) {
@@ -196,6 +204,7 @@ async function inviteOrResolveAuthUser(
     return {
       userId: inviteResult.data.user.id,
       emailSent: true,
+      emailDeliveryType: 'invite',
     }
   }
 
@@ -208,6 +217,8 @@ async function inviteOrResolveAuthUser(
     return {
       userId: existingUserId,
       emailSent: false,
+      emailDeliveryType: 'magiclink',
+      requiresExistingUserAccessEmail: true,
     }
   }
 
@@ -226,6 +237,8 @@ async function inviteOrResolveAuthUser(
       return {
         userId: fallbackUserId,
         emailSent: false,
+        emailDeliveryType: 'magiclink',
+        requiresExistingUserAccessEmail: true,
       }
     }
 
@@ -239,6 +252,26 @@ async function inviteOrResolveAuthUser(
   return {
     userId: createResult.data.user.id,
     emailSent: false,
+    emailDeliveryType: 'magiclink',
+    requiresExistingUserAccessEmail: true,
+  }
+}
+
+async function sendExistingUserAccessEmail(
+  adminClient: ReturnType<typeof createClient>,
+  normalizedEmail: string,
+  redirectTo?: string,
+): Promise<void> {
+  const { error } = await adminClient.auth.signInWithOtp({
+    email: normalizedEmail,
+    options: {
+      shouldCreateUser: false,
+      ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
+    },
+  })
+
+  if (error) {
+    throw new InviteFlowError(error.message, true)
   }
 }
 
@@ -537,12 +570,20 @@ Deno.serve(async (request) => {
     let auditLogged: boolean | undefined
     let warning: string | undefined
     let emailSent = false
+    let emailDeliveryType: InviteEmailDeliveryType | undefined
 
-    const resendResult = await adminClient.auth.admin.inviteUserByEmail(
-      normalizedEmail,
-      inviteRedirectTo ? { redirectTo: inviteRedirectTo } : undefined,
-    )
-    if (resendResult.error && !isAlreadyRegisteredError(resendResult.error.message)) {
+    try {
+      await sendExistingUserAccessEmail(
+        adminClient,
+        normalizedEmail,
+        inviteRedirectTo,
+      )
+      emailSent = true
+      emailDeliveryType = 'magiclink'
+    } catch (error) {
+      const failureMessage =
+        error instanceof Error ? error.message : 'Unable to send account access email.'
+
       const auditResult = await insertInviteAuditLog({
         adminClient,
         actorUserId: user.id,
@@ -550,20 +591,20 @@ Deno.serve(async (request) => {
         employee,
         recipientEmail: normalizedEmail,
         triggerSource,
+        emailDeliveryType: 'magiclink',
         authUserId: profile.user_id,
         mustChangePassword: linkedMustChangePassword,
-        failureReason: resendResult.error.message,
+        failureReason: failureMessage,
       })
 
       return jsonResponse(400, {
-        error: resendResult.error.message,
+        error: failureMessage,
         audit_logged: auditResult.logged,
         ...(auditResult.warning ? { warning: auditResult.warning } : {}),
       })
     }
 
-    if (!resendResult.error) {
-      emailSent = true
+    if (emailSent) {
       const auditResult = await insertInviteAuditLog({
         adminClient,
         actorUserId: user.id,
@@ -571,6 +612,7 @@ Deno.serve(async (request) => {
         employee,
         recipientEmail: normalizedEmail,
         triggerSource,
+        emailDeliveryType,
         authUserId: profile.user_id,
         mustChangePassword: linkedMustChangePassword,
       })
@@ -594,6 +636,7 @@ Deno.serve(async (request) => {
       email: linkedEmail || normalizedEmail,
       status: 'INVITED',
       email_sent: emailSent,
+      ...(emailDeliveryType ? { email_delivery_type: emailDeliveryType } : {}),
       must_change_password: linkedMustChangePassword,
       ...(auditLogged !== undefined ? { audit_logged: auditLogged } : {}),
       ...(warning ? { warning } : {}),
@@ -634,6 +677,8 @@ Deno.serve(async (request) => {
   const authUserId = inviteResolution.userId
   let auditLogged: boolean | undefined
   let warning: string | undefined
+  let emailSent = inviteResolution.emailSent
+  let emailDeliveryType = inviteResolution.emailDeliveryType
 
   if (inviteResolution.emailSent) {
     const auditResult = await insertInviteAuditLog({
@@ -643,6 +688,7 @@ Deno.serve(async (request) => {
       employee,
       recipientEmail: normalizedEmail,
       triggerSource,
+      emailDeliveryType,
       authUserId,
       mustChangePassword: true,
     })
@@ -687,12 +733,60 @@ Deno.serve(async (request) => {
     })
   }
 
+  if (inviteResolution.requiresExistingUserAccessEmail) {
+    try {
+      await sendExistingUserAccessEmail(
+        adminClient,
+        normalizedEmail,
+        inviteRedirectTo,
+      )
+      emailSent = true
+      emailDeliveryType = 'magiclink'
+    } catch (error) {
+      const failureMessage =
+        error instanceof Error ? error.message : 'Unable to send account access email.'
+      const auditResult = await insertInviteAuditLog({
+        adminClient,
+        actorUserId: user.id,
+        action: 'EMPLOYEE_INVITE_FAILED',
+        employee,
+        recipientEmail: normalizedEmail,
+        triggerSource,
+        emailDeliveryType: 'magiclink',
+        authUserId,
+        mustChangePassword: true,
+        failureReason: failureMessage,
+      })
+
+      return jsonResponse(400, {
+        error: failureMessage,
+        audit_logged: auditResult.logged,
+        ...(auditResult.warning ? { warning: auditResult.warning } : {}),
+      })
+    }
+
+    const auditResult = await insertInviteAuditLog({
+      adminClient,
+      actorUserId: user.id,
+      action: 'EMPLOYEE_INVITE_SENT',
+      employee,
+      recipientEmail: normalizedEmail,
+      triggerSource,
+      emailDeliveryType,
+      authUserId,
+      mustChangePassword: true,
+    })
+    auditLogged = auditResult.logged
+    warning = auditResult.warning
+  }
+
   return jsonResponse(200, {
     employe_id: employeId,
     user_id: authUserId,
     email: normalizedEmail,
     status: 'INVITED',
-    email_sent: inviteResolution.emailSent,
+    email_sent: emailSent,
+    ...(emailDeliveryType ? { email_delivery_type: emailDeliveryType } : {}),
     must_change_password: true,
     ...(auditLogged !== undefined ? { audit_logged: auditLogged } : {}),
     ...(warning ? { warning } : {}),

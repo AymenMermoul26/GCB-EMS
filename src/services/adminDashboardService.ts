@@ -11,6 +11,7 @@ import type {
   DashboardAlertItem,
   DashboardDepartmentMetric,
   DashboardRecentEmployee,
+  DashboardRecentInvite,
 } from '@/types/admin-dashboard'
 
 interface DashboardEmployeeRow {
@@ -33,6 +34,16 @@ interface AdminRoleRow {
 interface ActiveQrRow {
   employe_id: string
 }
+
+interface InviteAuditRow {
+  id: string
+  action: 'EMPLOYEE_INVITE_SENT' | 'EMPLOYEE_INVITE_FAILED'
+  target_id: string | null
+  details_json: unknown
+  created_at: string
+}
+
+const INVITE_ACTIVITY_WINDOW_DAYS = 7
 
 function getSettledErrorMessage(
   result: PromiseSettledResult<unknown>,
@@ -136,6 +147,86 @@ async function listActiveQrRows(): Promise<ActiveQrRow[]> {
   return data ?? []
 }
 
+function normalizeDetailsJson(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+
+  if (Array.isArray(value)) {
+    return { values: value }
+  }
+
+  return {}
+}
+
+function readText(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized.length > 0 ? normalized : null
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return null
+}
+
+function getRecentWindowStart(days: number): string {
+  const start = new Date()
+  start.setDate(start.getDate() - (days - 1))
+  start.setHours(0, 0, 0, 0)
+  return start.toISOString()
+}
+
+async function countAuditActionsSince(action: string, startAt: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('audit_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('action', action)
+    .gte('created_at', startAt)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return count ?? 0
+}
+
+async function listRecentInviteEvents(startAt: string): Promise<DashboardRecentInvite[]> {
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id, action, target_id, details_json, created_at')
+    .in('action', ['EMPLOYEE_INVITE_SENT', 'EMPLOYEE_INVITE_FAILED'])
+    .gte('created_at', startAt)
+    .order('created_at', { ascending: false })
+    .limit(5)
+    .returns<InviteAuditRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map((row) => {
+    const detailsJson = normalizeDetailsJson(row.details_json)
+    const employeeName = readText(detailsJson.employee_name)
+    const matricule = readText(detailsJson.matricule)
+
+    return {
+      id: row.id,
+      employeeId: row.target_id ?? readText(detailsJson.employee_id),
+      employeeName:
+        employeeName && matricule
+          ? `${employeeName} (${matricule})`
+          : employeeName ?? matricule ?? 'Unknown employee',
+      recipientEmail: readText(detailsJson.recipient_email) ?? 'No recipient recorded',
+      status: row.action === 'EMPLOYEE_INVITE_FAILED' ? 'failed' : 'sent',
+      createdAt: row.created_at,
+      failureReason: readText(detailsJson.failure_reason) ?? undefined,
+    }
+  })
+}
+
 function buildDepartmentDistribution(
   employees: DashboardEmployeeRow[],
   departments: Array<{ id: string; nom: string }>,
@@ -199,6 +290,7 @@ function buildAlerts(params: {
   employeesWithoutActiveQr: number
   departmentsCount: number
   unreadQrRefresh: number
+  inviteFailuresRecent: number
 }): DashboardAlertItem[] {
   const alerts: DashboardAlertItem[] = []
 
@@ -228,6 +320,16 @@ function buildAlerts(params: {
       title: `${params.unreadQrRefresh} QR refresh alert${params.unreadQrRefresh === 1 ? '' : 's'}`,
       description: 'Employee profile changes require a QR refresh review.',
       href: ROUTES.ADMIN_REQUESTS,
+      tone: 'warning',
+    })
+  }
+
+  if (params.inviteFailuresRecent > 0) {
+    alerts.push({
+      id: 'invite-failures',
+      title: `${params.inviteFailuresRecent} invite failure${params.inviteFailuresRecent === 1 ? '' : 's'} in the last ${INVITE_ACTIVITY_WINDOW_DAYS} days`,
+      description: 'One or more employee invite emails could not be delivered.',
+      href: ROUTES.ADMIN_AUDIT,
       tone: 'warning',
     })
   }
@@ -266,6 +368,7 @@ function buildAlerts(params: {
 }
 
 export async function getAdminDashboardData(userId: string): Promise<AdminDashboardData> {
+  const inviteWindowStart = getRecentWindowStart(INVITE_ACTIVITY_WINDOW_DAYS)
   const [
     employeesResult,
     departmentsResult,
@@ -277,6 +380,9 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     unreadQrRefreshResult,
     recentRequestsResult,
     recentActivityResult,
+    invitesSentRecentResult,
+    inviteFailuresRecentResult,
+    recentInvitesResult,
   ] = await Promise.allSettled([
     listDashboardEmployees(),
     departmentsService.listDepartments(),
@@ -288,6 +394,9 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     countUnreadQrRefresh(userId),
     requestsService.listRequestsForAdmin({ page: 1, pageSize: 5 }),
     auditLogService.listLogs({ page: 1, pageSize: 6 }),
+    countAuditActionsSince('EMPLOYEE_INVITE_SENT', inviteWindowStart),
+    countAuditActionsSince('EMPLOYEE_INVITE_FAILED', inviteWindowStart),
+    listRecentInviteEvents(inviteWindowStart),
   ])
 
   const employees = employeesResult.status === 'fulfilled' ? employeesResult.value : []
@@ -300,6 +409,10 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     unreadNotificationsResult.status === 'fulfilled' ? unreadNotificationsResult.value : 0
   const unreadQrRefresh =
     unreadQrRefreshResult.status === 'fulfilled' ? unreadQrRefreshResult.value : 0
+  const invitesSentRecent =
+    invitesSentRecentResult.status === 'fulfilled' ? invitesSentRecentResult.value : 0
+  const inviteFailuresRecent =
+    inviteFailuresRecentResult.status === 'fulfilled' ? inviteFailuresRecentResult.value : 0
 
   const activeQrEmployeeIds = new Set(activeQrRows.map((row) => row.employe_id))
   const activeEmployees = employees.filter((employee) => employee.is_active).length
@@ -318,6 +431,8 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     getSettledErrorMessage(rejectedRequestsResult, 'Unable to load rejected request metrics.'),
     getSettledErrorMessage(unreadNotificationsResult, 'Unable to load unread notification count.'),
     getSettledErrorMessage(unreadQrRefreshResult, 'Unable to load QR refresh alerts.'),
+    getSettledErrorMessage(invitesSentRecentResult, 'Unable to load invite send metrics.'),
+    getSettledErrorMessage(inviteFailuresRecentResult, 'Unable to load invite failure metrics.'),
   ].filter((message): message is string => Boolean(message))
 
   const sectionErrors = {
@@ -330,6 +445,10 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       recentRequestsResult,
       'Unable to load recent requests.',
     ) ?? undefined,
+    recentInvites: getSettledErrorMessage(
+      recentInvitesResult,
+      'Unable to load recent invite activity.',
+    ) ?? undefined,
   }
 
   return {
@@ -340,6 +459,8 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       pendingRequests,
       departmentsCount: departments.length,
       unreadNotifications,
+      invitesSentRecent,
+      inviteFailuresRecent,
     },
     departmentDistribution: buildDepartmentDistribution(employees, departments),
     requestOverview: {
@@ -352,6 +473,8 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       recentActivityResult.status === 'fulfilled' ? recentActivityResult.value.items : [],
     recentRequests:
       recentRequestsResult.status === 'fulfilled' ? recentRequestsResult.value.items : [],
+    recentInvites:
+      recentInvitesResult.status === 'fulfilled' ? recentInvitesResult.value : [],
     recentEmployees: buildRecentEmployees(employees, departments),
     qrSummary: {
       activeQrEmployees: activeQrEmployeeIds.size,
@@ -365,6 +488,7 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       employeesWithoutActiveQr,
       departmentsCount: departments.length,
       unreadQrRefresh,
+      inviteFailuresRecent,
     }),
     sectionErrors,
   }

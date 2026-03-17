@@ -8,6 +8,8 @@ export interface DashboardKpis {
   pendingRequests: number
   departmentsCount: number
   unreadNotifications: number
+  invitesSentRecent: number
+  inviteFailuresRecent: number
 }
 
 export interface DashboardDepartmentMetric {
@@ -40,6 +42,16 @@ export interface DashboardQrSummary {
   needsQrRefresh: number
 }
 
+export interface DashboardRecentInvite {
+  id: string
+  employeeId: string | null
+  employeeName: string
+  recipientEmail: string
+  status: 'sent' | 'failed'
+  createdAt: string
+  failureReason?: string
+}
+
 export interface DashboardAlertItem {
   id: string
   title: string
@@ -52,6 +64,7 @@ export interface AdminDashboardSectionErrors {
   overview?: string
   recentActivity?: string
   recentRequests?: string
+  recentInvites?: string
 }
 
 export interface AdminDashboardData {
@@ -61,6 +74,7 @@ export interface AdminDashboardData {
   recentActivity: AuditLogItem[]
   recentRequests: ModificationRequest[]
   recentEmployees: DashboardRecentEmployee[]
+  recentInvites: DashboardRecentInvite[]
   qrSummary: DashboardQrSummary
   alerts: DashboardAlertItem[]
   sectionErrors: AdminDashboardSectionErrors

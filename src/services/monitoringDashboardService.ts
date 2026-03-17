@@ -11,6 +11,7 @@ import type {
   MonitoringMetricItem,
   MonitoringPeriod,
   MonitoringRecentEvent,
+  MonitoringRecentInviteItem,
   MonitoringTimelinePoint,
   MonitoringTopActionItem,
 } from '@/types/monitoring-dashboard'
@@ -451,6 +452,32 @@ function buildMetricItems(
   }))
 }
 
+function buildRecentInviteEvents(rows: MonitoringAuditRow[]): MonitoringRecentInviteItem[] {
+  return rows
+    .filter(
+      (row) => row.action === 'EMPLOYEE_INVITE_SENT' || row.action === 'EMPLOYEE_INVITE_FAILED',
+    )
+    .slice(0, 5)
+    .map((row) => {
+      const detailsJson = normalizeDetailsJson(row.details_json)
+      const employeeName = readText(detailsJson.employee_name)
+      const matricule = readText(detailsJson.matricule)
+
+      return {
+        id: row.id,
+        employeeId: row.target_id ?? readText(detailsJson.employee_id),
+        employeeName:
+          employeeName && matricule
+            ? `${employeeName} (${matricule})`
+            : employeeName ?? matricule ?? 'Unknown employee',
+        recipientEmail: readText(detailsJson.recipient_email) ?? 'No recipient recorded',
+        status: row.action === 'EMPLOYEE_INVITE_FAILED' ? 'failed' : 'sent',
+        createdAt: row.created_at,
+        failureReason: readText(detailsJson.failure_reason) ?? undefined,
+      }
+    })
+}
+
 function buildTopActions(rows: MonitoringAuditRow[]): MonitoringTopActionItem[] {
   const counts = new Map<string, number>()
 
@@ -848,6 +875,7 @@ export async function getMonitoringDashboardData(
     categoryDistribution: buildCategoryDistribution(filteredRows),
     qrActivity: buildMetricItems(filteredRows, QR_ACTIVITY_CONFIG),
     emailActivity: buildMetricItems(filteredRows, EMAIL_ACTIVITY_CONFIG),
+    recentInviteEvents: buildRecentInviteEvents(filteredRows),
     recentCriticalEvents: recentCriticalEventsResult.items,
     topActions: buildTopActions(filteredRows),
     attentionItems: buildAttentionItems(filteredRows),

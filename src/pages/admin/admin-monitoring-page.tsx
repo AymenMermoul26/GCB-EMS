@@ -41,6 +41,7 @@ import type {
   MonitoringMetricItem,
   MonitoringPeriod,
   MonitoringRecentEvent,
+  MonitoringRecentInviteItem,
   MonitoringTimelinePoint,
   MonitoringTone,
 } from '@/types/monitoring-dashboard'
@@ -141,6 +142,16 @@ function tonePanelClass(tone: 'info' | 'warning' | 'danger' | 'positive'): strin
     default:
       return 'border-slate-200 bg-slate-50 hover:bg-slate-100'
   }
+}
+
+function inviteStatusBadgeClass(status: 'sent' | 'failed'): string {
+  return status === 'failed'
+    ? 'border-transparent bg-rose-100 text-rose-700'
+    : 'border-transparent bg-orange-100 text-orange-800'
+}
+
+function inviteStatusLabel(status: 'sent' | 'failed'): string {
+  return status === 'failed' ? 'Failed' : 'Sent'
 }
 
 function formatDateTime(value: string): string {
@@ -622,6 +633,76 @@ function MetricBars({
     </div>
   )
 }
+
+function RecentInviteActivityList({
+  items,
+  onOpenEmployee,
+}: {
+  items: MonitoringRecentInviteItem[]
+  onOpenEmployee: (employeeId: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Recent invite activity</p>
+          <p className="text-xs text-slate-500">
+            Latest invite-email sends and failures in the selected view.
+          </p>
+        </div>
+        <Badge variant="outline" className="rounded-full">
+          {items.length} shown
+        </Badge>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-center">
+          <p className="text-sm font-medium text-slate-900">No invite-specific activity</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Invite sends and failures will appear here when they fall inside the selected filters.
+          </p>
+        </div>
+      ) : (
+        items.map((item) => (
+          <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-white p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">{item.employeeName}</p>
+                  <Badge className={inviteStatusBadgeClass(item.status)}>
+                    {inviteStatusLabel(item.status)}
+                  </Badge>
+                </div>
+                <p className="text-sm text-slate-600">{item.recipientEmail}</p>
+                {item.failureReason ? (
+                  <p className="line-clamp-2 text-xs text-rose-700">{item.failureReason}</p>
+                ) : (
+                  <p className="text-xs text-slate-500">Invite email audit event</p>
+                )}
+              </div>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
+                  {formatRelativeDate(item.createdAt)}
+                </span>
+                {item.employeeId ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onOpenEmployee(item.employeeId as string)}
+                  >
+                    Open employee
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
 function RecentCriticalEventRow({
   item,
   onOpenEmployee,
@@ -1063,12 +1144,18 @@ export function AdminMonitoringPage() {
                 Invite and information-sheet delivery activity tracked by backend audit events.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
               <MetricBars
                 items={dashboard.emailActivity}
                 emptyTitle="No email events"
                 emptyDescription="Tracked invite and information-sheet email activity will appear here."
               />
+              <div className="border-t border-slate-200 pt-5">
+                <RecentInviteActivityList
+                  items={dashboard.recentInviteEvents}
+                  onOpenEmployee={(employeeId) => navigate(getAdminEmployeeRoute(employeeId))}
+                />
+              </div>
             </CardContent>
           </Card>
         </div>

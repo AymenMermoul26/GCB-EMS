@@ -26,7 +26,13 @@ import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useEmployeeQuery } from '@/services/employeesService'
 import { useMyActiveTokenQuery } from '@/services/qrService'
-import type { Employee } from '@/types/employee'
+import {
+  getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeSituationFamilialeLabel,
+  getEmployeeSexeLabel,
+  getEmployeeTypeContratLabel,
+  type Employee,
+} from '@/types/employee'
 import type { TokenQR } from '@/types/token'
 
 function getInitials(prenom: string, nom: string) {
@@ -35,6 +41,23 @@ function getInitials(prenom: string, nom: string) {
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString()
+}
+
+function formatProfileValue(value: string | null | undefined): string {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : '—'
+}
+
+function formatProfileDate(value: string | null | undefined): string {
+  if (!value) {
+    return '—'
+  }
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString()
+}
+
+function formatProfileNumber(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : String(value)
 }
 
 function isTokenValid(token: TokenQR | null): boolean {
@@ -120,7 +143,7 @@ export function EmployeeProfilePage() {
 
   if (employeeQuery.isPending) {
     return (
-      <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
+      <DashboardLayout title="My Profile" subtitle="Review your verified employee information.">
         <div className="space-y-4">
           <Skeleton className="h-16 w-full rounded-2xl" />
           <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
@@ -139,9 +162,9 @@ export function EmployeeProfilePage() {
 
   if (employeeQuery.isError) {
     return (
-      <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
+      <DashboardLayout title="My Profile" subtitle="Review your verified employee information.">
         <Alert variant="destructive">
-          <AlertTitle>Failed to load profile</AlertTitle>
+          <AlertTitle>Could not load profile</AlertTitle>
           <AlertDescription className="mt-2 flex flex-wrap items-center gap-3">
             <span>{employeeQuery.error.message}</span>
             <Button variant="outline" size="sm" onClick={() => void employeeQuery.refetch()}>
@@ -155,15 +178,15 @@ export function EmployeeProfilePage() {
 
   if (!employeeQuery.data) {
     return (
-      <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
+      <DashboardLayout title="My Profile" subtitle="Review your verified employee information.">
         <Card className="rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader>
-            <CardTitle>Profile not available</CardTitle>
+            <CardTitle>Profile unavailable</CardTitle>
             <CardDescription>Your employee profile is not linked yet. Contact HR support.</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" onClick={() => void signOut()}>
-              Logout
+              Sign out
             </Button>
           </CardContent>
         </Card>
@@ -176,7 +199,7 @@ export function EmployeeProfilePage() {
   const completeness = computeCompleteness(employee)
 
   return (
-    <DashboardLayout title="My Profile" subtitle="View your verified employee information.">
+    <DashboardLayout title="My Profile" subtitle="Review your verified employee information.">
       {mustChangePassword ? (
         <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           You must change your password before using the application.
@@ -189,7 +212,7 @@ export function EmployeeProfilePage() {
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Profile Overview</h2>
             <p className="text-sm text-slate-600">
-              Keep your information up to date using the profile management workflow.
+              Keep your information up to date through the profile management workflow.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -207,7 +230,7 @@ export function EmployeeProfilePage() {
               className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
             >
               <Link to={requestChangesRoute}>
-                Request Changes
+                Request a Change
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -234,7 +257,7 @@ export function EmployeeProfilePage() {
                 )}
               </div>
               <h3 className="mt-4 text-xl font-semibold text-slate-900">{fullName}</h3>
-              <p className="text-sm text-slate-500">{employee.poste ?? 'Position not set'}</p>
+              <p className="text-sm text-slate-500">{employee.poste ?? 'Job title not set'}</p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <Badge variant="secondary" className="gap-1 bg-slate-100 text-slate-700">
                   <Building2 className="h-3.5 w-3.5" />
@@ -288,7 +311,14 @@ export function EmployeeProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <DetailRow label="Full name" value={fullName} />
+              <DetailRow label="Full Name" value={fullName} />
+              <DetailRow
+                label="Sex"
+                value={formatProfileValue(getEmployeeSexeLabel(employee.sexe))}
+              />
+              <DetailRow label="Birth Date" value={formatProfileDate(employee.dateNaissance)} />
+              <DetailRow label="Birth Place" value={formatProfileValue(employee.lieuNaissance)} />
+              <DetailRow label="Nationalité" value={formatProfileValue(employee.nationalite)} />
               <DetailRow label="Email" value={employee.email ?? 'Not provided'} />
               <DetailRow label="Phone" value={employee.telephone ?? 'Not provided'} />
             </CardContent>
@@ -297,14 +327,71 @@ export function EmployeeProfilePage() {
           <Card className="rounded-2xl border-slate-200/80 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
-                Work Information
+                <ShieldCheck className="h-4 w-4 text-slate-600" />
+                Administrative Information
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <DetailRow label="Job title" value={employee.poste ?? 'Not set'} />
+              <DetailRow
+                label="Marital Status"
+                value={formatProfileValue(
+                  getEmployeeSituationFamilialeLabel(employee.situationFamiliale),
+                )}
+              />
+              <DetailRow
+                label="Number of Children"
+                value={formatProfileNumber(employee.nombreEnfants)}
+              />
+              <DetailRow label="Address" value={formatProfileValue(employee.adresse)} />
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
+                Education & Career Background
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <DetailRow label="Diplôme" value={formatProfileValue(employee.diplome)} />
+              <DetailRow label="Spécialité" value={formatProfileValue(employee.specialite)} />
+              <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Career History
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-slate-900">
+                  {formatProfileValue(employee.historiquePostes)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
+                Employment Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <DetailRow label="Job Title" value={employee.poste ?? 'Not provided'} />
               <DetailRow label="Department" value={departmentName ?? 'Not assigned'} />
               <DetailRow label="Employee ID" value={employee.matricule} />
+              <DetailRow
+                label="Catégorie professionnelle"
+                value={formatProfileValue(
+                  getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
+                )}
+              />
+              <DetailRow
+                label="Contract Type"
+                value={formatProfileValue(getEmployeeTypeContratLabel(employee.typeContrat))}
+              />
+              <DetailRow
+                label="Hire Date"
+                value={formatProfileDate(employee.dateRecrutement)}
+              />
               <DetailRow label="Profile updated" value={formatDate(employee.updatedAt)} />
             </CardContent>
           </Card>
@@ -317,7 +404,7 @@ export function EmployeeProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <DetailRow label="Auth email" value={user?.email ?? employee.email ?? 'Not available'} />
+              <DetailRow label="Account Email" value={user?.email ?? employee.email ?? 'Not available'} />
               <DetailRow label="Role" value="Employee" />
               <Button asChild variant="outline" className="w-full">
                 <Link to={securityRoute}>Change Password</Link>
@@ -355,7 +442,7 @@ export function EmployeeProfilePage() {
                   onClick={handlePreviewPublicProfile}
                   disabled={!publicProfileUrl}
                 >
-                  Preview QR Profile
+                  Preview Public Profile
                 </Button>
                 <Button asChild variant="outline">
                   <Link to={myQrRoute}>

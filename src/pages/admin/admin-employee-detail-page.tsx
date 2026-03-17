@@ -61,6 +61,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { EmployeeBadgeDialog } from '@/components/admin/employee-badge-dialog'
 import { EmployeeInformationSheetDialog } from '@/components/admin/employee-information-sheet-dialog'
 import { env } from '@/config/env'
@@ -77,9 +78,9 @@ import { auditService } from '@/services/auditService'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import {
   useActivateEmployeeMutation,
+  useAdminEmployeeQuery,
   useDeactivateEmployeeMutation,
-  useEmployeeQuery,
-  useUpdateEmployeeMutation,
+  useUpdateAdminEmployeeMutation,
 } from '@/services/employeesService'
 import {
   notificationsService,
@@ -98,10 +99,25 @@ import {
 import {
   employeeSchema,
   normalizeOptional,
+  normalizeOptionalInteger,
   normalizePhoneNumberInput,
   type EmployeeFormValues,
 } from '@/schemas/employeeSchema'
 import type { EmployeeVisibilityFieldKey } from '@/types/visibility'
+import {
+  EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS,
+  EMPLOYEE_SITUATION_FAMILIALE_OPTIONS,
+  EMPLOYEE_SITUATION_FAMILIALE_LABELS,
+  EMPLOYEE_SEXE_OPTIONS,
+  EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS,
+  EMPLOYEE_SEXE_LABELS,
+  EMPLOYEE_TYPE_CONTRAT_OPTIONS,
+  EMPLOYEE_TYPE_CONTRAT_LABELS,
+  getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeSituationFamilialeLabel,
+  getEmployeeSexeLabel,
+  getEmployeeTypeContratLabel,
+} from '@/types/employee'
 import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { downloadCanvasAsPng } from '@/utils/qr'
@@ -126,14 +142,58 @@ function formatDateTime(value: string | null): string {
 
 function formatOptionalValue(value: string | null | undefined): string {
   if (!value || value.trim().length === 0) {
-    return 'Not set'
+    return 'Not provided'
   }
 
   return value
 }
 
+function formatEmploymentValue(value: string | null | undefined): string {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : '—'
+}
+
+function formatEmploymentDate(value: string | null | undefined): string {
+  if (!value) {
+    return '—'
+  }
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString()
+}
+
+function formatCivilValue(value: string | null | undefined): string {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : '—'
+}
+
+function formatCivilDate(value: string | null | undefined): string {
+  if (!value) {
+    return '—'
+  }
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString()
+}
+
+function formatAdministrativeNumber(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : String(value)
+}
+
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+function getInviteSuccessMessage(params: {
+  email: string
+  resend: boolean
+  deliveryType?: 'invite' | 'magiclink'
+}): string {
+  const actionLabel = params.resend ? 'resent' : 'sent'
+
+  if (params.deliveryType === 'magiclink') {
+    return `Access email ${actionLabel} to ${params.email}.`
+  }
+
+  return `Invitation ${actionLabel} to ${params.email}.`
 }
 
 function requestStatusBadgeClass(status: string): string {
@@ -158,10 +218,12 @@ const VISIBILITY_FIELDS: Array<{ key: EmployeeVisibilityFieldKey; label: string 
   { key: 'poste', label: 'Job Title' },
   { key: 'email', label: 'Email' },
   { key: 'telephone', label: 'Phone' },
-  { key: 'photo_url', label: 'Photo URL' },
+  { key: 'photo_url', label: 'URL de la photo' },
   { key: 'departement', label: 'Department' },
   { key: 'matricule', label: 'Employee ID' },
 ]
+
+const EMPTY_SELECT_VALUE = '__none__'
 
 type DetailTab = 'overview' | 'qr-visibility' | 'requests'
 
@@ -188,7 +250,7 @@ export function AdminEmployeeDetailPage() {
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false)
   const editSectionRef = useRef<HTMLDivElement | null>(null)
 
-  const employeeQuery = useEmployeeQuery(id)
+  const employeeQuery = useAdminEmployeeQuery(id)
   const employeeProfileQuery = useEmployeeProfileQuery(id)
   const departmentsQuery = useDepartmentsQuery()
   const visibilityQuery = useEmployeeVisibilityQuery(id)
@@ -205,7 +267,22 @@ export function AdminEmployeeDetailPage() {
       nom: '',
       prenom: '',
       departementId: undefined,
+      sexe: '',
+      dateNaissance: '',
+      lieuNaissance: '',
+      nationalite: '',
+      situationFamiliale: '',
+      nombreEnfants: '',
+      adresse: '',
+      numeroSecuriteSociale: '',
+      diplome: '',
+      specialite: '',
+      historiquePostes: '',
+      observations: '',
       poste: '',
+      categorieProfessionnelle: '',
+      typeContrat: '',
+      dateRecrutement: '',
       email: '',
       telephone: '',
       photoUrl: '',
@@ -224,13 +301,31 @@ export function AdminEmployeeDetailPage() {
       nom: employeeQuery.data.nom,
       prenom: employeeQuery.data.prenom,
       departementId: employeeQuery.data.departementId,
+      sexe: employeeQuery.data.sexe ?? '',
+      dateNaissance: employeeQuery.data.dateNaissance ?? '',
+      lieuNaissance: employeeQuery.data.lieuNaissance ?? '',
+      nationalite: employeeQuery.data.nationalite ?? '',
+      situationFamiliale: employeeQuery.data.situationFamiliale ?? '',
+      nombreEnfants:
+        employeeQuery.data.nombreEnfants !== null && employeeQuery.data.nombreEnfants !== undefined
+          ? String(employeeQuery.data.nombreEnfants)
+          : '',
+      adresse: employeeQuery.data.adresse ?? '',
+      numeroSecuriteSociale: employeeQuery.data.numeroSecuriteSociale ?? '',
+      diplome: employeeQuery.data.diplome ?? '',
+      specialite: employeeQuery.data.specialite ?? '',
+      historiquePostes: employeeQuery.data.historiquePostes ?? '',
+      observations: employeeQuery.data.observations ?? '',
       poste: employeeQuery.data.poste ?? '',
+      categorieProfessionnelle: employeeQuery.data.categorieProfessionnelle ?? '',
+      typeContrat: employeeQuery.data.typeContrat ?? '',
+      dateRecrutement: employeeQuery.data.dateRecrutement ?? '',
       email: employeeQuery.data.email ?? '',
       telephone: employeeQuery.data.telephone ?? '',
       photoUrl: employeeQuery.data.photoUrl ?? '',
     })
   }, [employeeQuery.data, form])
-  const updateMutation = useUpdateEmployeeMutation({
+  const updateMutation = useUpdateAdminEmployeeMutation({
     onSuccess: (employee) => {
       setSubmitError(null)
       toast.success('Employee updated successfully.')
@@ -239,7 +334,25 @@ export function AdminEmployeeDetailPage() {
         nom: employee.nom,
         prenom: employee.prenom,
         departementId: employee.departementId,
+        sexe: employee.sexe ?? '',
+        dateNaissance: employee.dateNaissance ?? '',
+        lieuNaissance: employee.lieuNaissance ?? '',
+        nationalite: employee.nationalite ?? '',
+        situationFamiliale: employee.situationFamiliale ?? '',
+        nombreEnfants:
+          employee.nombreEnfants !== null && employee.nombreEnfants !== undefined
+            ? String(employee.nombreEnfants)
+            : '',
+        adresse: employee.adresse ?? '',
+        numeroSecuriteSociale: employee.numeroSecuriteSociale ?? '',
+        diplome: employee.diplome ?? '',
+        specialite: employee.specialite ?? '',
+        historiquePostes: employee.historiquePostes ?? '',
+        observations: employee.observations ?? '',
         poste: employee.poste ?? '',
+        categorieProfessionnelle: employee.categorieProfessionnelle ?? '',
+        typeContrat: employee.typeContrat ?? '',
+        dateRecrutement: employee.dateRecrutement ?? '',
         email: employee.email ?? '',
         telephone: employee.telephone ?? '',
         photoUrl: employee.photoUrl ?? '',
@@ -313,7 +426,17 @@ export function AdminEmployeeDetailPage() {
   const revokeTokenMutation = useRevokeActiveTokenMutation()
   const inviteAccountMutation = useInviteEmployeeAccountMutation({
     onSuccess: (result) => {
-      toast.success(`Invitation sent to ${result.email}.`)
+      if (result.email_sent) {
+        toast.success(
+          getInviteSuccessMessage({
+            email: result.email,
+            resend: false,
+            deliveryType: result.email_delivery_type,
+          }),
+        )
+      } else {
+        toast.info(`Account is linked for ${result.email}, but no invitation email was sent.`)
+      }
       setAccountEmailInput(result.email)
     },
     onError: (error) => {
@@ -322,7 +445,17 @@ export function AdminEmployeeDetailPage() {
   })
   const resendInviteMutation = useResendInviteMutation({
     onSuccess: (result) => {
-      toast.success(`Invitation re-sent to ${result.email}.`)
+      if (result.email_sent) {
+        toast.success(
+          getInviteSuccessMessage({
+            email: result.email,
+            resend: true,
+            deliveryType: result.email_delivery_type,
+          }),
+        )
+      } else {
+        toast.info(`Account is linked for ${result.email}, but no new email was sent.`)
+      }
       setAccountEmailInput(result.email)
     },
     onError: (error) => {
@@ -347,7 +480,7 @@ export function AdminEmployeeDetailPage() {
 
   const departmentName = useMemo(() => {
     if (!employee) {
-      return 'Not set'
+      return 'Not provided'
     }
 
     return (
@@ -441,7 +574,7 @@ export function AdminEmployeeDetailPage() {
         console.error('Failed to write visibility audit log', auditError)
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to update visibility')
+      toast.error(error instanceof Error ? error.message : 'Could not update visibility')
     }
   }
 
@@ -474,7 +607,7 @@ export function AdminEmployeeDetailPage() {
         }
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to generate QR token')
+      toast.error(error instanceof Error ? error.message : 'Could not generate QR token')
     }
   }
 
@@ -491,12 +624,12 @@ export function AdminEmployeeDetailPage() {
         toast.success('No active QR token found.')
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to revoke QR token')
+      toast.error(error instanceof Error ? error.message : 'Could not revoke QR token')
     }
   }
   const onCopyPublicLink = async () => {
     if (!publicProfileUrl) {
-      toast.error('No active public profile link available.')
+      toast.error('No active public profile link is available.')
       return
     }
 
@@ -504,13 +637,13 @@ export function AdminEmployeeDetailPage() {
       await copyTextToClipboard(publicProfileUrl)
       toast.success('Public link copied.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to copy link')
+      toast.error(error instanceof Error ? error.message : 'Could not copy link')
     }
   }
 
   const onOpenPublicPreview = () => {
     if (!publicProfileUrl) {
-      toast.error('No active public profile link available.')
+      toast.error('No active public profile link is available.')
       return
     }
 
@@ -527,7 +660,7 @@ export function AdminEmployeeDetailPage() {
       await copyTextToClipboard(employee.email)
       toast.success('Email copied.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to copy email')
+      toast.error(error instanceof Error ? error.message : 'Could not copy email')
     }
   }
 
@@ -540,7 +673,7 @@ export function AdminEmployeeDetailPage() {
       await copyTextToClipboard(employee.matricule)
       toast.success('Employee ID copied.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to copy matricule')
+      toast.error(error instanceof Error ? error.message : 'Could not copy employee ID')
     }
   }
 
@@ -551,9 +684,9 @@ export function AdminEmployeeDetailPage() {
 
     try {
       downloadCanvasAsPng(qrCanvasId, `ems_public_qr_${employee.matricule}.png`)
-      toast.success('QR code downloaded.')
+      toast.success('QR downloaded.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to download QR')
+      toast.error(error instanceof Error ? error.message : 'Could not download QR')
     }
   }
 
@@ -565,7 +698,7 @@ export function AdminEmployeeDetailPage() {
     const normalizedEmail = effectiveInviteEmail
 
     if (!isValidEmail(normalizedEmail)) {
-      toast.error('Please enter a valid email address before sending an invite.')
+      toast.error('Please enter a valid email address before sending an invitation.')
       return
     }
 
@@ -583,7 +716,7 @@ export function AdminEmployeeDetailPage() {
     const normalizedEmail = effectiveInviteEmail
 
     if (!isValidEmail(normalizedEmail)) {
-      toast.error('Please provide a valid email to resend the invite.')
+      toast.error('Please enter a valid email address before resending the invitation.')
       return
     }
 
@@ -603,7 +736,22 @@ export function AdminEmployeeDetailPage() {
         nom: values.nom.trim(),
         prenom: values.prenom.trim(),
         departementId: values.departementId,
+        sexe: normalizeOptional(values.sexe),
+        dateNaissance: normalizeOptional(values.dateNaissance),
+        lieuNaissance: normalizeOptional(values.lieuNaissance),
+        nationalite: normalizeOptional(values.nationalite),
+        situationFamiliale: normalizeOptional(values.situationFamiliale),
+        nombreEnfants: normalizeOptionalInteger(values.nombreEnfants),
+        adresse: normalizeOptional(values.adresse),
+        numeroSecuriteSociale: normalizeOptional(values.numeroSecuriteSociale),
+        diplome: normalizeOptional(values.diplome),
+        specialite: normalizeOptional(values.specialite),
+        historiquePostes: normalizeOptional(values.historiquePostes),
+        observations: normalizeOptional(values.observations),
         poste: normalizeOptional(values.poste),
+        categorieProfessionnelle: normalizeOptional(values.categorieProfessionnelle),
+        typeContrat: normalizeOptional(values.typeContrat),
+        dateRecrutement: normalizeOptional(values.dateRecrutement),
         email: normalizeOptional(values.email),
         telephone: normalizeOptional(values.telephone),
         photoUrl: normalizeOptional(values.photoUrl),
@@ -634,7 +782,7 @@ export function AdminEmployeeDetailPage() {
           <CardContent className="space-y-3 p-6">
             <p className="text-sm text-destructive">Employee id is missing.</p>
             <Button variant="outline" onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}>
-              Back to Employees
+              Back to employees
             </Button>
           </CardContent>
         </Card>
@@ -676,7 +824,7 @@ export function AdminEmployeeDetailPage() {
         subtitle="Could not load employee details."
       >
         <Alert variant="destructive">
-          <AlertTitle>Unable to load employee</AlertTitle>
+          <AlertTitle>Could not load employee</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
             <span>{employeeQuery.error.message}</span>
             <Button variant="outline" size="sm" onClick={() => void employeeQuery.refetch()}>
@@ -692,7 +840,7 @@ export function AdminEmployeeDetailPage() {
     return (
       <DashboardLayout
         title="Employee Profile"
-        subtitle="Employee was not found."
+        subtitle="Employee not found."
       >
         <Card className="rounded-2xl">
           <CardContent className="space-y-3 p-6">
@@ -752,7 +900,7 @@ export function AdminEmployeeDetailPage() {
                 ) : (
                   <UserCheck className="mr-2 h-4 w-4" />
                 )}
-                {activateMutation.isPending ? 'Activating...' : 'Activate Employee'}
+                {activateMutation.isPending ? 'Activating...' : "Activate Employee"}
               </Button>
             )}
             {employee.isActive ? (
@@ -845,7 +993,7 @@ export function AdminEmployeeDetailPage() {
                     }}
                   >
                     <Mail className="mr-2 h-4 w-4" />
-                    Copy email
+                    Copy Email
                   </Button>
                   <Button
                     type="button"
@@ -857,7 +1005,7 @@ export function AdminEmployeeDetailPage() {
                     }}
                   >
                     <Copy className="mr-2 h-4 w-4" />
-                    Copy matricule
+                    Copy Employee ID
                   </Button>
                   <Button
                     type="button"
@@ -870,7 +1018,7 @@ export function AdminEmployeeDetailPage() {
                     }}
                   >
                     <ExternalLink className="mr-2 h-4 w-4" />
-                    View public profile
+                    Open Public Profile
                   </Button>
                   <Button
                     type="button"
@@ -891,7 +1039,7 @@ export function AdminEmployeeDetailPage() {
                     ) : (
                       <UserCheck className="mr-2 h-4 w-4" />
                     )}
-                    {employee.isActive ? 'Deactivate employee' : 'Activate employee'}
+                    {employee.isActive ? "Deactivate Employee" : "Activate Employee"}
                   </Button>
                 </div>
               </DialogContent>
@@ -967,6 +1115,25 @@ export function AdminEmployeeDetailPage() {
                 <InfoLine label="Employee ID" value={employee.matricule} mono />
                 <InfoLine label="Department" value={departmentName} />
                 <InfoLine label="Job Title" value={formatOptionalValue(currentPoste || employee.poste)} />
+                <InfoLine label="Sex" value={formatCivilValue(getEmployeeSexeLabel(employee.sexe))} />
+                <InfoLine label="Birth Date" value={formatCivilDate(employee.dateNaissance)} />
+                <InfoLine label="Nationality" value={formatCivilValue(employee.nationalite)} />
+                <InfoLine
+                  label="Catégorie"
+                  value={formatEmploymentValue(
+                    getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
+                  )}
+                />
+                <InfoLine
+                  label="Contract"
+                  value={formatEmploymentValue(
+                    getEmployeeTypeContratLabel(employee.typeContrat),
+                  )}
+                />
+                <InfoLine
+                  label="Hire Date"
+                  value={formatEmploymentDate(employee.dateRecrutement)}
+                />
               </div>
 
               <Separator />
@@ -1007,7 +1174,7 @@ export function AdminEmployeeDetailPage() {
                   ) : (
                     <UserCheck className="mr-1 h-4 w-4" />
                   )}
-                  {employee.isActive ? 'Deactivate' : 'Activate'}
+                  {employee.isActive ? 'D?sactiver' : 'Activer'}
                 </Button>
               </div>
             </CardContent>
@@ -1015,9 +1182,9 @@ export function AdminEmployeeDetailPage() {
 
           {needsQrRefresh ? (
             <Alert>
-              <AlertTitle className="text-amber-800">Needs QR refresh</AlertTitle>
+              <AlertTitle className="text-amber-800">QR refresh needed</AlertTitle>
               <AlertDescription className="text-amber-700">
-                Employee info changed. Regenerate QR to keep the public profile in sync.
+                Employee information changed. Regenerate the QR to keep the public profile in sync.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -1034,7 +1201,7 @@ export function AdminEmployeeDetailPage() {
             <TabsContent value="overview" className="space-y-4">
               {isInactive ? (
                 <div className="rounded-xl border border-slate-300 bg-slate-100/90 p-3 text-sm text-slate-700">
-                  This employee is currently inactive. Reactivate the profile to restore availability in the system.
+                  This employee is currently inactive. Reactivate the profile to make it available in the system again.
                 </div>
               ) : null}
 
@@ -1050,14 +1217,116 @@ export function AdminEmployeeDetailPage() {
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
                     <InfoGrid label="Last Name" value={employee.nom} />
                     <InfoGrid label="First Name" value={employee.prenom} />
+                    <InfoGrid
+                      label="Sex"
+                      value={formatCivilValue(getEmployeeSexeLabel(employee.sexe))}
+                    />
+                    <InfoGrid
+                      label="Birth Date"
+                      value={formatCivilDate(employee.dateNaissance)}
+                    />
+                    <InfoGrid
+                      label="Birth Place"
+                      value={formatCivilValue(employee.lieuNaissance)}
+                    />
+                    <InfoGrid
+                      label="Nationalité"
+                      value={formatCivilValue(employee.nationalite)}
+                    />
                     <InfoGrid label="Employee ID" value={employee.matricule} mono />
                     <InfoGrid label="Job Title" value={formatOptionalValue(employee.poste)} />
                     <InfoGrid label="Department" value={departmentName} />
+                    <InfoGrid
+                      label="Catégorie professionnelle"
+                      value={formatEmploymentValue(
+                        getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
+                      )}
+                    />
+                    <InfoGrid
+                      label="Contract Type"
+                      value={formatEmploymentValue(
+                        getEmployeeTypeContratLabel(employee.typeContrat),
+                      )}
+                    />
+                    <InfoGrid
+                      label="Hire Date"
+                      value={formatEmploymentDate(employee.dateRecrutement)}
+                    />
                     <InfoGrid label="Email" value={formatOptionalValue(employee.email)} />
                     <InfoGrid label="Phone" value={formatOptionalValue(employee.telephone)} />
-                    <InfoGrid label="Created at" value={formatDateTime(employee.createdAt)} />
-                    <InfoGrid label="Updated at" value={formatDateTime(employee.updatedAt)} />
-                    <InfoGrid label="Account role" value={employeeProfile?.role ?? 'Not linked'} />
+                    <InfoGrid label="Created At" value={formatDateTime(employee.createdAt)} />
+                    <InfoGrid label="Updated At" value={formatDateTime(employee.updatedAt)} />
+                    <InfoGrid label="Account Role" value={employeeProfile?.role ?? 'Not linked'} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border border-amber-200/80 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Administrative Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Sensitive HR and payroll-related data. Keep these details visible only to authorized administrators.
+                  </div>
+
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <InfoGrid
+                      label="Marital Status"
+                      value={formatCivilValue(
+                        getEmployeeSituationFamilialeLabel(employee.situationFamiliale),
+                      )}
+                    />
+                    <InfoGrid
+                      label="Number of Children"
+                      value={formatAdministrativeNumber(employee.nombreEnfants)}
+                    />
+                    <InfoGrid label="Address" value={formatCivilValue(employee.adresse)} />
+                    <InfoGrid
+                      label="Numéro de sécurité sociale"
+                      value={formatCivilValue(employee.numeroSecuriteSociale)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Education & Career Background</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <InfoGrid label="Diplôme" value={formatCivilValue(employee.diplome)} />
+                    <InfoGrid label="Spécialité" value={formatCivilValue(employee.specialite)} />
+                  </div>
+
+                  <div className="rounded-lg border bg-slate-50/50 p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Career History
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
+                      {formatCivilValue(employee.historiquePostes)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border border-amber-200/80 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Internal Notes</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Notes reserved for HR/admin. This content is not shown to employees or in public profile flows.
+                  </div>
+
+                  <div className="rounded-lg border bg-slate-50/50 p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Observations
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
+                      {formatCivilValue(employee.observations)}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -1137,6 +1406,299 @@ export function AdminEmployeeDetailPage() {
                         <Label htmlFor="poste">Job Title</Label>
                         <Input id="poste" disabled={isFormDisabled} {...form.register('poste')} />
                       </FieldError>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-slate-900">Personal Information</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Sensitive civil details stored only in the internal HR record.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FieldError message={form.formState.errors.sexe?.message}>
+                        <Label htmlFor="sexe">Sex</Label>
+                        <Controller
+                          control={form.control}
+                          name="sexe"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="sexe">
+                                <SelectValue placeholder="Select sex" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_SEXE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_SEXE_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.dateNaissance?.message}>
+                        <Label htmlFor="dateNaissance">Birth Date</Label>
+                        <Input
+                          id="dateNaissance"
+                          type="date"
+                          disabled={isFormDisabled}
+                          {...form.register('dateNaissance')}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.lieuNaissance?.message}>
+                        <Label htmlFor="lieuNaissance">Birth Place</Label>
+                        <Input
+                          id="lieuNaissance"
+                          disabled={isFormDisabled}
+                          {...form.register('lieuNaissance')}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.nationalite?.message}>
+                        <Label htmlFor="nationalite">Nationality</Label>
+                        <Input
+                          id="nationalite"
+                          disabled={isFormDisabled}
+                          {...form.register('nationalite')}
+                        />
+                      </FieldError>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-slate-900">Employment Information</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Employment data managed by HR for payroll-ready employee records.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FieldError message={form.formState.errors.categorieProfessionnelle?.message}>
+                        <Label htmlFor="categorieProfessionnelle">Professional Category</Label>
+                        <Controller
+                          control={form.control}
+                          name="categorieProfessionnelle"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="categorieProfessionnelle">
+                                <SelectValue placeholder="Select a category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.typeContrat?.message}>
+                        <Label htmlFor="typeContrat">Contract Type</Label>
+                        <Controller
+                          control={form.control}
+                          name="typeContrat"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="typeContrat">
+                                <SelectValue placeholder="Select a contract type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_TYPE_CONTRAT_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_TYPE_CONTRAT_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.dateRecrutement?.message}>
+                        <Label htmlFor="dateRecrutement">Hire Date</Label>
+                        <Input
+                          id="dateRecrutement"
+                          type="date"
+                          disabled={isFormDisabled}
+                          {...form.register('dateRecrutement')}
+                        />
+                      </FieldError>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-slate-900">Education & Career Background</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Education level, specialization, and career background summarized for HR reference.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FieldError message={form.formState.errors.diplome?.message}>
+                        <Label htmlFor="diplome">Degree / Diploma</Label>
+                        <Input
+                          id="diplome"
+                          disabled={isFormDisabled}
+                          {...form.register('diplome')}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.specialite?.message}>
+                        <Label htmlFor="specialite">Specialization</Label>
+                        <Input
+                          id="specialite"
+                          disabled={isFormDisabled}
+                          {...form.register('specialite')}
+                        />
+                      </FieldError>
+                    </div>
+
+                    <FieldError message={form.formState.errors.historiquePostes?.message}>
+                      <Label htmlFor="historiquePostes">Career History</Label>
+                      <Textarea
+                        id="historiquePostes"
+                        rows={5}
+                        disabled={isFormDisabled}
+                        {...form.register('historiquePostes')}
+                      />
+                    </FieldError>
+
+                    <Separator />
+
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-slate-900">Administrative Information</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Sensitive data used for HR administration and future payroll workflows.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      This section contains sensitive administrative data. Limit access to HR administrators.
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FieldError message={form.formState.errors.situationFamiliale?.message}>
+                        <Label htmlFor="situationFamiliale">Marital Status</Label>
+                        <Controller
+                          control={form.control}
+                          name="situationFamiliale"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="situationFamiliale">
+                                <SelectValue placeholder="Select marital status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_SITUATION_FAMILIALE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_SITUATION_FAMILIALE_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.nombreEnfants?.message}>
+                        <Label htmlFor="nombreEnfants">Number of Children</Label>
+                        <Input
+                          id="nombreEnfants"
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          disabled={isFormDisabled}
+                          {...form.register('nombreEnfants')}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.numeroSecuriteSociale?.message}>
+                        <Label htmlFor="numeroSecuriteSociale">Social Security Number</Label>
+                        <Input
+                          id="numeroSecuriteSociale"
+                          disabled={isFormDisabled}
+                          {...form.register('numeroSecuriteSociale')}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Sensitive administrative identifier.
+                        </p>
+                      </FieldError>
+                    </div>
+
+                    <FieldError message={form.formState.errors.adresse?.message}>
+                      <Label htmlFor="adresse">Address</Label>
+                      <Textarea
+                        id="adresse"
+                        rows={3}
+                        disabled={isFormDisabled}
+                        {...form.register('adresse')}
+                      />
+                    </FieldError>
+
+                    <Separator />
+
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-slate-900">HR Internal Notes</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Internal comments visible only to HR administrators.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      This note field is restricted to administration and should not contain content intended for employees.
+                    </div>
+
+                    <FieldError message={form.formState.errors.observations?.message}>
+                      <Label htmlFor="observations">Internal Notes</Label>
+                      <Textarea
+                        id="observations"
+                        rows={5}
+                        disabled={isFormDisabled}
+                        {...form.register('observations')}
+                      />
+                    </FieldError>
+
+                    <Separator />
+
+                    <div className="grid gap-4 md:grid-cols-2">
 
                       <FieldError message={form.formState.errors.email?.message}>
                         <Label htmlFor="email">Email</Label>
@@ -1169,7 +1731,7 @@ export function AdminEmployeeDetailPage() {
                           }}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Format: +213 followed by 5, 6, or 7 and 8 digits.
+                          Format : +213 suivi de 5, 6 ou 7 puis de 8 chiffres.
                         </p>
                       </FieldError>
 
@@ -1196,7 +1758,7 @@ export function AdminEmployeeDetailPage() {
                         ) : (
                           <Save className="mr-2 h-4 w-4" />
                         )}
-                        {updateMutation.isPending ? 'Saving...' : 'Save changes'}
+                        {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                       </Button>
                     </div>
                   </form>
@@ -1251,18 +1813,18 @@ export function AdminEmployeeDetailPage() {
                         </div>
                       ) : (
                         <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                          No linked auth account yet.
+                          No authentication account linked yet.
                         </div>
                       )}
 
                       <div className="space-y-2">
-                        <Label htmlFor="account-email-input">Invite Email</Label>
+                        <Label htmlFor="account-email-input">Invitation Email</Label>
                         <Input
                           id="account-email-input"
                           type="email"
                           value={accountEmailSource}
                           onChange={(event) => setAccountEmailInput(event.target.value)}
-                          placeholder="employee@company.com"
+                          placeholder="employe@entreprise.com"
                           disabled={isInviting}
                         />
                         {normalizedAccountEmail.length > 0 && !isValidEmail(normalizedAccountEmail) ? (
@@ -1283,7 +1845,7 @@ export function AdminEmployeeDetailPage() {
                           ) : (
                             <Send className="mr-2 h-4 w-4" />
                           )}
-                          {isInviting ? 'Sending...' : 'Resend invite'}
+                          {isInviting ? 'Sending...' : "Resend Invitation"}
                         </Button>
                       ) : (
                         <Button
@@ -1297,7 +1859,7 @@ export function AdminEmployeeDetailPage() {
                           ) : (
                             <Send className="mr-2 h-4 w-4" />
                           )}
-                          {isInviting ? 'Sending...' : 'Send invite'}
+                          {isInviting ? 'Sending...' : "Send Invitation"}
                         </Button>
                       )}
                     </>
@@ -1314,7 +1876,7 @@ export function AdminEmployeeDetailPage() {
                       <QrCode className="h-4 w-4" />
                       QR Token
                       {needsQrRefresh ? (
-                        <Badge className="border-transparent bg-red-600 text-white">Needs refresh</Badge>
+                        <Badge className="border-transparent bg-red-600 text-white">Refresh needed</Badge>
                       ) : null}
                     </CardTitle>
                   </CardHeader>
@@ -1406,9 +1968,9 @@ export function AdminEmployeeDetailPage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Revoke active QR token?</AlertDialogTitle>
+                                <AlertDialogTitle>Revoke le jeton QR actif ?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will immediately disable the current public profile link.
+                                  This will immediately deactivate the current public profile link.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -1432,7 +1994,7 @@ export function AdminEmployeeDetailPage() {
                         {publicProfileUrl ? (
                           <>
                             <div className="rounded-xl border p-3">
-                              <p className="mb-1 text-xs text-muted-foreground">Public profile URL</p>
+                              <p className="mb-1 text-xs text-muted-foreground">Public Profile URL</p>
                               <p className="break-all text-sm">{publicProfileUrl}</p>
                             </div>
 
@@ -1449,7 +2011,7 @@ export function AdminEmployeeDetailPage() {
                             <div className="flex flex-wrap gap-2">
                               <Button type="button" variant="outline" onClick={() => void onCopyPublicLink()}>
                                 <Copy className="mr-2 h-4 w-4" />
-                                Copy link
+                                Copy Link
                               </Button>
                               <Button type="button" variant="outline" onClick={onDownloadQr}>
                                 <Download className="mr-2 h-4 w-4" />
@@ -1457,7 +2019,7 @@ export function AdminEmployeeDetailPage() {
                               </Button>
                               <Button type="button" variant="outline" onClick={onOpenPublicPreview}>
                                 <ExternalLink className="mr-2 h-4 w-4" />
-                                View public profile
+                                Open Public Profile
                               </Button>
                             </div>
                           </>
@@ -1589,7 +2151,7 @@ export function AdminEmployeeDetailPage() {
                           variant="outline"
                           onClick={() => navigate(ROUTES.ADMIN_REQUESTS)}
                         >
-                          Open requests center
+                          Open Request Center
                         </Button>
                       </div>
                     ) : (
@@ -1616,11 +2178,11 @@ export function AdminEmployeeDetailPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {employeeStatusAction === 'deactivate' ? 'Deactivate employee?' : 'Activate employee?'}
+              {employeeStatusAction === 'deactivate' ? "Deactivate Employee?" : "Activate Employee?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {employeeStatusAction === 'deactivate'
-                ? `Deactivate ${employee.prenom} ${employee.nom}? This employee will be marked inactive and treated as unavailable in the system. Their active QR token will be revoked.`
+                ? `Deactivate ${employee.prenom} ${employee.nom}? This employee will be marked inactive and unavailable in the system. The active QR token will be revoked.`
                 : `Activate ${employee.prenom} ${employee.nom}? This employee will be restored as active and available in the system.`}
             </AlertDialogDescription>
           </AlertDialogHeader>

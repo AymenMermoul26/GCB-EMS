@@ -68,6 +68,16 @@ export interface MonitoringRecentEvent extends AuditLogItem {
   critical: boolean
 }
 
+export interface MonitoringRecentInviteItem {
+  id: string
+  employeeId: string | null
+  employeeName: string
+  recipientEmail: string
+  status: 'sent' | 'failed'
+  createdAt: string
+  failureReason?: string
+}
+
 export interface MonitoringTopActionItem {
   action: string
   label: string
@@ -104,6 +114,7 @@ export interface MonitoringDashboardData {
   categoryDistribution: MonitoringDistributionItem[]
   qrActivity: MonitoringMetricItem[]
   emailActivity: MonitoringMetricItem[]
+  recentInviteEvents: MonitoringRecentInviteItem[]
   recentCriticalEvents: MonitoringRecentEvent[]
   topActions: MonitoringTopActionItem[]
   attentionItems: MonitoringInsightItem[]

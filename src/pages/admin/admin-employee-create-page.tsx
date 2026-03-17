@@ -6,6 +6,7 @@ import {
   Loader2,
   Mail,
   Save,
+  ShieldCheck,
   UserRound,
 } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { ROUTES, getAdminEmployeeRoute } from '@/constants/routes'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { useDepartmentsQuery } from '@/services/departmentsService'
@@ -36,13 +38,26 @@ import {
   employeeCreateSchema,
   normalizePhoneNumberInput,
   normalizeOptional,
+  normalizeOptionalInteger,
   type EmployeeCreateFormValues,
 } from '@/schemas/employeeSchema'
+import {
+  EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS,
+  EMPLOYEE_SITUATION_FAMILIALE_OPTIONS,
+  EMPLOYEE_SITUATION_FAMILIALE_LABELS,
+  EMPLOYEE_SEXE_OPTIONS,
+  EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS,
+  EMPLOYEE_SEXE_LABELS,
+  EMPLOYEE_TYPE_CONTRAT_OPTIONS,
+  EMPLOYEE_TYPE_CONTRAT_LABELS,
+} from '@/types/employee'
 import { mapEmployeeWriteError } from '@/utils/supabase-errors'
 
 function isMatriculeConflict(message: string): boolean {
   return message.toLowerCase().includes('matricule')
 }
+
+const EMPTY_SELECT_VALUE = '__none__'
 
 export function AdminEmployeeCreatePage() {
   const navigate = useNavigate()
@@ -58,7 +73,22 @@ export function AdminEmployeeCreatePage() {
       nom: '',
       prenom: '',
       departementId: undefined,
+      sexe: '',
+      dateNaissance: '',
+      lieuNaissance: '',
+      nationalite: '',
+      situationFamiliale: '',
+      nombreEnfants: '',
+      adresse: '',
+      numeroSecuriteSociale: '',
+      diplome: '',
+      specialite: '',
+      historiquePostes: '',
+      observations: '',
       poste: '',
+      categorieProfessionnelle: '',
+      typeContrat: '',
+      dateRecrutement: '',
       email: '',
       telephone: '',
       photoUrl: '',
@@ -93,7 +123,22 @@ export function AdminEmployeeCreatePage() {
       nom: values.nom.trim(),
       prenom: values.prenom.trim(),
       departementId: values.departementId,
+      sexe: normalizeOptional(values.sexe),
+      dateNaissance: normalizeOptional(values.dateNaissance),
+      lieuNaissance: normalizeOptional(values.lieuNaissance),
+      nationalite: normalizeOptional(values.nationalite),
+      situationFamiliale: normalizeOptional(values.situationFamiliale),
+      nombreEnfants: normalizeOptionalInteger(values.nombreEnfants),
+      adresse: normalizeOptional(values.adresse),
+      numeroSecuriteSociale: normalizeOptional(values.numeroSecuriteSociale),
+      diplome: normalizeOptional(values.diplome),
+      specialite: normalizeOptional(values.specialite),
+      historiquePostes: normalizeOptional(values.historiquePostes),
+      observations: normalizeOptional(values.observations),
       poste: normalizeOptional(values.poste),
+      categorieProfessionnelle: normalizeOptional(values.categorieProfessionnelle),
+      typeContrat: normalizeOptional(values.typeContrat),
+      dateRecrutement: normalizeOptional(values.dateRecrutement),
       email: normalizeOptional(values.email),
       telephone: normalizeOptional(values.telephone),
       photoUrl: normalizeOptional(values.photoUrl),
@@ -199,7 +244,7 @@ export function AdminEmployeeCreatePage() {
               </Label>
               <Input
                 id="prenom"
-                placeholder="First name"
+                placeholder="First Name"
                 disabled={isSubmitting}
                 {...form.register('prenom')}
               />
@@ -231,7 +276,7 @@ export function AdminEmployeeCreatePage() {
             </FieldError>
 
             <FieldError message={form.formState.errors.poste?.message}>
-              <Label htmlFor="poste">Job Title</Label>
+              <Label htmlFor="poste">Poste</Label>
               <Input
                 id="poste"
                 placeholder="Software Engineer"
@@ -293,14 +338,326 @@ export function AdminEmployeeCreatePage() {
         <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
           <CardHeader className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <UserRound className="h-4 w-4 text-[#ff6b35]" />
+              Personal Information
+            </CardTitle>
+            <CardDescription>
+              Sensitive civil information managed by HR and hidden from the public profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <FieldError message={form.formState.errors.sexe?.message}>
+              <Label htmlFor="sexe">Sex</Label>
+              <Controller
+                control={form.control}
+                name="sexe"
+                render={({ field }) => (
+                  <Select
+                    value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                    onValueChange={(value) =>
+                      field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                    }
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="sexe">
+                      <SelectValue placeholder="Select sex" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                      {EMPLOYEE_SEXE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {EMPLOYEE_SEXE_LABELS[option]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FieldError>
+
+            <FieldError message={form.formState.errors.dateNaissance?.message}>
+              <Label htmlFor="dateNaissance">Birth Date</Label>
+              <Input
+                id="dateNaissance"
+                type="date"
+                disabled={isSubmitting}
+                {...form.register('dateNaissance')}
+              />
+            </FieldError>
+
+            <FieldError message={form.formState.errors.lieuNaissance?.message}>
+              <Label htmlFor="lieuNaissance">Birth Place</Label>
+              <Input
+                id="lieuNaissance"
+                placeholder="Birth Place"
+                disabled={isSubmitting}
+                {...form.register('lieuNaissance')}
+              />
+            </FieldError>
+
+            <FieldError message={form.formState.errors.nationalite?.message}>
+              <Label htmlFor="nationalite">Nationality</Label>
+              <Input
+                id="nationalite"
+                placeholder="Nationality"
+                disabled={isSubmitting}
+                {...form.register('nationalite')}
+              />
+            </FieldError>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <BriefcaseBusiness className="h-4 w-4 text-[#ff6b35]" />
+              Employment Information
+            </CardTitle>
+            <CardDescription>
+              Core HR data used to structure the employee record.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <FieldError message={form.formState.errors.categorieProfessionnelle?.message}>
+              <Label htmlFor="categorieProfessionnelle">Professional Category</Label>
+              <Controller
+                control={form.control}
+                name="categorieProfessionnelle"
+                render={({ field }) => (
+                  <Select
+                    value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                    onValueChange={(value) =>
+                      field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                    }
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="categorieProfessionnelle">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                      {EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS[option]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FieldError>
+
+            <FieldError message={form.formState.errors.typeContrat?.message}>
+              <Label htmlFor="typeContrat">Contract Type</Label>
+              <Controller
+                control={form.control}
+                name="typeContrat"
+                render={({ field }) => (
+                  <Select
+                    value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                    onValueChange={(value) =>
+                      field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                    }
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="typeContrat">
+                      <SelectValue placeholder="Select a contract type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                      {EMPLOYEE_TYPE_CONTRAT_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {EMPLOYEE_TYPE_CONTRAT_LABELS[option]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FieldError>
+
+            <FieldError message={form.formState.errors.dateRecrutement?.message}>
+              <Label htmlFor="dateRecrutement">Hire Date</Label>
+              <Input
+                id="dateRecrutement"
+                type="date"
+                disabled={isSubmitting}
+                {...form.register('dateRecrutement')}
+              />
+            </FieldError>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <BriefcaseBusiness className="h-4 w-4 text-[#ff6b35]" />
+              Education & Career Background
+            </CardTitle>
+            <CardDescription>
+              Education, specialization, and career background summarized for internal HR use.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <FieldError message={form.formState.errors.diplome?.message}>
+                <Label htmlFor="diplome">Degree / Diploma</Label>
+                <Input
+                  id="diplome"
+                  placeholder="Highest degree or diploma"
+                  disabled={isSubmitting}
+                  {...form.register('diplome')}
+                />
+              </FieldError>
+
+              <FieldError message={form.formState.errors.specialite?.message}>
+                <Label htmlFor="specialite">Specialization</Label>
+                <Input
+                  id="specialite"
+                  placeholder="Field of study or expertise"
+                  disabled={isSubmitting}
+                  {...form.register('specialite')}
+                />
+              </FieldError>
+            </div>
+
+            <FieldError message={form.formState.errors.historiquePostes?.message}>
+              <Label htmlFor="historiquePostes">Career History</Label>
+              <Textarea
+                id="historiquePostes"
+                rows={5}
+                placeholder="Summary of previous roles and career history"
+                disabled={isSubmitting}
+                {...form.register('historiquePostes')}
+              />
+            </FieldError>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <ShieldCheck className="h-4 w-4 text-[#ff6b35]" />
+              Administrative Information
+            </CardTitle>
+            <CardDescription>
+              Sensitive HR and payroll-related data. This section remains internal and is never exposed through the public QR profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Access to these fields must remain limited to HR administrators.
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FieldError message={form.formState.errors.situationFamiliale?.message}>
+                <Label htmlFor="situationFamiliale">Marital Status</Label>
+                <Controller
+                  control={form.control}
+                  name="situationFamiliale"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                      onValueChange={(value) =>
+                        field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                      }
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger id="situationFamiliale">
+                        <SelectValue placeholder="Select marital status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                        {EMPLOYEE_SITUATION_FAMILIALE_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {EMPLOYEE_SITUATION_FAMILIALE_LABELS[option]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FieldError>
+
+              <FieldError message={form.formState.errors.nombreEnfants?.message}>
+                <Label htmlFor="nombreEnfants">Number of Children</Label>
+                <Input
+                  id="nombreEnfants"
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  disabled={isSubmitting}
+                  {...form.register('nombreEnfants')}
+                />
+              </FieldError>
+
+              <FieldError message={form.formState.errors.numeroSecuriteSociale?.message}>
+                <Label htmlFor="numeroSecuriteSociale">Social Security Number</Label>
+                <Input
+                  id="numeroSecuriteSociale"
+                  placeholder="Official administrative identifier"
+                  disabled={isSubmitting}
+                  {...form.register('numeroSecuriteSociale')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Sensitive field. Restrict this value to HR administrators.
+                </p>
+              </FieldError>
+            </div>
+
+            <FieldError message={form.formState.errors.adresse?.message}>
+              <Label htmlFor="adresse">Address</Label>
+              <Textarea
+                id="adresse"
+                rows={3}
+                placeholder="Employee address"
+                disabled={isSubmitting}
+                {...form.register('adresse')}
+              />
+            </FieldError>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <ShieldCheck className="h-4 w-4 text-[#ff6b35]" />
+              Internal Notes
+            </CardTitle>
+            <CardDescription>
+              Admin-only internal notes. This field is not shown to employees or in public profile flows.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Internal note field. Keep content professional and limited to HR operational use.
+            </div>
+
+            <FieldError message={form.formState.errors.observations?.message}>
+              <Label htmlFor="observations">Internal Notes</Label>
+              <Textarea
+                id="observations"
+                rows={5}
+                placeholder="Internal notes about this employee"
+                disabled={isSubmitting}
+                {...form.register('observations')}
+              />
+            </FieldError>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <Mail className="h-4 w-4 text-[#ff6b35]" />
               Contact
             </CardTitle>
-            <CardDescription>Professional contact details used for communication.</CardDescription>
+            <CardDescription>Work contact details used for communication.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <FieldError message={form.formState.errors.email?.message}>
-              <Label htmlFor="email">Professional Email</Label>
+              <Label htmlFor="email">Email professionnel</Label>
               <Input
                 id="email"
                 type="email"
@@ -311,7 +668,7 @@ export function AdminEmployeeCreatePage() {
             </FieldError>
 
             <FieldError message={form.formState.errors.telephone?.message}>
-              <Label htmlFor="telephone">Professional Phone</Label>
+              <Label htmlFor="telephone">Work Phone</Label>
               <Input
                 id="telephone"
                 type="tel"
@@ -342,7 +699,7 @@ export function AdminEmployeeCreatePage() {
               Photo
             </CardTitle>
             <CardDescription>
-              Add an image URL for profile display in admin, employee, and QR public pages.
+              Add an image URL for profile rendering across admin, employee, and public QR pages.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-[160px_minmax(0,1fr)]">
@@ -372,7 +729,7 @@ export function AdminEmployeeCreatePage() {
               </FieldError>
               <Separator />
               <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                Use a direct HTTPS image URL. Supported by current profile and QR public rendering.
+                Use a direct HTTPS image URL. Compatible with the current profile and public QR rendering.
               </div>
             </div>
           </CardContent>
@@ -381,7 +738,7 @@ export function AdminEmployeeCreatePage() {
         <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            Validate required fields before creating the employee.
+            Complete the required fields before creating the employee.
           </div>
           <div className="flex items-center gap-2">
             <Button

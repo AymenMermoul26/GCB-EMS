@@ -6,6 +6,7 @@
   ClipboardList,
   FileClock,
   LayoutDashboard,
+  Mail,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -68,6 +69,16 @@ const KPI_CARD_STYLES = {
     accent: 'bg-rose-100 text-rose-700',
     helper: 'Unread admin notifications',
   },
+  invitesSentRecent: {
+    icon: Mail,
+    accent: 'bg-orange-100 text-orange-700',
+    helper: 'Employee invite emails sent in the last 7 days',
+  },
+  inviteFailuresRecent: {
+    icon: AlertTriangle,
+    accent: 'bg-rose-100 text-rose-700',
+    helper: 'Invite delivery failures in the last 7 days',
+  },
 } as const
 
 function formatDateTime(value: string): string {
@@ -102,24 +113,40 @@ function formatRelativeDate(value: string): string {
 
 function getActivityLabel(action: string): string {
   switch (action) {
+    case 'EMPLOYEE_ACTIVATED':
+      return 'Employee activated'
     case 'EMPLOYEE_CREATED':
       return 'Employee created'
     case 'EMPLOYEE_UPDATED':
       return 'Employee updated'
     case 'EMPLOYEE_DEACTIVATED':
       return 'Employee deactivated'
+    case 'EMPLOYEE_INVITE_SENT':
+      return 'Invite email sent'
+    case 'EMPLOYEE_INVITE_FAILED':
+      return 'Invite delivery failed'
     case 'EMPLOYEE_SELF_UPDATED':
       return 'Employee self-updated'
+    case 'EMPLOYEE_SHEET_SENT':
+      return 'Information sheet sent'
+    case 'EMPLOYEE_SHEET_SEND_FAILED':
+      return 'Information sheet failed'
     case 'REQUEST_SUBMITTED':
       return 'Request submitted'
     case 'REQUEST_APPROVED':
       return 'Request approved'
     case 'REQUEST_REJECTED':
       return 'Request rejected'
+    case 'QR_GENERATED':
+      return 'QR generated'
     case 'QR_REGENERATED':
       return 'QR regenerated'
     case 'QR_REVOKED':
       return 'QR revoked'
+    case 'QR_REFRESH_REQUIRED_CREATED':
+      return 'QR refresh required'
+    case 'QR_REFRESH_COMPLETED':
+      return 'QR refresh completed'
     case 'VISIBILITY_UPDATED':
       return 'Visibility updated'
     default:
@@ -129,19 +156,39 @@ function getActivityLabel(action: string): string {
 
 function getActivityBadgeClass(action: string): string {
   switch (action) {
+    case 'EMPLOYEE_ACTIVATED':
     case 'REQUEST_APPROVED':
     case 'VISIBILITY_UPDATED':
-    case 'QR_REGENERATED':
       return 'border-transparent bg-emerald-100 text-emerald-700'
+    case 'EMPLOYEE_INVITE_SENT':
+    case 'EMPLOYEE_SHEET_SENT':
+      return 'border-transparent bg-orange-100 text-orange-700'
+    case 'QR_GENERATED':
+    case 'QR_REGENERATED':
+    case 'QR_REFRESH_COMPLETED':
+      return 'border-transparent bg-sky-100 text-sky-700'
     case 'REQUEST_REJECTED':
     case 'EMPLOYEE_DEACTIVATED':
+    case 'EMPLOYEE_INVITE_FAILED':
+    case 'EMPLOYEE_SHEET_SEND_FAILED':
     case 'QR_REVOKED':
       return 'border-transparent bg-rose-100 text-rose-700'
     case 'REQUEST_SUBMITTED':
+    case 'QR_REFRESH_REQUIRED_CREATED':
       return 'border-transparent bg-amber-100 text-amber-700'
     default:
       return 'border-transparent bg-slate-100 text-slate-700'
   }
+}
+
+function getInviteStatusBadgeClass(status: 'sent' | 'failed'): string {
+  return status === 'failed'
+    ? 'border-transparent bg-rose-100 text-rose-700'
+    : 'border-transparent bg-orange-100 text-orange-700'
+}
+
+function getInviteStatusLabel(status: 'sent' | 'failed'): string {
+  return status === 'failed' ? 'Failed' : 'Sent'
 }
 
 function getRequestStatusClass(status: DemandeStatut): string {
@@ -318,6 +365,53 @@ function ActivityItemRow({
   )
 }
 
+function RecentInviteItemRow({
+  item,
+  onOpenEmployee,
+}: {
+  item: {
+    id: string
+    employeeId: string | null
+    employeeName: string
+    recipientEmail: string
+    status: 'sent' | 'failed'
+    createdAt: string
+    failureReason?: string
+  }
+  onOpenEmployee?: () => void
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-slate-900">{item.employeeName}</p>
+            <Badge className={getInviteStatusBadgeClass(item.status)}>
+              {getInviteStatusLabel(item.status)}
+            </Badge>
+          </div>
+          <p className="text-sm text-slate-600">{item.recipientEmail}</p>
+          {item.failureReason ? (
+            <p className="line-clamp-2 text-xs text-rose-700">{item.failureReason}</p>
+          ) : (
+            <p className="text-xs text-slate-500">Employee invite audit event</p>
+          )}
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
+            {formatRelativeDate(item.createdAt)}
+          </span>
+          {onOpenEmployee ? (
+            <Button type="button" variant="outline" size="sm" onClick={onOpenEmployee}>
+              Open employee
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function AdminDashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -364,8 +458,8 @@ export function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
               <KpiSkeletonCard key={`kpi-skeleton-${index}`} />
             ))}
           </div>
@@ -484,7 +578,7 @@ export function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
               key: 'totalEmployees',
@@ -521,6 +615,18 @@ export function AdminDashboardPage() {
               title: 'Unread Notifications',
               value: dashboard.kpis.unreadNotifications,
               helper: KPI_CARD_STYLES.unreadNotifications.helper,
+            },
+            {
+              key: 'invitesSentRecent',
+              title: 'Invites Sent',
+              value: dashboard.kpis.invitesSentRecent,
+              helper: KPI_CARD_STYLES.invitesSentRecent.helper,
+            },
+            {
+              key: 'inviteFailuresRecent',
+              title: 'Invite Failures',
+              value: dashboard.kpis.inviteFailuresRecent,
+              helper: KPI_CARD_STYLES.inviteFailuresRecent.helper,
             },
           ].map((item) => {
             const style = KPI_CARD_STYLES[item.key as keyof typeof KPI_CARD_STYLES]
@@ -739,6 +845,52 @@ export function AdminDashboardPage() {
                     {dashboard.qrSummary.needsQrRefresh}
                   </span>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                <div>
+                  <CardTitle className="text-base font-semibold">
+                    Recent invite email activity
+                  </CardTitle>
+                  <CardDescription>
+                    Latest employee invite sends and failures from the audit trail.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(ROUTES.ADMIN_AUDIT)}
+                >
+                  View audit log
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <SectionError message={dashboard.sectionErrors.recentInvites} />
+                {dashboard.recentInvites.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
+                    <p className="text-sm font-medium text-slate-900">No recent invite emails</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Invite send and failure activity from the last 7 days will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {dashboard.recentInvites.map((item) => (
+                      <RecentInviteItemRow
+                        key={item.id}
+                        item={item}
+                        onOpenEmployee={
+                          item.employeeId
+                            ? () => navigate(getAdminEmployeeRoute(item.employeeId as string))
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -981,7 +1133,7 @@ export function AdminDashboardPage() {
               <FileClock className="h-4 w-4" />
               <span>
                 Dashboard metrics are derived from live employees, departments, requests,
-                notifications, audit log, and active QR tokens.
+                notifications, audit log invite activity, and active QR tokens.
               </span>
             </div>
             <span>
