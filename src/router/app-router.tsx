@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
+import { AppErrorBoundary } from '@/components/common/app-error-boundary'
 import { AdminRoute } from '@/components/guards/admin-route'
 import { EmployeeRoute } from '@/components/guards/employee-route'
 import { FullScreenLoader } from '@/components/common/full-screen-loader'
@@ -22,9 +23,11 @@ import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
 import { EmployeeMyQrPage } from '@/pages/employee/employee-my-qr-page'
 import { EmployeeRequestsPage } from '@/pages/employee/employee-requests-page'
 import { EmployeeSecurityPage } from '@/pages/employee/employee-security-page'
+import { ForbiddenPage } from '@/pages/forbidden-page'
 import { NotFoundPage } from '@/pages/not-found-page'
 import { NotificationsPage } from '@/pages/notifications-page'
 import { PublicProfilePage } from '@/pages/public/public-profile-page'
+import { ServerErrorPage } from '@/pages/server-error-page'
 
 function HomeRedirect() {
   const { user, role, isLoading } = useAuth()
@@ -51,40 +54,44 @@ function HomeRedirect() {
 export function AppRouter() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path={ROUTES.ROOT} element={<HomeRedirect />} />
-        <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-        <Route path={`${ROUTES.PUBLIC_PROFILE_BASE}/:token`} element={<PublicProfilePage />} />
+      <AppErrorBoundary>
+        <Routes>
+          <Route path={ROUTES.ROOT} element={<HomeRedirect />} />
+          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+          <Route path={ROUTES.FORBIDDEN} element={<ForbiddenPage />} />
+          <Route path={ROUTES.SERVER_ERROR} element={<ServerErrorPage />} />
+          <Route path={`${ROUTES.PUBLIC_PROFILE_BASE}/:token`} element={<PublicProfilePage />} />
 
-        <Route element={<ProtectedRoute />}>
-          <Route element={<RequirePasswordChange />}>
-            <Route element={<AdminRoute />}>
-              <Route path={ROUTES.ADMIN} element={<Navigate to={ROUTES.ADMIN_DASHBOARD} replace />} />
-              <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboardPage />} />
-              <Route path={ROUTES.ADMIN_MONITORING} element={<AdminMonitoringPage />} />
-              <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
-              <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
-              <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
-              <Route path={ROUTES.ADMIN_DEPARTMENTS} element={<DepartmentsPage />} />
-              <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
-              <Route path={ROUTES.ADMIN_AUDIT} element={<AuditLogPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<RequirePasswordChange />}>
+              <Route element={<AdminRoute />}>
+                <Route path={ROUTES.ADMIN} element={<Navigate to={ROUTES.ADMIN_DASHBOARD} replace />} />
+                <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboardPage />} />
+                <Route path={ROUTES.ADMIN_MONITORING} element={<AdminMonitoringPage />} />
+                <Route path={ROUTES.ADMIN_EMPLOYEES_NEW} element={<AdminEmployeeCreatePage />} />
+                <Route path={`${ROUTES.ADMIN_EMPLOYEES}/:id`} element={<AdminEmployeeDetailPage />} />
+                <Route path={ROUTES.ADMIN_EMPLOYEES} element={<EmployeesListPage />} />
+                <Route path={ROUTES.ADMIN_DEPARTMENTS} element={<DepartmentsPage />} />
+                <Route path={ROUTES.ADMIN_REQUESTS} element={<AdminRequestsPage />} />
+                <Route path={ROUTES.ADMIN_AUDIT} element={<AuditLogPage />} />
+              </Route>
+
+              <Route element={<EmployeeRoute />}>
+                <Route path={ROUTES.EMPLOYEE} element={<Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />} />
+                <Route path={ROUTES.EMPLOYEE_PROFILE} element={<EmployeeProfilePage />} />
+                <Route path={ROUTES.EMPLOYEE_PROFILE_MANAGE} element={<EmployeeProfileManagePage />} />
+                <Route path={ROUTES.EMPLOYEE_MY_QR} element={<EmployeeMyQrPage />} />
+                <Route path={ROUTES.EMPLOYEE_REQUESTS} element={<EmployeeRequestsPage />} />
+                <Route path={ROUTES.EMPLOYEE_SECURITY} element={<EmployeeSecurityPage />} />
+              </Route>
+
+              <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
             </Route>
-
-            <Route element={<EmployeeRoute />}>
-              <Route path={ROUTES.EMPLOYEE} element={<Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />} />
-              <Route path={ROUTES.EMPLOYEE_PROFILE} element={<EmployeeProfilePage />} />
-              <Route path={ROUTES.EMPLOYEE_PROFILE_MANAGE} element={<EmployeeProfileManagePage />} />
-              <Route path={ROUTES.EMPLOYEE_MY_QR} element={<EmployeeMyQrPage />} />
-              <Route path={ROUTES.EMPLOYEE_REQUESTS} element={<EmployeeRequestsPage />} />
-              <Route path={ROUTES.EMPLOYEE_SECURITY} element={<EmployeeSecurityPage />} />
-            </Route>
-
-            <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
           </Route>
-        </Route>
 
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AppErrorBoundary>
     </BrowserRouter>
   )
 }

@@ -1,20 +1,20 @@
-import { AlertTriangle, ArrowLeft, Home } from 'lucide-react'
+import { ArrowLeft, Home, ShieldAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { ErrorPageShell } from '@/components/common/error-page-shell'
 import { Button } from '@/components/ui/button'
 import { useRecoveryRoute } from '@/hooks/use-recovery-route'
 
-export function NotFoundPage() {
+export function ForbiddenPage() {
   const { recoveryRoute, primaryActionLabel, goBack } = useRecoveryRoute()
 
   return (
     <ErrorPageShell
-      code="404"
-      badgeLabel="Route not found"
-      icon={<AlertTriangle className="h-4 w-4" aria-hidden />}
-      title="Page not found"
-      description="The page you're looking for doesn't exist or may have been moved."
+      code="403"
+      badgeLabel="Forbidden"
+      icon={<ShieldAlert className="h-4 w-4" aria-hidden />}
+      title="Access denied"
+      description="You do not have permission to view this page."
       actions={
         <>
           <Button

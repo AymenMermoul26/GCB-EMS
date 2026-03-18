@@ -1,6 +1,8 @@
 export const ROUTES = {
   ROOT: '/',
   LOGIN: '/login',
+  FORBIDDEN: '/forbidden',
+  SERVER_ERROR: '/error',
   ADMIN: '/admin',
   ADMIN_DASHBOARD: '/admin/dashboard',
   ADMIN_MONITORING: '/admin/monitoring',
