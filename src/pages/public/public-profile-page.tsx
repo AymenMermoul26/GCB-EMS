@@ -3,6 +3,9 @@ import {
   Building2,
   ChevronLeft,
   Copy,
+  IdCard,
+  Mail,
+  Phone,
   ShieldCheck,
 } from 'lucide-react'
 import { useMemo } from 'react'
@@ -16,113 +19,44 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES } from '@/constants/routes'
 import { usePublicProfile } from '@/hooks/use-public-profile'
-import { cn } from '@/lib/utils'
 import type { PublicProfile } from '@/types/profile'
 import { copyTextToClipboard } from '@/utils/clipboard'
 
-type ProfileValue = string | number | boolean | null
-
-interface ProfileEntry {
-  key: string
+interface InfoRow {
   label: string
   value: string
 }
 
-interface ProfileSectionDefinition {
+interface InfoSection {
   id: string
   title: string
   description: string
-  entries: ProfileEntry[]
+  rows: InfoRow[]
 }
 
 const COMPANY_NAME_FULL = 'LA SOCIETE NATIONALE DE GENIE-CIVIL & BATIMENT'
 const PAGE_SUBTITLE =
-  'Information shared securely through the GCB Employee Management System.'
+  'Only approved employee profile fields are shared through this secure QR token.'
 
-const PUBLIC_FIELD_LABELS: Record<string, string> = {
-  matricule: 'Employee ID',
-  nom: 'Last Name',
-  prenom: 'First Name',
-  poste: 'Job Title',
-  email: 'Professional Email',
-  telephone: 'Professional Phone',
-  phone: 'Professional Phone',
-  mobile: 'Mobile Phone',
-  departement: 'Department',
-  department: 'Department',
-  company: 'Company',
-  bio: 'Profile Summary',
-  about: 'Profile Summary',
-  description: 'Description',
-  fonction: 'Function',
+function hasText(value: string | null | undefined): boolean {
+  return Boolean(value && value.trim().length > 0)
 }
 
-const HERO_EXCLUDED_KEYS = new Set([
-  'nom',
-  'prenom',
-  'full_name',
-  'first_name',
-  'last_name',
-  'photo_url',
-  'photo',
-  'avatar',
-  'avatar_url',
-])
-
-const SUMMARY_KEYS = new Set(['about', 'bio', 'description', 'summary', 'presentation'])
-const CONTACT_KEYS = new Set(['email', 'telephone', 'phone', 'mobile'])
-const PROFESSIONAL_KEYS = new Set(['poste', 'fonction', 'company'])
-const ASSIGNMENT_KEYS = new Set(['departement', 'department', 'matricule'])
-
-function hasVisibleValue(value: ProfileValue): boolean {
-  if (value === null) {
-    return false
-  }
-
-  if (typeof value === 'string') {
-    return value.trim().length > 0
-  }
-
-  return true
+function formatValue(value: string | null | undefined): string {
+  return hasText(value) ? (value as string).trim() : ''
 }
 
-function toDisplayValue(value: ProfileValue): string {
-  if (value === null) {
-    return ''
+function buildFullName(profile: PublicProfile | null): string {
+  if (!profile) {
+    return 'Verified Employee'
   }
 
-  if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No'
-  }
+  const fullName = [formatValue(profile.prenom), formatValue(profile.nom)]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
 
-  return String(value).trim()
-}
-
-function humanizeKey(key: string): string {
-  return key
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-function normalizeEntries(profile: PublicProfile): ProfileEntry[] {
-  return Object.entries(profile)
-    .filter(([, value]) => hasVisibleValue(value))
-    .map(([key, value]) => ({
-      key,
-      label: PUBLIC_FIELD_LABELS[key] ?? humanizeKey(key),
-      value: toDisplayValue(value),
-    }))
-}
-
-function getStringField(profile: PublicProfile, key: string): string | null {
-  const value = profile[key]
-
-  if (typeof value !== 'string') {
-    return null
-  }
-
-  const normalized = value.trim()
-  return normalized.length > 0 ? normalized : null
+  return fullName || 'Verified Employee'
 }
 
 function getInitials(fullName: string): string {
@@ -131,63 +65,87 @@ function getInitials(fullName: string): string {
     .map((token) => token.trim())
     .filter(Boolean)
 
-  const first = tokens[0]?.charAt(0) ?? ''
-  const second = tokens[1]?.charAt(0) ?? ''
-  const initials = `${first}${second}`.toUpperCase()
+  const initials = `${tokens[0]?.charAt(0) ?? ''}${tokens[1]?.charAt(0) ?? ''}`.toUpperCase()
   return initials || 'EM'
 }
 
-function buildSections(entries: ProfileEntry[]): ProfileSectionDefinition[] {
-  const profileSummaryEntries = entries.filter((entry) => SUMMARY_KEYS.has(entry.key))
-  const contactEntries = entries.filter((entry) => CONTACT_KEYS.has(entry.key))
-  const professionalEntries = entries.filter((entry) => PROFESSIONAL_KEYS.has(entry.key))
-  const assignmentEntries = entries.filter((entry) => ASSIGNMENT_KEYS.has(entry.key))
+function buildSections(profile: PublicProfile): InfoSection[] {
+  const professionalRows: InfoRow[] = []
+  const contactRows: InfoRow[] = []
+  const identityRows: InfoRow[] = []
 
-  const claimedKeys = new Set(
-    [
-      ...profileSummaryEntries,
-      ...contactEntries,
-      ...professionalEntries,
-      ...assignmentEntries,
-    ].map((entry) => entry.key),
-  )
+  if (hasText(profile.poste)) {
+    professionalRows.push({
+      label: 'Job Title',
+      value: formatValue(profile.poste),
+    })
+  }
 
-  const additionalEntries = entries.filter(
-    (entry) => !HERO_EXCLUDED_KEYS.has(entry.key) && !claimedKeys.has(entry.key),
-  )
+  if (hasText(profile.departement)) {
+    professionalRows.push({
+      label: 'Department',
+      value: formatValue(profile.departement),
+    })
+  }
+
+  if (hasText(profile.email)) {
+    contactRows.push({
+      label: 'Professional Email',
+      value: formatValue(profile.email),
+    })
+  }
+
+  if (hasText(profile.telephone)) {
+    contactRows.push({
+      label: 'Professional Phone',
+      value: formatValue(profile.telephone),
+    })
+  }
+
+  if (hasText(profile.matricule)) {
+    identityRows.push({
+      label: 'Employee ID',
+      value: formatValue(profile.matricule),
+    })
+  }
 
   return [
     {
       id: 'professional',
       title: 'Professional Information',
-      description: 'Role and company details approved for public viewing.',
-      entries: professionalEntries,
+      description: 'Role and department details approved for public display.',
+      rows: professionalRows,
     },
     {
       id: 'contact',
       title: 'Contact Information',
-      description: 'Official contact details shared for this employee.',
-      entries: contactEntries,
+      description: 'Official contact details currently shared through EMS.',
+      rows: contactRows,
     },
     {
-      id: 'assignment',
-      title: 'Department / Assignment Information',
-      description: 'Organizational information currently shared through EMS.',
-      entries: assignmentEntries,
+      id: 'identity',
+      title: 'Employee Reference',
+      description: 'Internal employee identifiers that have been approved for public viewing.',
+      rows: identityRows,
     },
-    {
-      id: 'summary',
-      title: 'Profile Summary',
-      description: 'Additional employee information approved for public display.',
-      entries: profileSummaryEntries,
-    },
-    {
-      id: 'additional',
-      title: 'Additional Information',
-      description: 'Other public data returned by the secure profile token.',
-      entries: additionalEntries,
-    },
-  ].filter((section) => section.entries.length > 0)
+  ].filter((section) => section.rows.length > 0)
+}
+
+function hasVisiblePublicContent(profile: PublicProfile | null): boolean {
+  if (!profile) {
+    return false
+  }
+
+  return [
+    profile.nom,
+    profile.prenom,
+    profile.poste,
+    profile.departement,
+    profile.email,
+    profile.telephone,
+    profile.matricule,
+    profile.photo_url,
+  ].some((value) => hasText(value))
 }
 
 function LoadingState() {
@@ -275,12 +233,7 @@ function UnavailableState({
               <p className="text-sm leading-6 text-slate-600">{description}</p>
             </div>
             <div className="flex flex-col justify-center gap-3 sm:flex-row">
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-xl"
-                onClick={onBack}
-              >
+              <Button type="button" variant="outline" className="rounded-xl" onClick={onBack}>
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 {primaryActionLabel}
               </Button>
@@ -301,7 +254,7 @@ function UnavailableState({
   )
 }
 
-function ProfileSectionCard({ section }: { section: ProfileSectionDefinition }) {
+function ProfileSectionCard({ section }: { section: InfoSection }) {
   return (
     <Card className="rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]">
       <CardHeader className="space-y-2 pb-3">
@@ -309,17 +262,17 @@ function ProfileSectionCard({ section }: { section: ProfileSectionDefinition }) 
         <p className="text-sm leading-6 text-slate-600">{section.description}</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {section.entries.map((entry) => (
+        {section.rows.map((row) => (
           <div
-            key={entry.key}
+            key={`${section.id}-${row.label}`}
             className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3"
           >
             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-                {entry.label}
+                {row.label}
               </p>
               <p className="text-sm font-medium leading-6 text-slate-900 sm:text-right">
-                {entry.value}
+                {row.value}
               </p>
             </div>
           </div>
@@ -335,63 +288,17 @@ export function PublicProfilePage() {
   const { data, isPending, isError, refetch, isFetching } = usePublicProfile(token)
 
   const profile = data?.profile ?? null
-  const entries = useMemo(() => (profile ? normalizeEntries(profile) : []), [profile])
-
-  const fullName = useMemo(() => {
-    if (!profile) {
-      return 'Verified Employee'
-    }
-
-    const fromParts = [getStringField(profile, 'prenom'), getStringField(profile, 'nom')]
-      .filter(Boolean)
-      .join(' ')
-      .trim()
-
-    if (fromParts.length > 0) {
-      return fromParts
-    }
-
-    return getStringField(profile, 'full_name') ?? 'Verified Employee'
-  }, [profile])
-
-  const position = useMemo(() => {
-    if (!profile) {
-      return null
-    }
-
-    return getStringField(profile, 'poste') ?? getStringField(profile, 'fonction')
-  }, [profile])
-
-  const department = useMemo(() => {
-    if (!profile) {
-      return null
-    }
-
-    return getStringField(profile, 'departement') ?? getStringField(profile, 'department')
-  }, [profile])
-
-  const photoUrl = useMemo(() => {
-    if (!profile) {
-      return null
-    }
-
-    return (
-      getStringField(profile, 'photo_url') ??
-      getStringField(profile, 'photo') ??
-      getStringField(profile, 'avatar_url') ??
-      getStringField(profile, 'avatar')
-    )
-  }, [profile])
-
-  const companyName = useMemo(() => {
-    if (!profile) {
-      return 'GCB'
-    }
-
-    return getStringField(profile, 'company') ?? 'GCB'
-  }, [profile])
-
-  const sections = useMemo(() => buildSections(entries), [entries])
+  const fullName = useMemo(() => buildFullName(profile), [profile])
+  const position = formatValue(profile?.poste)
+  const department = formatValue(profile?.departement)
+  const employeeId = formatValue(profile?.matricule)
+  const email = formatValue(profile?.email)
+  const telephone = formatValue(profile?.telephone)
+  const photoUrl = formatValue(profile?.photo_url)
+  const sections = useMemo(
+    () => (profile ? buildSections(profile) : []),
+    [profile],
+  )
 
   const handleCopyProfileLink = async () => {
     try {
@@ -439,7 +346,7 @@ export function PublicProfilePage() {
     )
   }
 
-  if (entries.length === 0) {
+  if (!hasVisiblePublicContent(profile)) {
     return (
       <UnavailableState
         title="Profile unavailable"
@@ -457,11 +364,7 @@ export function PublicProfilePage() {
           <div className="px-6 py-8 sm:px-8">
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-slate-100">
-                <img
-                  src={gcbLogo}
-                  alt="GCB logo"
-                  className="h-10 w-10 object-contain"
-                />
+                <img src={gcbLogo} alt="GCB logo" className="h-10 w-10 object-contain" />
               </div>
               <div className="space-y-3">
                 <Badge className="border-transparent bg-slate-100 text-slate-700">
@@ -505,10 +408,8 @@ export function PublicProfilePage() {
                     <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
                       {fullName}
                     </h2>
-                    {position ? (
-                      <p className="mt-2 text-lg text-slate-600">{position}</p>
-                    ) : null}
-                    <p className="mt-1 text-sm font-medium text-slate-500">{companyName}</p>
+                    {position ? <p className="mt-2 text-lg text-slate-600">{position}</p> : null}
+                    <p className="mt-1 text-sm font-medium text-slate-500">GCB</p>
                   </div>
                 </div>
 
@@ -523,6 +424,12 @@ export function PublicProfilePage() {
                     <Badge className="border-transparent bg-slate-100 text-slate-700">
                       <Building2 className="mr-1.5 h-3.5 w-3.5" />
                       {department}
+                    </Badge>
+                  ) : null}
+                  {employeeId ? (
+                    <Badge className="border-transparent bg-slate-100 text-slate-700">
+                      <IdCard className="mr-1.5 h-3.5 w-3.5" />
+                      {employeeId}
                     </Badge>
                   ) : null}
                 </div>
@@ -552,6 +459,49 @@ export function PublicProfilePage() {
           </CardContent>
         </Card>
 
+        {(email || telephone) && (
+          <Card className="rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]">
+            <CardHeader className="space-y-2 pb-3">
+              <CardTitle className="text-lg font-semibold text-slate-950">
+                Quick Contact
+              </CardTitle>
+              <p className="text-sm leading-6 text-slate-600">
+                Contact channels approved for this public profile.
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              {email ? (
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <Mail className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                        Professional Email
+                      </p>
+                      <p className="mt-1 break-all text-sm font-medium text-slate-900">
+                        {email}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {telephone ? (
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <Phone className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                        Professional Phone
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-900">{telephone}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-4 lg:grid-cols-2">
           {sections.map((section) => (
             <ProfileSectionCard key={section.id} section={section} />
@@ -567,22 +517,19 @@ export function PublicProfilePage() {
               <div className="space-y-2">
                 <h3 className="text-base font-semibold text-slate-950">Secure public profile</h3>
                 <p className="text-sm leading-6 text-slate-600">
-                  This profile is shared through a secure QR token and only displays information
-                  approved for public viewing through the GCB Employee Management System.
+                  This public profile is built from structured employee records and field-level
+                  visibility settings. Activity logs are not used to render employee profile data.
                 </p>
                 <div className="flex flex-wrap gap-3 text-xs font-medium text-slate-500">
                   <span className="inline-flex items-center gap-1.5">
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                     Token validated
                   </span>
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1.5',
-                      isFetching && 'text-[#d35b2d]',
-                    )}
-                  >
-                    {isFetching ? 'Refreshing verification...' : 'Verified via EMS'}
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    Visibility filtered
                   </span>
+                  <span>{isFetching ? 'Refreshing verification...' : 'Verified via EMS'}</span>
                 </div>
               </div>
             </div>

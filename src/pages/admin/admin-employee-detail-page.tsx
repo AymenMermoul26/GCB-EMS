@@ -558,21 +558,6 @@ export function AdminEmployeeDetailPage() {
       })
 
       toast.success(`Visibility updated for ${fieldKey}.`)
-
-      try {
-        await auditService.insertAuditLog({
-          action: 'VISIBILITY_UPDATED',
-          targetType: 'employee_visibility',
-          targetId: employeeId,
-          detailsJson: {
-            employe_id: employeeId,
-            field_key: fieldKey,
-            is_public: isPublic,
-          },
-        })
-      } catch (auditError) {
-        console.error('Failed to write visibility audit log', auditError)
-      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not update visibility')
     }

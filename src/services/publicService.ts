@@ -1,7 +1,27 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
-import type { PublicProfile, PublicProfileResult } from '@/types/profile'
+import type {
+  PublicProfile,
+  PublicProfileResult,
+  PublicProfileRpcResult,
+} from '@/types/profile'
+
+function isPublicProfile(value: unknown): value is PublicProfile {
+  return typeof value === 'object' && value !== null
+}
+
+function mapStatus(status: PublicProfileRpcResult['status']): PublicProfileResult['status'] {
+  if (status === 'VALID') {
+    return 'valid'
+  }
+
+  if (status === 'EXPIRED') {
+    return 'expired'
+  }
+
+  return 'invalid_or_revoked'
+}
 
 export async function getPublicProfileByToken(
   token: string,
@@ -21,6 +41,20 @@ export async function getPublicProfileByToken(
     }
   }
 
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'status' in data &&
+    typeof (data as { status?: unknown }).status === 'string'
+  ) {
+    const payload = data as PublicProfileRpcResult
+
+    return {
+      status: mapStatus(payload.status),
+      profile: isPublicProfile(payload.profile) ? payload.profile : null,
+    }
+  }
+
   if (typeof data === 'object' && data !== null && '__status' in data) {
     const status = (data as { __status?: unknown }).__status
     if (status === 'EXPIRED') {
@@ -33,7 +67,7 @@ export async function getPublicProfileByToken(
 
   return {
     status: 'valid',
-    profile: data as PublicProfile,
+    profile: isPublicProfile(data) ? (data as PublicProfile) : null,
   }
 }
 

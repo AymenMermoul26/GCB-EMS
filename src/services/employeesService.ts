@@ -20,9 +20,12 @@ import type {
   UpdateEmployeePayload,
 } from '@/types/employee'
 
-const EMPLOYEE_SELECT =
-  'id, departement_id, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, numero_securite_sociale, diplome, specialite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at'
-const EMPLOYEE_ADMIN_SELECT = `${EMPLOYEE_SELECT}, observations`
+const EMPLOYEE_LIST_SELECT =
+  'id, departement_id, matricule, nom, prenom, poste, email, telephone, photo_url, is_active, created_at, updated_at'
+const EMPLOYEE_SELF_SELECT =
+  'id, departement_id, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, diplome, specialite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at'
+const EMPLOYEE_ADMIN_SELECT =
+  'id, departement_id, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, numero_securite_sociale, diplome, specialite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at, observations'
 
 interface EmployeeRow {
   id: string
@@ -30,24 +33,24 @@ interface EmployeeRow {
   matricule: string
   nom: string
   prenom: string
-  sexe: string | null
-  date_naissance: string | null
-  lieu_naissance: string | null
-  nationalite: string | null
-  situation_familiale: string | null
-  nombre_enfants: number | null
-  adresse: string | null
-  numero_securite_sociale: string | null
-  diplome: string | null
-  specialite: string | null
-  historique_postes: string | null
-  poste: string | null
-  categorie_professionnelle: string | null
-  type_contrat: string | null
-  date_recrutement: string | null
-  email: string | null
-  telephone: string | null
-  photo_url: string | null
+  sexe?: string | null
+  date_naissance?: string | null
+  lieu_naissance?: string | null
+  nationalite?: string | null
+  situation_familiale?: string | null
+  nombre_enfants?: number | null
+  adresse?: string | null
+  numero_securite_sociale?: string | null
+  diplome?: string | null
+  specialite?: string | null
+  historique_postes?: string | null
+  poste?: string | null
+  categorie_professionnelle?: string | null
+  type_contrat?: string | null
+  date_recrutement?: string | null
+  email?: string | null
+  telephone?: string | null
+  photo_url?: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -84,24 +87,24 @@ function mapEmployee(row: EmployeeRow): Employee {
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
-    sexe: row.sexe,
-    dateNaissance: row.date_naissance,
-    lieuNaissance: row.lieu_naissance,
-    nationalite: row.nationalite,
-    situationFamiliale: row.situation_familiale,
-    nombreEnfants: row.nombre_enfants,
-    adresse: row.adresse,
-    numeroSecuriteSociale: row.numero_securite_sociale,
-    diplome: row.diplome,
-    specialite: row.specialite,
-    historiquePostes: row.historique_postes,
-    poste: row.poste,
-    categorieProfessionnelle: row.categorie_professionnelle,
-    typeContrat: row.type_contrat,
-    dateRecrutement: row.date_recrutement,
-    email: row.email,
-    telephone: row.telephone,
-    photoUrl: row.photo_url,
+    sexe: row.sexe ?? null,
+    dateNaissance: row.date_naissance ?? null,
+    lieuNaissance: row.lieu_naissance ?? null,
+    nationalite: row.nationalite ?? null,
+    situationFamiliale: row.situation_familiale ?? null,
+    nombreEnfants: row.nombre_enfants ?? null,
+    adresse: row.adresse ?? null,
+    numeroSecuriteSociale: row.numero_securite_sociale ?? null,
+    diplome: row.diplome ?? null,
+    specialite: row.specialite ?? null,
+    historiquePostes: row.historique_postes ?? null,
+    poste: row.poste ?? null,
+    categorieProfessionnelle: row.categorie_professionnelle ?? null,
+    typeContrat: row.type_contrat ?? null,
+    dateRecrutement: row.date_recrutement ?? null,
+    email: row.email ?? null,
+    telephone: row.telephone ?? null,
+    photoUrl: row.photo_url ?? null,
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -252,7 +255,7 @@ export async function listEmployees(
 
   let query = supabase
     .from('Employe')
-    .select(EMPLOYEE_SELECT, { count: 'exact' })
+    .select(EMPLOYEE_LIST_SELECT, { count: 'exact' })
     .order(sortField, { ascending })
 
   if (params.search) {
@@ -292,7 +295,7 @@ export async function listEmployees(
 export async function getEmployee(id: string): Promise<Employee | null> {
   const { data, error } = await supabase
     .from('Employe')
-    .select(EMPLOYEE_SELECT)
+    .select(EMPLOYEE_SELF_SELECT)
     .eq('id', id)
     .limit(2)
     .returns<EmployeeRow[]>()
@@ -348,7 +351,7 @@ export async function createEmployee(
   const { data, error } = await supabase
     .from('Employe')
     .insert(toInsertPayload(payload))
-    .select(EMPLOYEE_SELECT)
+    .select(EMPLOYEE_SELF_SELECT)
     .single<EmployeeRow>()
 
   if (error) {
@@ -366,7 +369,7 @@ export async function updateEmployee(
     .from('Employe')
     .update(toUpdatePayload(payload))
     .eq('id', id)
-    .select(EMPLOYEE_SELECT)
+    .select(EMPLOYEE_SELF_SELECT)
     .returns<EmployeeRow[]>()
 
   if (error) {

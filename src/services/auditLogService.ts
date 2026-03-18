@@ -65,6 +65,16 @@ function readText(value: unknown): string | null {
   return null
 }
 
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => readText(item))
+    .filter((item): item is string => Boolean(item))
+}
+
 function formatFieldLabel(value: string): string {
   return value
     .replaceAll('_', ' ')
@@ -131,6 +141,7 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
   const triggerSource = readText(detailsJson.trigger_source)
   const failureReason = readText(detailsJson.failure_reason)
   const reason = readText(detailsJson.reason)
+  const publicationSummary = readText(detailsJson.publication_summary)
   const isPublic = detailsJson.is_public === true
   const tokenStatus =
     readText(detailsJson.resulting_token_status) ?? readText(detailsJson.statut_token)
@@ -139,6 +150,7 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
         .map((item) => readText(item))
         .filter((item): item is string => Boolean(item))
     : []
+  const publicFields = readStringArray(detailsJson.public_fields)
 
   switch (action) {
     case 'EMPLOYEE_ACTIVATED':
@@ -193,12 +205,24 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
         ? `Rejected request: ${readText(detailsJson.commentaire_traitement)}`
         : 'Rejected an employee modification request.'
     case 'QR_GENERATED':
+      if (publicationSummary) {
+        return publicationSummary
+      }
+      if (publicFields.length > 0) {
+        return `Generated a new active QR with public fields: ${publicFields.map(formatFieldLabel).join(', ')}.`
+      }
       return matricule ? `Generated a new active QR for ${matricule}.` : 'Generated a new active QR token.'
     case 'QR_REGENERATED':
+      if (publicationSummary) {
+        return publicationSummary
+      }
+      if (publicFields.length > 0) {
+        return `Regenerated QR with public fields: ${publicFields.map(formatFieldLabel).join(', ')}.`
+      }
       if (detailsJson.refresh_required_resolved === true && changedFields.length > 0) {
         return `Regenerated QR after updates to ${changedFields.map(formatFieldLabel).join(', ')}.`
       }
-      if (reason === 'manual_regeneration') {
+      if (reason === 'manual_regeneration' || reason === 'public_profile_refresh') {
         return 'Regenerated the active QR token.'
       }
       return tokenStatus ? `Issued a replacement QR token with status ${tokenStatus}.` : 'Generated or refreshed a QR token.'

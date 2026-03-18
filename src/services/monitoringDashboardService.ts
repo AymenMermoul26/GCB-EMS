@@ -588,9 +588,11 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
   const triggerSource = readText(detailsJson.trigger_source)
   const failureReason = readText(detailsJson.failure_reason)
   const fieldKey = readText(detailsJson.field_key)
+  const publicationSummary = readText(detailsJson.publication_summary)
   const tokenStatus =
     readText(detailsJson.resulting_token_status) ?? readText(detailsJson.statut_token)
   const changedFields = readStringArray(detailsJson.changed_fields)
+  const publicFields = readStringArray(detailsJson.public_fields)
 
   switch (action) {
     case 'EMPLOYEE_DEACTIVATED':
@@ -600,8 +602,21 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
     case 'REQUEST_REJECTED':
       return failureReason ?? 'Rejected an employee modification request.'
     case 'QR_GENERATED':
-      return matricule ? `Generated a new QR token for ${matricule}.` : 'Generated a new QR token.'
+      if (publicationSummary) {
+        return publicationSummary
+      }
+      return publicFields.length > 0
+        ? `Generated a new QR token with public fields: ${publicFields.map(formatFieldLabel).join(', ')}.`
+        : matricule
+          ? `Generated a new QR token for ${matricule}.`
+          : 'Generated a new QR token.'
     case 'QR_REGENERATED':
+      if (publicationSummary) {
+        return publicationSummary
+      }
+      if (publicFields.length > 0) {
+        return `Regenerated QR with public fields: ${publicFields.map(formatFieldLabel).join(', ')}.`
+      }
       return changedFields.length > 0
         ? `Regenerated QR after changes to ${changedFields.map(formatFieldLabel).join(', ')}.`
         : tokenStatus

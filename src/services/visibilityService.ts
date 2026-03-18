@@ -8,8 +8,10 @@ import {
 import { supabase } from '@/lib/supabaseClient'
 import type {
   EmployeeVisibility,
+  EmployeeVisibilityFieldKey,
   UpsertEmployeeVisibilityPayload,
 } from '@/types/visibility'
+import { isEmployeeVisibilityFieldKey } from '@/types/visibility'
 
 interface EmployeeVisibilityRow {
   id: string
@@ -20,11 +22,16 @@ interface EmployeeVisibilityRow {
   updated_at: string
 }
 
-function mapVisibility(row: EmployeeVisibilityRow): EmployeeVisibility {
+function mapVisibility(row: EmployeeVisibilityRow): EmployeeVisibility | null {
+  if (!isEmployeeVisibilityFieldKey(row.field_key)) {
+    console.warn('[visibilityService] Ignoring unsupported visibility field key', row.field_key)
+    return null
+  }
+
   return {
     id: row.id,
     employeId: row.employe_id,
-    fieldKey: row.field_key,
+    fieldKey: row.field_key as EmployeeVisibilityFieldKey,
     isPublic: row.is_public,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -42,12 +49,18 @@ export async function getVisibility(employeId: string): Promise<EmployeeVisibili
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(mapVisibility)
+  return (data ?? [])
+    .map(mapVisibility)
+    .filter((row): row is EmployeeVisibility => Boolean(row))
 }
 
 export async function upsertVisibility(
   payload: UpsertEmployeeVisibilityPayload,
 ): Promise<EmployeeVisibility> {
+  if (!isEmployeeVisibilityFieldKey(payload.fieldKey)) {
+    throw new Error(`Unsupported visibility field key: ${payload.fieldKey}`)
+  }
+
   const { data, error } = await supabase
     .from('employee_visibility')
     .upsert(
@@ -65,7 +78,13 @@ export async function upsertVisibility(
     throw new Error(error.message)
   }
 
-  return mapVisibility(data)
+  const mappedVisibility = mapVisibility(data)
+
+  if (!mappedVisibility) {
+    throw new Error(`Unsupported visibility field key: ${data.field_key}`)
+  }
+
+  return mappedVisibility
 }
 
 export function useEmployeeVisibilityQuery(employeId?: string | null) {

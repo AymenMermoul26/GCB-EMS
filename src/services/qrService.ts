@@ -75,26 +75,15 @@ export async function generateOrRegenerateToken(
     throw new Error(error.message)
   }
 
-  if (qrLifecycleContext?.activeToken) {
-    await logQrRevoked({
-      employeId,
-      employee: qrLifecycleContext.employee,
-      tokenId: qrLifecycleContext.activeToken.id,
-      previousTokenStatus: qrLifecycleContext.activeToken.statut_token,
-      triggerSource: 'manual_admin_qr_action',
-      reason: 'regeneration_replaced_previous_active_qr',
-      replacedByTokenId: data.id,
-    })
-  }
-
   await logQrIssued({
     employeId,
     employee: qrLifecycleContext?.employee ?? null,
     previousToken: qrLifecycleContext?.activeToken ?? null,
     latestTokenBeforeChange: qrLifecycleContext?.latestToken ?? null,
     pendingRefreshRequirement: qrLifecycleContext?.pendingRefreshRequirement ?? null,
+    publicVisibleFields: qrLifecycleContext?.publicVisibleFields ?? [],
     nextToken: data,
-    triggerSource: 'manual_admin_qr_action',
+    triggerSource: 'admin_visibility_configuration',
   })
 
   return mapToken(data)

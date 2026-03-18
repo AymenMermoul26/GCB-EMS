@@ -1,5 +1,10 @@
 import { supabase } from '@/lib/supabaseClient'
 import { auditService } from '@/services/auditService'
+import {
+  EMPLOYEE_VISIBILITY_FIELD_KEYS,
+  isEmployeeVisibilityFieldKey,
+  type EmployeeVisibilityFieldKey,
+} from '@/types/visibility'
 
 type TokenStatus = 'ACTIF' | 'REVOQUE'
 
@@ -24,6 +29,10 @@ interface AuditLookupRow {
   details_json: unknown
 }
 
+interface VisibilityAuditRow {
+  field_key: string
+}
+
 interface PendingQrRefreshRequirement {
   id: string
   createdAt: string
@@ -36,6 +45,7 @@ export interface QrLifecycleContext {
   activeToken: TokenAuditRow | null
   latestToken: TokenAuditRow | null
   pendingRefreshRequirement: PendingQrRefreshRequirement | null
+  publicVisibleFields: EmployeeVisibilityFieldKey[]
 }
 
 interface LogQrRevokedParams {
@@ -54,6 +64,7 @@ interface LogQrIssuedParams {
   previousToken: TokenAuditRow | null
   latestTokenBeforeChange: TokenAuditRow | null
   pendingRefreshRequirement: PendingQrRefreshRequirement | null
+  publicVisibleFields: EmployeeVisibilityFieldKey[]
   nextToken: TokenAuditRow
   triggerSource: string
 }
@@ -166,6 +177,32 @@ async function getLatestQrRefreshRequirementRow(
   return data?.[0] ?? null
 }
 
+async function getPublicVisibleFieldKeys(
+  employeId: string,
+): Promise<EmployeeVisibilityFieldKey[]> {
+  const { data, error } = await supabase
+    .from('employee_visibility')
+    .select('field_key')
+    .eq('employe_id', employeId)
+    .eq('is_public', true)
+    .returns<VisibilityAuditRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? [])
+    .map((row) => row.field_key)
+    .filter((fieldKey): fieldKey is EmployeeVisibilityFieldKey =>
+      isEmployeeVisibilityFieldKey(fieldKey),
+    )
+    .sort(
+      (left, right) =>
+        EMPLOYEE_VISIBILITY_FIELD_KEYS.indexOf(left) -
+        EMPLOYEE_VISIBILITY_FIELD_KEYS.indexOf(right),
+    )
+}
+
 async function insertQrAuditSafely(
   action: string,
   targetId: string,
@@ -184,11 +221,18 @@ async function insertQrAuditSafely(
 }
 
 export async function getQrLifecycleContext(employeId: string): Promise<QrLifecycleContext> {
-  const [employee, activeToken, latestToken, latestRefreshRequirementRow] = await Promise.all([
+  const [
+    employee,
+    activeToken,
+    latestToken,
+    latestRefreshRequirementRow,
+    publicVisibleFields,
+  ] = await Promise.all([
     getEmployeeAuditRow(employeId),
     getActiveTokenAuditRow(employeId),
     getLatestTokenAuditRow(employeId),
     getLatestQrRefreshRequirementRow(employeId),
+    getPublicVisibleFieldKeys(employeId),
   ])
 
   const latestTokenTimestamp = latestToken?.updated_at ?? latestToken?.created_at ?? null
@@ -212,6 +256,7 @@ export async function getQrLifecycleContext(employeId: string): Promise<QrLifecy
     activeToken,
     latestToken,
     pendingRefreshRequirement,
+    publicVisibleFields,
   }
 }
 
@@ -244,11 +289,15 @@ export async function logQrIssued({
   previousToken,
   latestTokenBeforeChange,
   pendingRefreshRequirement,
+  publicVisibleFields,
   nextToken,
   triggerSource,
 }: LogQrIssuedParams): Promise<void> {
   const action = previousToken ? 'QR_REGENERATED' : 'QR_GENERATED'
-  const reason = previousToken ? 'manual_regeneration' : 'manual_generation'
+  const reason = previousToken ? 'public_profile_refresh' : 'public_profile_publication'
+  const publicationSummary = previousToken
+    ? 'QR regenerated with updated public profile fields.'
+    : 'QR generated with approved public profile fields.'
 
   await insertQrAuditSafely(action, employeId, {
     employe_id: employeId,
@@ -262,6 +311,9 @@ export async function logQrIssued({
     status_transition: `${previousToken?.statut_token ?? 'NONE'}->${nextToken.statut_token}`,
     trigger_source: triggerSource,
     reason,
+    publication_summary: publicationSummary,
+    public_fields: publicVisibleFields,
+    public_fields_count: publicVisibleFields.length,
     refresh_required_resolved: Boolean(pendingRefreshRequirement),
     refresh_required_event_id: pendingRefreshRequirement?.id ?? null,
     refresh_required_created_at: pendingRefreshRequirement?.createdAt ?? null,
