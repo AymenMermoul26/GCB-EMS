@@ -3,7 +3,11 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  EmptyState,
+  ErrorState,
+  SearchEmptyState,
+} from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -243,15 +247,13 @@ export function NotificationsPage() {
       </div>
 
       {notificationsQuery.isError ? (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Failed to load notifications</AlertTitle>
-          <AlertDescription className="space-y-3">
-            <p>{notificationsQuery.error.message}</p>
-            <Button variant="outline" size="sm" onClick={() => void notificationsQuery.refetch()}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          className="mb-6"
+          title="Failed to load notifications"
+          description="We couldn't load your inbox right now."
+          message={notificationsQuery.error.message}
+          onRetry={() => void notificationsQuery.refetch()}
+        />
       ) : null}
 
       <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
@@ -387,23 +389,28 @@ export function NotificationsPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex justify-center py-8">
-                <div className="w-full max-w-lg rounded-2xl border border-dashed bg-muted/20 p-8 text-center">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {normalizedSearch || viewFilter !== 'all' ? 'No results' : 'No notifications'}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {normalizedSearch || viewFilter !== 'all'
-                      ? 'Try changing your search or filters.'
-                      : "You're all caught up."}
-                  </p>
-                  {normalizedSearch || viewFilter !== 'all' ? (
-                    <Button type="button" variant="outline" className="mt-5" onClick={clearFilters}>
-                      Clear filters
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+              <>
+                {normalizedSearch || viewFilter !== 'all' ? (
+                  <SearchEmptyState
+                    surface="plain"
+                    className="py-8"
+                    title="No notifications found"
+                    description="Try changing your search or filters."
+                    actions={
+                      <Button type="button" variant="outline" onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    surface="plain"
+                    className="py-8"
+                    title="You're all caught up"
+                    description="New workflow alerts and system events will appear here."
+                  />
+                )}
+              </>
             )
           ) : null}
         </CardContent>

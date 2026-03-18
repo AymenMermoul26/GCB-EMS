@@ -10,7 +10,16 @@ import {
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert'
+import {
+  EmptyState,
+  ErrorState,
+  SearchEmptyState,
+} from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -231,51 +240,50 @@ export function EmployeeRequestsPage() {
           ) : null}
 
           {requestsQuery.isError ? (
-            <Alert variant="destructive">
-              <AlertTitle>Failed to load requests</AlertTitle>
-              <AlertDescription className="mt-2 flex items-center gap-3">
-                <span>{requestsQuery.error.message}</span>
-                <Button variant="outline" size="sm" onClick={() => void requestsQuery.refetch()}>
-                  Retry
-                </Button>
-              </AlertDescription>
-            </Alert>
+            <ErrorState
+              surface="plain"
+              title="Failed to load requests"
+              description="We couldn't load your request history right now."
+              message={requestsQuery.error.message}
+              onRetry={() => void requestsQuery.refetch()}
+            />
           ) : null}
 
           {!requestsQuery.isPending && !requestsQuery.isError ? (
             filteredRequests.length === 0 ? (
               requests.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center">
-                  <h3 className="text-lg font-semibold text-slate-900">No requests yet</h3>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Submit a change request to update your information.
-                  </p>
-                  <Button
-                    asChild
-                    className="mt-4 border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
-                  >
-                    <Link to={`${ROUTES.EMPLOYEE_PROFILE_MANAGE}#requests`}>Create request</Link>
-                  </Button>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center">
-                  <h3 className="text-lg font-semibold text-slate-900">No results</h3>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Try changing your search or status filter.
-                  </p>
-                  {isFiltered ? (
+                <EmptyState
+                  surface="plain"
+                  title="No requests yet"
+                  description="Submit a change request to update your information."
+                  actions={
                     <Button
-                      variant="outline"
-                      className="mt-4"
-                      onClick={() => {
-                        setSearch('')
-                        setStatusFilter('ALL')
-                      }}
+                      asChild
+                      className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
                     >
-                      Clear filters
+                      <Link to={`${ROUTES.EMPLOYEE_PROFILE_MANAGE}#requests`}>Create request</Link>
                     </Button>
-                  ) : null}
-                </div>
+                  }
+                />
+              ) : (
+                <SearchEmptyState
+                  surface="plain"
+                  title="No requests found"
+                  description="Try changing your search or status filter."
+                  actions={
+                    isFiltered ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSearch('')
+                          setStatusFilter('ALL')
+                        }}
+                      >
+                        Clear filters
+                      </Button>
+                    ) : null
+                  }
+                />
               )
             ) : (
               <>

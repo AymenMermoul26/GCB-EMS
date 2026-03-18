@@ -19,7 +19,12 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  EmptyState,
+  ErrorState,
+  PageStateSkeleton,
+  SearchEmptyState,
+} from '@/components/common/page-state'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,9 +40,6 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
 import {
   Dialog,
@@ -56,7 +58,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -544,63 +545,56 @@ export function EmployeesListPage() {
       </div>
 
       {employeesQuery.isError ? (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Could not load employees</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-            <span>{employeesQuery.error.message}</span>
-            <Button variant="outline" size="sm" onClick={() => void employeesQuery.refetch()}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          className="mb-6"
+          title="Could not load employees"
+          description="We couldn't load the employee directory right now."
+          message={employeesQuery.error.message}
+          onRetry={() => void employeesQuery.refetch()}
+        />
       ) : null}
 
       {employeesQuery.isPending ? (
-        <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <Card key={`employee-skeleton-${index}`} className="rounded-2xl border shadow-sm">
-              <CardContent className="space-y-4 p-5">
-                <div className="flex items-center gap-3">
-                  <Skeleton className="h-12 w-12 rounded-full" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                </div>
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-40" />
-                <Skeleton className="h-3 w-32" />
-                <div className="flex gap-2 pt-1">
-                  <Skeleton className="h-8 w-20" />
-                  <Skeleton className="h-8 w-20" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <PageStateSkeleton variant="cards" count={8} />
       ) : null}
 
       {!employeesQuery.isPending && !employeesQuery.isError && employees.length === 0 ? (
-        <Card className="mx-auto mt-2 max-w-xl rounded-2xl border border-dashed">
-          <CardHeader className="text-center">
-            <CardTitle>No employees found</CardTitle>
-            <CardDescription>
-              Try adjusting your search or filters.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center gap-2">
-            <Button variant="outline" onClick={handleClearFilters}>
-              Clear filters
-            </Button>
-            <Button
-              className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95"
-              onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
-            >
-              Add Employee
-            </Button>
-          </CardContent>
-        </Card>
+        <>
+          {hasActiveFilters ? (
+            <SearchEmptyState
+              className="mx-auto mt-2 max-w-xl"
+              title="No employees found"
+              description="Try changing your search terms or filters."
+              actions={
+                <>
+                  <Button variant="outline" onClick={handleClearFilters}>
+                    Clear filters
+                  </Button>
+                  <Button
+                    className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95"
+                    onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
+                  >
+                    Add Employee
+                  </Button>
+                </>
+              }
+            />
+          ) : (
+            <EmptyState
+              className="mx-auto mt-2 max-w-xl"
+              title="No employees yet"
+              description="Add the first employee to start managing the directory."
+              actions={
+                <Button
+                  className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95"
+                  onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
+                >
+                  Add Employee
+                </Button>
+              }
+            />
+          )}
+        </>
       ) : null}
 
       {!employeesQuery.isPending && !employeesQuery.isError && employees.length > 0 ? (

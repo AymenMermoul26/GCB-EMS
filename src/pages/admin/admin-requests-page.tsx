@@ -16,7 +16,11 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  EmptyState,
+  ErrorState,
+  SearchEmptyState,
+} from '@/components/common/page-state'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -346,6 +350,11 @@ export function AdminRequestsPage() {
   const showingFrom = total === 0 ? 0 : (page - 1) * pageSize + 1
   const showingTo = total === 0 ? 0 : Math.min(page * pageSize, total)
   const isSearching = debouncedSearch.trim().length > 0
+  const hasActiveFilters =
+    isSearching ||
+    statusFilter !== 'EN_ATTENTE' ||
+    departmentFilter !== 'all' ||
+    pageSize !== 20
 
   const resetFilters = () => {
     setStatusFilter('EN_ATTENTE')
@@ -417,21 +426,14 @@ export function AdminRequestsPage() {
       </div>
 
       {requestsQuery.isError ? (
-        <Alert variant="destructive" className="mb-6">
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Failed to load requests</AlertTitle>
-          <AlertDescription className="space-y-3">
-            <p>{requestsQuery.error.message}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void requestsQuery.refetch()}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          className="mb-6"
+          title="Failed to load requests"
+          description="We couldn't load the modification request queue right now."
+          message={requestsQuery.error.message}
+          icon={ShieldAlert}
+          onRetry={() => void requestsQuery.refetch()}
+        />
       ) : null}
 
       <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
@@ -470,22 +472,28 @@ export function AdminRequestsPage() {
           ) : null}
 
           {!requestsQuery.isPending && !requestsQuery.isError && filteredItems.length === 0 ? (
-            <div className="flex justify-center py-8">
-              <div className="w-full max-w-lg rounded-2xl border border-dashed bg-muted/20 p-8 text-center">
-                <h3 className="text-lg font-semibold text-slate-900">No requests</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Employee modification requests will appear here.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-5"
-                  onClick={resetFilters}
-                >
-                  Clear filters
-                </Button>
-              </div>
-            </div>
+            <>
+              {hasActiveFilters ? (
+                <SearchEmptyState
+                  surface="plain"
+                  className="py-8"
+                  title="No requests found"
+                  description="Try changing your search or queue filters."
+                  actions={
+                    <Button type="button" variant="outline" onClick={resetFilters}>
+                      Clear filters
+                    </Button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  surface="plain"
+                  className="py-8"
+                  title="No requests yet"
+                  description="Employee modification requests will appear here once they are submitted."
+                />
+              )}
+            </>
           ) : null}
 
           {!requestsQuery.isPending && !requestsQuery.isError && filteredItems.length > 0 ? (
@@ -637,7 +645,13 @@ export function AdminRequestsPage() {
           ) : null}
 
           {notificationsQuery.isError ? (
-            <p className="text-sm text-destructive">{notificationsQuery.error.message}</p>
+            <ErrorState
+              surface="plain"
+              title="Could not load notifications"
+              description="We couldn't load your latest admin notifications."
+              message={notificationsQuery.error.message}
+              onRetry={() => void notificationsQuery.refetch()}
+            />
           ) : null}
 
           {!notificationsQuery.isPending && !notificationsQuery.isError ? (
@@ -667,7 +681,11 @@ export function AdminRequestsPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No notifications yet.</p>
+              <EmptyState
+                surface="plain"
+                title="No notifications yet"
+                description="New workflow and system alerts will appear here."
+              />
             )
           ) : null}
         </CardContent>

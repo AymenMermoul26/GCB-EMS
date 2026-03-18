@@ -26,6 +26,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  EmptyState,
+  ErrorState,
+  PageStateSkeleton,
+} from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -448,13 +453,7 @@ export function EmployeeProfileManagePage() {
         title="Manage My Profile"
         subtitle="Update your information and submit changes for HR approval."
       >
-        <div className="space-y-4">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-            <Skeleton className="h-[520px] w-full rounded-2xl" />
-            <Skeleton className="h-[420px] w-full rounded-2xl" />
-          </div>
-        </div>
+        <PageStateSkeleton variant="profile" />
       </DashboardLayout>
     )
   }
@@ -465,15 +464,12 @@ export function EmployeeProfileManagePage() {
         title="Manage My Profile"
         subtitle="Update your information and submit changes for HR approval."
       >
-        <Alert variant="destructive">
-          <AlertTitle>Could not load profile</AlertTitle>
-          <AlertDescription className="mt-2 flex items-center gap-3">
-            <span>{employeeQuery.error.message}</span>
-            <Button variant="outline" size="sm" onClick={() => void employeeQuery.refetch()}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          title="Could not load profile"
+          description="We couldn't load your profile management workspace right now."
+          message={employeeQuery.error.message}
+          onRetry={() => void employeeQuery.refetch()}
+        />
       </DashboardLayout>
     )
   }
@@ -484,12 +480,10 @@ export function EmployeeProfileManagePage() {
         title="Manage My Profile"
         subtitle="Update your information and submit changes for HR approval."
       >
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>Profile unavailable</CardTitle>
-            <CardDescription>Contact HR if your employee profile is not linked.</CardDescription>
-          </CardHeader>
-        </Card>
+        <EmptyState
+          title="Profile unavailable"
+          description="Contact HR if your employee profile is not linked."
+        />
       </DashboardLayout>
     )
   }
@@ -826,15 +820,22 @@ export function EmployeeProfileManagePage() {
               ) : null}
 
               {myRequestsQuery.isError ? (
-                <Alert variant="destructive">
-                  <AlertTitle>Could not load requests</AlertTitle>
-                  <AlertDescription className="mt-2">{myRequestsQuery.error.message}</AlertDescription>
-                </Alert>
+                <ErrorState
+                  surface="plain"
+                  title="Could not load requests"
+                  description="We couldn't load your recent requests right now."
+                  message={myRequestsQuery.error.message}
+                  onRetry={() => void myRequestsQuery.refetch()}
+                />
               ) : null}
 
               {!myRequestsQuery.isPending && !myRequestsQuery.isError && myRequestsQuery.data ? (
                 myRequestsQuery.data.items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No requests submitted yet.</p>
+                  <EmptyState
+                    surface="plain"
+                    title="No requests submitted yet"
+                    description="Your latest HR requests will appear here once you submit them."
+                  />
                 ) : (
                   <Table>
                     <TableHeader>

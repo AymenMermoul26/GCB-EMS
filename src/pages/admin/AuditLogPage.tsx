@@ -14,7 +14,7 @@ import {
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { EmptyState, ErrorState, SearchEmptyState } from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -470,16 +470,14 @@ export function AuditLogPage() {
       </div>
 
       {auditLogQuery.isError ? (
-        <Alert variant="destructive" className="mb-6">
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Failed to load audit log</AlertTitle>
-          <AlertDescription className="space-y-3">
-            <p>{auditLogQuery.error.message}</p>
-            <Button variant="outline" size="sm" onClick={() => void auditLogQuery.refetch()}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          className="mb-6"
+          title="Failed to load audit log"
+          description="We couldn't load audit events right now."
+          message={auditLogQuery.error.message}
+          icon={ShieldAlert}
+          onRetry={() => void auditLogQuery.refetch()}
+        />
       ) : null}
 
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -685,23 +683,28 @@ export function AuditLogPage() {
                 </div>
               </>
             ) : (
-              <div className="flex justify-center py-8">
-                <div className="w-full max-w-lg rounded-2xl border border-dashed bg-muted/20 p-8 text-center">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {hasActiveFilters ? 'No results' : 'No audit events'}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {hasActiveFilters
-                      ? 'Try changing your filters and search criteria.'
-                      : 'Audit events will appear here when actions occur.'}
-                  </p>
-                  {hasActiveFilters ? (
-                    <Button type="button" variant="outline" className="mt-5" onClick={clearFilters}>
-                      Clear filters
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+              <>
+                {hasActiveFilters ? (
+                  <SearchEmptyState
+                    surface="plain"
+                    className="py-8"
+                    title="No audit events found"
+                    description="Try changing your filters or search criteria."
+                    actions={
+                      <Button type="button" variant="outline" onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    surface="plain"
+                    className="py-8"
+                    title="No audit events yet"
+                    description="Audit events will appear here when tracked actions occur."
+                  />
+                )}
+              </>
             )
           ) : null}
         </CardContent>

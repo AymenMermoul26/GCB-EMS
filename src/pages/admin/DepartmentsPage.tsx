@@ -12,6 +12,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { EmptyState, ErrorState } from '@/components/common/page-state'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -231,21 +232,14 @@ export function DepartmentsPage() {
       </div>
 
       {departmentsQuery.isError ? (
-        <Alert variant="destructive" className="mb-6">
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Failed to load departments</AlertTitle>
-          <AlertDescription className="space-y-3">
-            <p>{departmentsQuery.error.message}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void departmentsQuery.refetch()}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          className="mb-6"
+          title="Failed to load departments"
+          description="We couldn't load department records right now."
+          message={departmentsQuery.error.message}
+          icon={ShieldAlert}
+          onRetry={() => void departmentsQuery.refetch()}
+        />
       ) : null}
 
       <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
@@ -286,22 +280,26 @@ export function DepartmentsPage() {
           ) : null}
 
           {!departmentsQuery.isPending && !departmentsQuery.isError && departments.length === 0 ? (
-            <div className="flex justify-center py-8">
-              <div className="w-full max-w-lg rounded-2xl border border-dashed bg-muted/20 p-8 text-center">
-                <h3 className="text-lg font-semibold text-slate-900">No departments found</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Try a different search or create a new department.
-                </p>
+            <EmptyState
+              surface="plain"
+              className="py-8"
+              title={debouncedSearch ? 'No departments found' : 'No departments yet'}
+              description={
+                debouncedSearch
+                  ? 'Try a different search or create a new department.'
+                  : 'Create the first department to organize employee assignments.'
+              }
+              actions={
                 <Button
                   type="button"
-                  className="mt-5 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                  className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
                   onClick={openCreateDialog}
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Department
                 </Button>
-              </div>
-            </div>
+              }
+            />
           ) : null}
 
           {!departmentsQuery.isPending && !departmentsQuery.isError && departments.length > 0 ? (

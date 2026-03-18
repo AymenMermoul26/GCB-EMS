@@ -13,10 +13,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
+import {
+  EmptyState,
+  ErrorState,
+  PageStateSkeleton,
+} from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES } from '@/constants/routes'
 import { usePublicProfile } from '@/hooks/use-public-profile'
 import type { PublicProfile } from '@/types/profile'
@@ -151,53 +155,8 @@ function hasVisiblePublicContent(profile: PublicProfile | null): boolean {
 function LoadingState() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,201,71,0.18),transparent_30%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <Card className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]">
-          <div className="h-1.5 w-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-          <CardContent className="space-y-4 p-6 sm:p-8">
-            <div className="flex flex-col items-center gap-4 text-center">
-              <Skeleton className="h-16 w-16 rounded-2xl" />
-              <div className="space-y-2">
-                <Skeleton className="mx-auto h-4 w-52" />
-                <Skeleton className="mx-auto h-8 w-72" />
-                <Skeleton className="mx-auto h-4 w-80 max-w-full" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]">
-          <CardContent className="p-6 sm:p-8">
-            <div className="grid gap-6 md:grid-cols-[140px,minmax(0,1fr)] md:items-center">
-              <Skeleton className="mx-auto h-32 w-32 rounded-[26px] md:mx-0" />
-              <div className="space-y-3">
-                <Skeleton className="h-8 w-64 max-w-full" />
-                <Skeleton className="h-5 w-52 max-w-full" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-7 w-28 rounded-full" />
-                  <Skeleton className="h-7 w-24 rounded-full" />
-                </div>
-                <Skeleton className="h-10 w-48 rounded-xl" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <Card
-              key={`public-profile-skeleton-${index}`}
-              className="rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]"
-            >
-              <CardContent className="space-y-4 p-6">
-                <Skeleton className="h-5 w-44" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-5/6" />
-                <Skeleton className="h-12 w-full rounded-xl" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div className="mx-auto max-w-5xl">
+        <PageStateSkeleton variant="public-profile" />
       </div>
     </main>
   )
@@ -219,20 +178,13 @@ function UnavailableState({
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,201,71,0.18),transparent_30%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">
-        <Card className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]">
-          <div className="h-1.5 w-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-          <CardContent className="space-y-6 p-6 text-center sm:p-8">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-              <ShieldCheck className="h-8 w-8" />
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Verified Employee Profile
-              </p>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
-              <p className="text-sm leading-6 text-slate-600">{description}</p>
-            </div>
-            <div className="flex flex-col justify-center gap-3 sm:flex-row">
+        <EmptyState
+          className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]"
+          icon={ShieldCheck}
+          title={title}
+          description={description}
+          actions={
+            <>
               <Button type="button" variant="outline" className="rounded-xl" onClick={onBack}>
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 {primaryActionLabel}
@@ -246,9 +198,9 @@ function UnavailableState({
                   Open login
                 </Button>
               ) : null}
-            </div>
-          </CardContent>
-        </Card>
+            </>
+          }
+        />
       </div>
     </main>
   )
@@ -324,15 +276,20 @@ export function PublicProfilePage() {
 
   if (isError) {
     return (
-      <UnavailableState
-        title="Profile unavailable"
-        description="We could not load this employee profile right now. Please try again in a moment."
-        onBack={() => {
-          void refetch()
-        }}
-        primaryActionLabel="Retry"
-        showLoginButton={false}
-      />
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,201,71,0.18),transparent_30%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl">
+          <ErrorState
+            className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]"
+            icon={ShieldCheck}
+            title="Profile unavailable"
+            description="We couldn't load this employee profile right now."
+            onRetry={() => {
+              void refetch()
+            }}
+            retryLabel="Retry"
+          />
+        </div>
+      </main>
     )
   }
 

@@ -3,10 +3,14 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { useMemo } from 'react'
 import { toast } from 'sonner'
 
+import {
+  EmptyState,
+  ErrorState,
+  SectionSkeleton,
+} from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { getPublicProfileRoute } from '@/constants/routes'
 import { useMyActiveTokenQuery } from '@/services/qrService'
 import type { TokenQR } from '@/types/token'
@@ -121,19 +125,17 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         {tokenQuery.isPending ? (
-          <div className="space-y-2">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
+          <SectionSkeleton lines={4} titleWidthClassName="w-36" />
         ) : null}
 
         {tokenQuery.isError ? (
-          <div className="space-y-2">
-            <p className="text-sm text-destructive">{tokenQuery.error.message}</p>
-            <Button variant="outline" size="sm" onClick={() => void tokenQuery.refetch()}>
-              Retry
-            </Button>
-          </div>
+          <ErrorState
+            surface="plain"
+            title="QR code unavailable"
+            description="We couldn't load your QR status right now."
+            message={tokenQuery.error.message}
+            onRetry={() => void tokenQuery.refetch()}
+          />
         ) : null}
 
         {!tokenQuery.isPending && !tokenQuery.isError ? (
@@ -148,21 +150,27 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
             </div>
 
             {status === 'NONE' ? (
-              <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                No QR token assigned. Contact HR.
-              </p>
+              <EmptyState
+                surface="plain"
+                title="QR code not available"
+                description="No QR token is assigned yet. Contact HR to publish your public profile."
+              />
             ) : null}
 
             {status === 'EXPIRED' ? (
-              <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-                Your link is expired. Contact HR.
-              </p>
+              <EmptyState
+                surface="plain"
+                title="QR link expired"
+                description="Your public profile link has expired. Contact HR to refresh it."
+              />
             ) : null}
 
             {status === 'REVOKED' ? (
-              <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                Your QR link is revoked. Contact HR.
-              </p>
+              <EmptyState
+                surface="plain"
+                title="QR link revoked"
+                description="This QR link is no longer active. Contact HR if you need a new one."
+              />
             ) : null}
 
             {publicUrl ? (
@@ -183,9 +191,11 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
                 />
               </div>
             ) : (
-              <div className="flex h-[204px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-                QR preview unavailable
-              </div>
+              <EmptyState
+                surface="plain"
+                title="QR preview unavailable"
+                description="A valid QR token is required before the preview can be displayed."
+              />
             )}
 
             <div className="flex flex-wrap gap-2">

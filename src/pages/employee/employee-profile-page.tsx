@@ -13,12 +13,15 @@ import {
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  EmptyState,
+  ErrorState,
+  PageStateSkeleton,
+} from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { Skeleton } from '@/components/ui/skeleton'
 import { getPublicProfileRoute, ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { useRole } from '@/hooks/use-role'
@@ -144,18 +147,7 @@ export function EmployeeProfilePage() {
   if (employeeQuery.isPending) {
     return (
       <DashboardLayout title="My Profile" subtitle="Review your verified employee information.">
-        <div className="space-y-4">
-          <Skeleton className="h-16 w-full rounded-2xl" />
-          <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
-            <Skeleton className="h-[420px] w-full rounded-2xl" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Skeleton className="h-48 w-full rounded-2xl" />
-              <Skeleton className="h-48 w-full rounded-2xl" />
-              <Skeleton className="h-48 w-full rounded-2xl" />
-              <Skeleton className="h-48 w-full rounded-2xl" />
-            </div>
-          </div>
-        </div>
+        <PageStateSkeleton variant="detail" />
       </DashboardLayout>
     )
   }
@@ -163,15 +155,12 @@ export function EmployeeProfilePage() {
   if (employeeQuery.isError) {
     return (
       <DashboardLayout title="My Profile" subtitle="Review your verified employee information.">
-        <Alert variant="destructive">
-          <AlertTitle>Could not load profile</AlertTitle>
-          <AlertDescription className="mt-2 flex flex-wrap items-center gap-3">
-            <span>{employeeQuery.error.message}</span>
-            <Button variant="outline" size="sm" onClick={() => void employeeQuery.refetch()}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          title="Could not load profile"
+          description="We couldn't load your employee profile right now."
+          message={employeeQuery.error.message}
+          onRetry={() => void employeeQuery.refetch()}
+        />
       </DashboardLayout>
     )
   }
@@ -179,17 +168,15 @@ export function EmployeeProfilePage() {
   if (!employeeQuery.data) {
     return (
       <DashboardLayout title="My Profile" subtitle="Review your verified employee information.">
-        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
-          <CardHeader>
-            <CardTitle>Profile unavailable</CardTitle>
-            <CardDescription>Your employee profile is not linked yet. Contact HR support.</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <EmptyState
+          title="Profile unavailable"
+          description="Your employee profile is not linked yet. Contact HR support."
+          actions={
             <Button variant="outline" onClick={() => void signOut()}>
               Sign out
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       </DashboardLayout>
     )
   }
