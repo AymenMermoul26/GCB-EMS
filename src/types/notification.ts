@@ -1,3 +1,5 @@
+export type NotificationMetadata = Record<string, unknown>
+
 export interface NotificationItem {
   id: string
   userId: string
@@ -7,6 +9,7 @@ export interface NotificationItem {
   isRead: boolean
   createdAt: string
   updatedAt: string
+  metadataJson: NotificationMetadata | null
 }
 
 export type NotificationsFilter = 'all' | 'unread'

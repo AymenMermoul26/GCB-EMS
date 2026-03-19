@@ -6,7 +6,11 @@
 } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
-import type { NotificationItem, NotificationsFilter } from '@/types/notification'
+import type {
+  NotificationItem,
+  NotificationMetadata,
+  NotificationsFilter,
+} from '@/types/notification'
 
 interface NotificationRow {
   id: string
@@ -17,6 +21,7 @@ interface NotificationRow {
   is_read: boolean
   created_at: string
   updated_at: string
+  metadata_json: NotificationMetadata | null
 }
 
 export interface CreateNotificationPayload {
@@ -24,11 +29,13 @@ export interface CreateNotificationPayload {
   title: string
   body: string
   link?: string | null
+  metadataJson?: NotificationMetadata | null
 }
 
 export interface ListMyNotificationsOptions {
   filter?: NotificationsFilter
   limit?: number
+  scope?: string
 }
 
 export const QR_REFRESH_NOTIFICATION_TITLE = 'QR refresh required'
@@ -68,6 +75,7 @@ function mapNotification(row: NotificationRow): NotificationItem {
     isRead: row.is_read,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    metadataJson: row.metadata_json ?? null,
   }
 }
 
@@ -87,12 +95,16 @@ async function listMyNotificationsInternal(
 
   let query = supabase
     .from('notifications')
-    .select('id, user_id, title, body, link, is_read, created_at, updated_at')
+    .select('id, user_id, title, body, link, is_read, created_at, updated_at, metadata_json')
     .eq('user_id', resolvedUserId)
     .order('created_at', { ascending: false })
 
   if (options.filter === 'unread') {
     query = query.eq('is_read', false)
+  }
+
+  if (options.scope) {
+    query = query.eq('metadata_json->>scope', options.scope)
   }
 
   if (typeof options.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0) {
@@ -115,7 +127,10 @@ export async function listMyNotifications(
   return listMyNotificationsInternal(userId, options)
 }
 
-export async function countUnreadMyNotifications(userId?: string | null): Promise<number> {
+export async function countUnreadMyNotifications(
+  userId?: string | null,
+  options: Pick<ListMyNotificationsOptions, 'scope'> = {},
+): Promise<number> {
   const resolvedUserId = await currentUserId()
 
   if (!resolvedUserId) {
@@ -126,11 +141,17 @@ export async function countUnreadMyNotifications(userId?: string | null): Promis
     console.warn('notificationsService.countUnreadMyNotifications received mismatched user id input.')
   }
 
-  const { count, error } = await supabase
+  let query = supabase
     .from('notifications')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', resolvedUserId)
     .eq('is_read', false)
+
+  if (options.scope) {
+    query = query.eq('metadata_json->>scope', options.scope)
+  }
+
+  const { count, error } = await query
 
   if (error) {
     throw new Error(error.message)
@@ -150,8 +171,9 @@ export async function createNotification(
       body: payload.body,
       link: payload.link ?? null,
       is_read: false,
+      metadata_json: payload.metadataJson ?? {},
     })
-    .select('id, user_id, title, body, link, is_read, created_at, updated_at')
+    .select('id, user_id, title, body, link, is_read, created_at, updated_at, metadata_json')
     .single<NotificationRow>()
 
   if (error) {
@@ -175,6 +197,7 @@ export async function createNotifications(
       body: payload.body,
       link: payload.link ?? null,
       is_read: false,
+      metadata_json: payload.metadataJson ?? {},
     })),
   )
 
@@ -195,7 +218,7 @@ export async function markNotificationRead(id: string): Promise<NotificationItem
     .update({ is_read: true })
     .eq('id', id)
     .eq('user_id', userId)
-    .select('id, user_id, title, body, link, is_read, created_at, updated_at')
+    .select('id, user_id, title, body, link, is_read, created_at, updated_at, metadata_json')
     .single<NotificationRow>()
 
   if (error) {
@@ -205,20 +228,26 @@ export async function markNotificationRead(id: string): Promise<NotificationItem
   return mapNotification(data)
 }
 
-export async function markAllMyNotificationsRead(): Promise<number> {
+export async function markAllMyNotificationsRead(
+  options: Pick<ListMyNotificationsOptions, 'scope'> = {},
+): Promise<number> {
   const userId = await currentUserId()
 
   if (!userId) {
     throw new Error('User is not authenticated.')
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('notifications')
     .update({ is_read: true })
     .eq('user_id', userId)
     .eq('is_read', false)
-    .select('id')
-    .returns<Array<{ id: string }>>()
+
+  if (options.scope) {
+    query = query.eq('metadata_json->>scope', options.scope)
+  }
+
+  const { data, error } = await query.select('id').returns<Array<{ id: string }>>()
 
   if (error) {
     throw new Error(error.message)
@@ -319,19 +348,25 @@ export function useMyNotificationsQuery(
 ) {
   const filter = options.filter ?? 'all'
   const limit = options.limit ?? null
+  const scope = options.scope ?? null
 
   return useQuery({
-    queryKey: ['notifications', userId ?? null, filter, limit],
+    queryKey: ['notifications', userId ?? null, filter, limit, scope],
     queryFn: () => listMyNotificationsInternal(userId, options),
     enabled: Boolean(userId),
     refetchInterval: 15000,
   })
 }
 
-export function useUnreadNotificationsCountQuery(userId?: string | null) {
+export function useUnreadNotificationsCountQuery(
+  userId?: string | null,
+  options: Pick<ListMyNotificationsOptions, 'scope'> = {},
+) {
+  const scope = options.scope ?? null
+
   return useQuery({
-    queryKey: ['notificationsUnreadCount', userId ?? null],
-    queryFn: () => countUnreadMyNotifications(userId),
+    queryKey: ['notificationsUnreadCount', userId ?? null, scope],
+    queryFn: () => countUnreadMyNotifications(userId, options),
     enabled: Boolean(userId),
     refetchInterval: 15000,
   })
@@ -373,7 +408,7 @@ export function useMarkAllNotificationsReadMutation(
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: markAllMyNotificationsRead,
+    mutationFn: () => markAllMyNotificationsRead(),
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: ['notifications', userId ?? null] })
       await queryClient.invalidateQueries({ queryKey: ['notificationsUnreadCount', userId ?? null] })

@@ -1,4 +1,22 @@
+import type { NotificationsFilter } from '@/types/notification'
+
 export type PayrollEmployeeStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE'
+
+export type PayrollNotificationCategory =
+  | 'employment'
+  | 'family_admin'
+  | 'status_change'
+  | 'new_employee'
+
+export type PayrollChangeFieldKey =
+  | 'categorieProfessionnelle'
+  | 'typeContrat'
+  | 'dateRecrutement'
+  | 'situationFamiliale'
+  | 'nombreEnfants'
+  | 'adresse'
+  | 'numeroSecuriteSociale'
+  | 'isActive'
 
 export interface PayrollEmployeeListItem {
   id: string
@@ -42,4 +60,26 @@ export interface PayrollEmployeeListFilters {
   departementId?: string
   status?: PayrollEmployeeStatusFilter
   typeContrat?: string
+}
+
+export interface PayrollNotificationItem {
+  id: string
+  userId: string
+  title: string
+  body: string
+  link: string | null
+  isRead: boolean
+  createdAt: string
+  updatedAt: string
+  category: PayrollNotificationCategory
+  employeeId: string | null
+  employeeName: string | null
+  matricule: string | null
+  changedFields: PayrollChangeFieldKey[]
+  summary: string
+}
+
+export interface PayrollNotificationsListOptions {
+  filter?: NotificationsFilter
+  limit?: number
 }

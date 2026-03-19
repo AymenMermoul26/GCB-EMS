@@ -38,6 +38,7 @@ import { ROUTES, getAdminEmployeeRoute } from '@/constants/routes'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useCreateEmployeeMutation } from '@/services/employeesService'
+import { notifyPayrollUsersOfNewEmployee } from '@/services/payrollNotificationsService'
 import {
   employeeCreateSchema,
   normalizePhoneNumberInput,
@@ -103,6 +104,10 @@ export function AdminEmployeeCreatePage() {
 
   const createMutation = useCreateEmployeeMutation({
     onSuccess: (employee) => {
+      void notifyPayrollUsersOfNewEmployee(employee).catch((error) => {
+        console.error('Failed to notify payroll users about new employee availability', error)
+      })
+
       toast.success(`Employee created successfully (${employee.matricule}).`)
       navigate(getAdminEmployeeRoute(employee.id), { replace: true })
     },

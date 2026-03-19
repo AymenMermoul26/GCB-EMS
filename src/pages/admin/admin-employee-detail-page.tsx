@@ -93,6 +93,10 @@ import {
   useHasUnreadQrRefreshForEmployeeQuery,
 } from '@/services/notificationsService'
 import {
+  notifyPayrollUsersOfEmployeeStatusChange,
+  notifyPayrollUsersOfEmployeeUpdate,
+} from '@/services/payrollNotificationsService'
+import {
   useEmployeeCurrentTokenQuery,
   useGenerateOrRegenerateTokenMutation,
   useRevokeActiveTokenMutation,
@@ -533,12 +537,27 @@ export function AdminEmployeeDetailPage() {
       return
     }
 
+    const previousEmployee = employee
+
     if (employee.isActive) {
-      await deactivateMutation.mutateAsync(employee.id)
+      const deactivatedEmployee = await deactivateMutation.mutateAsync(employee.id)
+
+      void notifyPayrollUsersOfEmployeeStatusChange(previousEmployee, deactivatedEmployee).catch(
+        (error) => {
+        console.error('Failed to notify payroll users about employee deactivation', error)
+        },
+      )
+
       return
     }
 
-    await activateMutation.mutateAsync(employee.id)
+    const activatedEmployee = await activateMutation.mutateAsync(employee.id)
+
+    void notifyPayrollUsersOfEmployeeStatusChange(previousEmployee, activatedEmployee).catch(
+      (error) => {
+      console.error('Failed to notify payroll users about employee activation', error)
+      },
+    )
   }
 
   useEffect(() => {
@@ -720,7 +739,9 @@ export function AdminEmployeeDetailPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     setSubmitError(null)
 
-    await updateMutation.mutateAsync({
+    const previousEmployee = employee
+
+    const updatedEmployee = await updateMutation.mutateAsync({
       id: employeeId,
       payload: {
         matricule: values.matricule.trim(),
@@ -747,6 +768,14 @@ export function AdminEmployeeDetailPage() {
         telephone: normalizeOptional(values.telephone),
         photoUrl: normalizeOptional(values.photoUrl),
       },
+    })
+
+    if (!previousEmployee) {
+      return
+    }
+
+    void notifyPayrollUsersOfEmployeeUpdate(previousEmployee, updatedEmployee).catch((error) => {
+      console.error('Failed to notify payroll users about employee update', error)
     })
   })
 

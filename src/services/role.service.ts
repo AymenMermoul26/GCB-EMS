@@ -113,6 +113,20 @@ export async function listAdminUserIds(): Promise<string[]> {
   return (data ?? []) as string[]
 }
 
+export async function listPayrollUserIds(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('ProfilUtilisateur')
+    .select('user_id')
+    .eq('role', APP_ROLES.PAYROLL_AGENT)
+    .returns<ProfilUtilisateurUserRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return [...new Set((data ?? []).map((row) => row.user_id).filter(Boolean))] as string[]
+}
+
 export async function getUserIdByEmployeId(employeId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('ProfilUtilisateur')
@@ -140,5 +154,6 @@ export async function getUserIdByEmployeId(employeId: string): Promise<string | 
 export const roleService = {
   resolveRoleByUserId,
   listAdminUserIds,
+  listPayrollUserIds,
   getUserIdByEmployeId,
 }
