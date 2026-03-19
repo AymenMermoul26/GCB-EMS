@@ -26,6 +26,7 @@ export interface PayrollEmployeeListItem {
   nom: string
   prenom: string
   poste: string | null
+  categorieProfessionnelle: string | null
   typeContrat: string | null
   isActive: boolean
 }

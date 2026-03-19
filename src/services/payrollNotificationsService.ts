@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query'
 
 import { getPayrollEmployeeRoute } from '@/constants/routes'
+import { supabase } from '@/lib/supabaseClient'
 import {
   countUnreadMyNotifications,
   listMyNotifications,
@@ -94,6 +95,16 @@ interface PayrollSignalParams {
   summary: string
   changedFields: PayrollChangeFieldKey[]
   source: string
+}
+
+async function resolveCurrentUserId(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data.user?.id ?? null
 }
 
 function normalizeText(value: unknown): string | null {
@@ -406,6 +417,37 @@ export async function countUnreadMyPayrollNotifications(
   return countUnreadMyNotifications(userId, { scope: PAYROLL_NOTIFICATION_SCOPE })
 }
 
+export async function countRecentMyPayrollNotifications(
+  userId?: string | null,
+  days = 7,
+): Promise<number> {
+  const resolvedUserId = await resolveCurrentUserId()
+
+  if (!resolvedUserId) {
+    return 0
+  }
+
+  if (userId && userId !== resolvedUserId) {
+    console.warn(
+      'payrollNotificationsService.countRecentMyPayrollNotifications received mismatched user id input.',
+    )
+  }
+
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', resolvedUserId)
+    .eq('metadata_json->>scope', PAYROLL_NOTIFICATION_SCOPE)
+    .gte('created_at', since)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return count ?? 0
+}
+
 export function formatPayrollChangedFieldsPreview(
   changedFields: PayrollChangeFieldKey[],
   maxItems = 3,
@@ -447,6 +489,18 @@ export function useUnreadPayrollNotificationsCountQuery(userId?: string | null) 
   return useQuery({
     queryKey: ['payrollNotificationsUnreadCount', userId ?? null],
     queryFn: () => countUnreadMyPayrollNotifications(userId),
+    enabled: Boolean(userId),
+    refetchInterval: 15000,
+  })
+}
+
+export function useRecentPayrollNotificationsCountQuery(
+  userId?: string | null,
+  days = 7,
+) {
+  return useQuery({
+    queryKey: ['payrollNotificationsRecentCount', userId ?? null, days],
+    queryFn: () => countRecentMyPayrollNotifications(userId, days),
     enabled: Boolean(userId),
     refetchInterval: 15000,
   })
@@ -499,6 +553,7 @@ export function useMarkAllPayrollNotificationsReadMutation(
 export const payrollNotificationsService = {
   listMyPayrollNotifications,
   countUnreadMyPayrollNotifications,
+  countRecentMyPayrollNotifications,
   notifyPayrollUsersOfEmployeeUpdate,
   notifyPayrollUsersOfEmployeeStatusChange,
   notifyPayrollUsersOfNewEmployee,

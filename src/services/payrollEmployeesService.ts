@@ -15,13 +15,13 @@ interface PayrollEmployeeListRow {
   nom: string
   prenom: string
   poste: string | null
+  categorie_professionnelle: string | null
   type_contrat: string | null
   is_active: boolean
 }
 
 interface PayrollEmployeeDetailRow extends PayrollEmployeeListRow {
   photo_url: string | null
-  categorie_professionnelle: string | null
   date_recrutement: string | null
   email: string | null
   telephone: string | null
@@ -60,6 +60,7 @@ function mapPayrollEmployeeListItem(row: PayrollEmployeeListRow): PayrollEmploye
     nom: row.nom,
     prenom: row.prenom,
     poste: row.poste ?? null,
+    categorieProfessionnelle: row.categorie_professionnelle ?? null,
     typeContrat: row.type_contrat ?? null,
     isActive: row.is_active,
   }
