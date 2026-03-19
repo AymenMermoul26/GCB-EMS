@@ -34,3 +34,6 @@ export const getAdminEmployeeRoute = (employeeId: string) =>
 
 export const getPayrollEmployeeRoute = (employeeId: string) =>
   `${ROUTES.PAYROLL_EMPLOYEES}/${employeeId}`
+
+export const getPayrollEmployeeSheetRoute = (employeeId: string) =>
+  `${ROUTES.PAYROLL_EMPLOYEES}/${employeeId}/sheet`

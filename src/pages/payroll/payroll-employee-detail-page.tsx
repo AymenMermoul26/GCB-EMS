@@ -2,6 +2,7 @@ import {
   BriefcaseBusiness,
   Building2,
   ChevronLeft,
+  FileText,
   IdCard,
   type LucideIcon,
   Mail,
@@ -17,7 +18,7 @@ import { PageHeader, SURFACE_CARD_CLASS_NAME } from '@/components/common/page-he
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ROUTES } from '@/constants/routes'
+import { ROUTES, getPayrollEmployeeSheetRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
 import { usePayrollEmployeeQuery } from '@/services/payrollEmployeesService'
@@ -187,6 +188,14 @@ export function PayrollEmployeeDetailPage() {
             </StatusBadge>
           </>
         }
+        actions={
+          <Button asChild variant="outline">
+            <Link to={getPayrollEmployeeSheetRoute(employee.id)}>
+              <FileText className="mr-2 h-4 w-4" />
+              Information Sheet
+            </Link>
+          </Button>
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
@@ -239,7 +248,7 @@ export function PayrollEmployeeDetailPage() {
             </div>
 
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-900">
-              Sensitive payroll identifiers remain limited to this detail view. Internal HR observations and public-profile controls are intentionally excluded.
+              Sensitive payroll identifiers remain limited to controlled payroll views. Internal HR observations and public-profile controls are intentionally excluded.
             </div>
           </CardContent>
         </Card>
