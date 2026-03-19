@@ -14,6 +14,7 @@ export const ROUTES = {
   PAYROLL: '/payroll',
   PAYROLL_DASHBOARD: '/payroll/dashboard',
   PAYROLL_EMPLOYEES: '/payroll/employees',
+  PAYROLL_SECURITY: '/payroll/security',
   EMPLOYEE: '/employee',
   EMPLOYEE_PROFILE: '/employee/profile',
   EMPLOYEE_PROFILE_MANAGE: '/employee/profile/manage',

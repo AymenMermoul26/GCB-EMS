@@ -30,6 +30,7 @@ import { NotFoundPage } from '@/pages/not-found-page'
 import { NotificationsPage } from '@/pages/notifications-page'
 import { PayrollDashboardPage } from '@/pages/payroll/payroll-dashboard-page'
 import { PayrollEmployeesPage } from '@/pages/payroll/payroll-employees-page'
+import { PayrollSecurityPage } from '@/pages/payroll/payroll-security-page'
 import { PublicProfilePage } from '@/pages/public/public-profile-page'
 import { ServerErrorPage } from '@/pages/server-error-page'
 
@@ -97,6 +98,7 @@ export function AppRouter() {
                 <Route path={ROUTES.PAYROLL} element={<Navigate to={ROUTES.PAYROLL_DASHBOARD} replace />} />
                 <Route path={ROUTES.PAYROLL_DASHBOARD} element={<PayrollDashboardPage />} />
                 <Route path={ROUTES.PAYROLL_EMPLOYEES} element={<PayrollEmployeesPage />} />
+                <Route path={ROUTES.PAYROLL_SECURITY} element={<PayrollSecurityPage />} />
               </Route>
 
               <Route

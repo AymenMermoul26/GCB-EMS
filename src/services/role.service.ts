@@ -11,6 +11,12 @@ interface ProfilUtilisateurUserRow {
   user_id: string | null
 }
 
+interface RoleMetadataRecord {
+  role?: unknown
+  employe_id?: unknown
+  employee_id?: unknown
+}
+
 function normalizeRole(value: string | null): AppRole | null {
   if (value === APP_ROLES.ADMIN_RH) {
     return APP_ROLES.ADMIN_RH
@@ -27,6 +33,43 @@ function normalizeRole(value: string | null): AppRole | null {
   return null
 }
 
+function readString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function asRoleMetadataRecord(value: unknown): RoleMetadataRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return value as RoleMetadataRecord
+}
+
+async function resolveRoleFromAuthMetadata(): Promise<RoleInfo | null> {
+  const { data, error } = await supabase.auth.getUser()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const appMetadata = asRoleMetadataRecord(data.user?.app_metadata)
+  const role = normalizeRole(readString(appMetadata.role))
+
+  if (role !== APP_ROLES.PAYROLL_AGENT) {
+    return null
+  }
+
+  return {
+    role,
+    employeId: readString(appMetadata.employe_id) ?? readString(appMetadata.employee_id),
+  }
+}
+
 export async function resolveRoleByUserId(
   userId: string,
 ): Promise<RoleInfo | null> {
@@ -41,7 +84,7 @@ export async function resolveRoleByUserId(
   }
 
   if (!data) {
-    return null
+    return resolveRoleFromAuthMetadata()
   }
 
   const role = normalizeRole(data.role)

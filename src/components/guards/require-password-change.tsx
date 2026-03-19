@@ -14,12 +14,24 @@ export function RequirePasswordChange() {
   }
 
   const isEmployee = role === APP_ROLES.EMPLOYE
+  const isPayrollAgent = role === APP_ROLES.PAYROLL_AGENT
   const isOnSecurityPage = location.pathname === ROUTES.EMPLOYEE_SECURITY
+  const isOnPayrollSecurityPage = location.pathname === ROUTES.PAYROLL_SECURITY
 
   if (isEmployee && mustChangePassword && !isOnSecurityPage) {
     return (
       <Navigate
         to={ROUTES.EMPLOYEE_SECURITY}
+        replace
+        state={{ from: location }}
+      />
+    )
+  }
+
+  if (isPayrollAgent && mustChangePassword && !isOnPayrollSecurityPage) {
+    return (
+      <Navigate
+        to={ROUTES.PAYROLL_SECURITY}
         replace
         state={{ from: location }}
       />

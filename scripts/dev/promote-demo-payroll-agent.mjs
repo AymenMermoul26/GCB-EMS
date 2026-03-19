@@ -138,11 +138,51 @@ async function promoteProfileToPayroll(client, profileId) {
   return data
 }
 
+async function syncPayrollAuthMetadata(supabaseUrl, serviceRoleKey, profile) {
+  if (!serviceRoleKey || !profile?.user_id) {
+    return false
+  }
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+
+  const { data, error } = await adminClient.auth.admin.getUserById(profile.user_id)
+  if (error) {
+    throw new Error(`Failed to load auth user for payroll metadata sync: ${error.message}`)
+  }
+
+  const currentAppMetadata =
+    data.user?.app_metadata &&
+    typeof data.user.app_metadata === 'object' &&
+    !Array.isArray(data.user.app_metadata)
+      ? data.user.app_metadata
+      : {}
+
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(profile.user_id, {
+    app_metadata: {
+      ...currentAppMetadata,
+      role: 'PAYROLL_AGENT',
+      employe_id: profile.employe_id ?? null,
+    },
+  })
+
+  if (updateError) {
+    throw new Error(`Failed to sync payroll auth metadata: ${updateError.message}`)
+  }
+
+  return true
+}
+
 async function main() {
   loadDotEnvFile()
 
   const supabaseUrl = getRequiredEnv('SUPABASE_URL', 'VITE_SUPABASE_URL')
   const anonKey = getRequiredEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY')
+  const serviceRoleKey = getEnvValue('SUPABASE_SERVICE_ROLE_KEY')
   const adminEmail = getEnvValue('PAYROLL_BOOTSTRAP_ADMIN_EMAIL') ?? DEFAULT_ADMIN_EMAIL
   const adminPassword =
     getEnvValue('PAYROLL_BOOTSTRAP_ADMIN_PASSWORD') ?? DEFAULT_ADMIN_PASSWORD
@@ -162,6 +202,7 @@ async function main() {
   const employee = await findEmployeeByEmail(client, targetEmail)
   const profile = await findProfileByEmployeeId(client, employee.id)
   const updatedProfile = await promoteProfileToPayroll(client, profile.id)
+  const metadataSynced = await syncPayrollAuthMetadata(supabaseUrl, serviceRoleKey, updatedProfile)
 
   console.log('Payroll role assigned successfully.')
   console.log(`Employee: ${employee.prenom} ${employee.nom}`)
@@ -169,6 +210,7 @@ async function main() {
   console.log(`Matricule: ${employee.matricule}`)
   console.log(`ProfilUtilisateur.id: ${updatedProfile.id}`)
   console.log(`Role: ${updatedProfile.role}`)
+  console.log(`Auth metadata synced: ${metadataSynced}`)
 
   await client.auth.signOut()
 }

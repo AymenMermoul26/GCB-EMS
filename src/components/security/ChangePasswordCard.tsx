@@ -12,6 +12,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { APP_ROLES } from '@/constants/roles'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ROUTES } from '@/constants/routes'
@@ -49,7 +50,7 @@ export function ChangePasswordCard({
   const navigate = useNavigate()
   const location = useLocation()
   const locationState = location.state as SecurityLocationState | null
-  const { refreshAuthState, mustChangePassword } = useAuth()
+  const { refreshAuthState, mustChangePassword, role } = useAuth()
   const [submitFeedback, setSubmitFeedback] = useState<{
     type: 'success' | 'error'
     message: string
@@ -123,11 +124,15 @@ export function ChangePasswordCard({
         confirmNewPassword: '',
       })
 
+      const fallbackRoute =
+        role === APP_ROLES.PAYROLL_AGENT ? ROUTES.PAYROLL_DASHBOARD : ROUTES.EMPLOYEE_PROFILE
+      const currentSecurityRoute =
+        role === APP_ROLES.PAYROLL_AGENT ? ROUTES.PAYROLL_SECURITY : ROUTES.EMPLOYEE_SECURITY
       const nextRoute =
         locationState?.from?.pathname &&
-        locationState.from.pathname !== ROUTES.EMPLOYEE_SECURITY
+        locationState.from.pathname !== currentSecurityRoute
           ? locationState.from.pathname
-          : ROUTES.EMPLOYEE_PROFILE
+          : fallbackRoute
 
       navigate(nextRoute, { replace: true })
     } catch (error) {

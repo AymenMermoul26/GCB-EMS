@@ -54,6 +54,9 @@ export function DashboardNav({ role }: DashboardNavProps) {
         <NavLink to={ROUTES.PAYROLL_EMPLOYEES} className={linkClassName}>
           Employees
         </NavLink>
+        <NavLink to={ROUTES.PAYROLL_SECURITY} className={linkClassName}>
+          Security
+        </NavLink>
       </nav>
     )
   }
