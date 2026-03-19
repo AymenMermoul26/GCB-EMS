@@ -30,3 +30,6 @@ export const getPublicProfileRoute = (token: string) =>
 
 export const getAdminEmployeeRoute = (employeeId: string) =>
   `${ROUTES.ADMIN_EMPLOYEES}/${employeeId}`
+
+export const getPayrollEmployeeRoute = (employeeId: string) =>
+  `${ROUTES.PAYROLL_EMPLOYEES}/${employeeId}`
