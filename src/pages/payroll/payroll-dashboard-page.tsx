@@ -1,7 +1,8 @@
-﻿import {
+import {
   ArrowRight,
   Bell,
   BriefcaseBusiness,
+  FileDown,
   FileText,
   ShieldCheck,
   UserCheck,
@@ -526,6 +527,11 @@ function DashboardSidePanel({ isRefreshing }: { isRefreshing: boolean }) {
             href={ROUTES.PAYROLL_NOTIFICATIONS}
           />
           <QuickLinkCard
+            title="Open export center"
+            description="Generate controlled payroll-safe CSV exports."
+            href={ROUTES.PAYROLL_EXPORTS}
+          />
+          <QuickLinkCard
             title="Open employee information sheets"
             description="Open an employee record, then launch the sheet preview."
             href={ROUTES.PAYROLL_EMPLOYEES}
@@ -553,6 +559,13 @@ function DashboardSidePanel({ isRefreshing }: { isRefreshing: boolean }) {
             <p>
               Use the payroll employee detail pages and information sheets for read-only payroll
               consultation and print-ready document review.
+            </p>
+          </div>
+          <div className="flex items-start gap-2">
+            <FileDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+            <p>
+              Payroll exports remain limited to payroll-safe CSV fields and logged export actions
+              only.
             </p>
           </div>
         </CardContent>
@@ -805,3 +818,6 @@ export function PayrollDashboardPage() {
     </PayrollLayout>
   )
 }
+
+
+

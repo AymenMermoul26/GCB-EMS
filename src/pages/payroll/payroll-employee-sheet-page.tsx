@@ -2,6 +2,7 @@ import { ChevronLeft, Printer } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { PayrollEmployeeInformationSheet } from '@/components/payroll/payroll-employee-information-sheet'
 import { EmptyState, ErrorState } from '@/components/common/page-state'
@@ -13,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES, getPayrollEmployeeRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import { useLogPayrollEmployeeSheetExportMutation } from '@/services/payrollExportsService'
 import { usePayrollEmployeeQuery } from '@/services/payrollEmployeesService'
 
 function formatDateTime(value: string): string {
@@ -77,6 +79,7 @@ export function PayrollEmployeeSheetPage() {
   const { id } = useParams<{ id: string }>()
   const { signOut, user } = useAuth()
   const employeeQuery = usePayrollEmployeeQuery(id)
+  const logSheetExportMutation = useLogPayrollEmployeeSheetExportMutation(user?.id)
   const employeeIdForMemo = employeeQuery.data?.id ?? ''
   const employeeMatriculeForMemo = employeeQuery.data?.matricule ?? ''
   const generatedAt = useMemo(() => {
@@ -108,7 +111,22 @@ export function PayrollEmployeeSheetPage() {
     }
   }, [])
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    if (!employeeQuery.data) {
+      return
+    }
+
+    try {
+      await logSheetExportMutation.mutateAsync(employeeQuery.data)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not start the payroll information sheet export.',
+      )
+      return
+    }
+
     const previousTitle = document.title
     document.title = printableDocumentName
     document.body.classList.add('payroll-sheet-printing')
@@ -253,9 +271,16 @@ export function PayrollEmployeeSheetPage() {
             </>
           }
           actions={
-            <Button type="button" className={BRAND_BUTTON_CLASS_NAME} onClick={handlePrint}>
+            <Button
+              type="button"
+              className={BRAND_BUTTON_CLASS_NAME}
+              onClick={() => {
+                void handlePrint()
+              }}
+              disabled={logSheetExportMutation.isPending}
+            >
               <Printer className="mr-2 h-4 w-4" />
-              Print / Save as PDF
+              {logSheetExportMutation.isPending ? 'Preparing print...' : 'Print / Save as PDF'}
             </Button>
           }
         />
@@ -278,9 +303,16 @@ export function PayrollEmployeeSheetPage() {
                   operations. Email sending and admin actions are intentionally unavailable here.
                 </p>
               </div>
-              <Button type="button" variant="outline" onClick={handlePrint}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void handlePrint()
+                }}
+                disabled={logSheetExportMutation.isPending}
+              >
                 <Printer className="mr-2 h-4 w-4" />
-                Print / Save as PDF
+                {logSheetExportMutation.isPending ? 'Preparing print...' : 'Print / Save as PDF'}
               </Button>
             </CardContent>
           </Card>
@@ -302,3 +334,4 @@ export function PayrollEmployeeSheetPage() {
     </>
   )
 }
+

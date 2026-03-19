@@ -31,6 +31,7 @@ import { NotificationsPage } from '@/pages/notifications-page'
 import { PayrollDashboardPage } from '@/pages/payroll/payroll-dashboard-page'
 import { PayrollEmployeeDetailPage } from '@/pages/payroll/payroll-employee-detail-page'
 import { PayrollEmployeesPage } from '@/pages/payroll/payroll-employees-page'
+import { PayrollExportsPage } from '@/pages/payroll/payroll-exports-page'
 import { PayrollNotificationsPage } from '@/pages/payroll/payroll-notifications-page'
 import { PayrollEmployeeSheetPage } from '@/pages/payroll/payroll-employee-sheet-page'
 import { PayrollSecurityPage } from '@/pages/payroll/payroll-security-page'
@@ -103,6 +104,7 @@ export function AppRouter() {
                 <Route path={`${ROUTES.PAYROLL_EMPLOYEES}/:id/sheet`} element={<PayrollEmployeeSheetPage />} />
                 <Route path={`${ROUTES.PAYROLL_EMPLOYEES}/:id`} element={<PayrollEmployeeDetailPage />} />
                 <Route path={ROUTES.PAYROLL_EMPLOYEES} element={<PayrollEmployeesPage />} />
+                <Route path={ROUTES.PAYROLL_EXPORTS} element={<PayrollExportsPage />} />
                 <Route path={ROUTES.PAYROLL_NOTIFICATIONS} element={<PayrollNotificationsPage />} />
                 <Route path={ROUTES.PAYROLL_SECURITY} element={<PayrollSecurityPage />} />
               </Route>

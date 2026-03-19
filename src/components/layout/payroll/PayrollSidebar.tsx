@@ -1,4 +1,4 @@
-import { Bell, LayoutDashboard, LogOut, Menu, Shield, Users } from 'lucide-react'
+import { Bell, FileDown, LayoutDashboard, LogOut, Menu, Shield, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
@@ -48,6 +48,12 @@ const PAYROLL_NAV_ITEMS: PayrollNavItem[] = [
     label: 'Employees',
     to: ROUTES.PAYROLL_EMPLOYEES,
     icon: Users,
+  },
+  {
+    key: 'exports',
+    label: 'Exports',
+    to: ROUTES.PAYROLL_EXPORTS,
+    icon: FileDown,
   },
   {
     key: 'notifications',

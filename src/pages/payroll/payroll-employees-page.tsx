@@ -2,6 +2,7 @@ import {
   ArrowRight,
   BriefcaseBusiness,
   Building2,
+  FileDown,
   Filter,
   IdCard,
   Search,
@@ -37,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getPayrollEmployeeRoute } from '@/constants/routes'
+import { ROUTES, getPayrollEmployeeRoute } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
@@ -163,6 +164,29 @@ export function PayrollEmployeesPage() {
     statusFilter !== 'ALL' ||
     contractFilter !== 'all'
 
+  const exportCenterHref = useMemo(() => {
+    const params = new URLSearchParams()
+
+    if (searchInput.trim().length > 0) {
+      params.set('search', searchInput.trim())
+    }
+
+    if (departmentFilter !== 'all') {
+      params.set('department', departmentFilter)
+    }
+
+    if (statusFilter !== 'ALL') {
+      params.set('status', statusFilter)
+    }
+
+    if (contractFilter !== 'all') {
+      params.set('contract', contractFilter)
+    }
+
+    const queryString = params.toString()
+    return queryString ? `${ROUTES.PAYROLL_EXPORTS}?${queryString}` : ROUTES.PAYROLL_EXPORTS
+  }, [contractFilter, departmentFilter, searchInput, statusFilter])
+
   const handleClearFilters = () => {
     setSearchInput('')
     setDepartmentFilter('all')
@@ -188,6 +212,14 @@ export function PayrollEmployeesPage() {
             </StatusBadge>
             <StatusBadge tone="brand">{employees.length} matched</StatusBadge>
           </>
+        }
+        actions={
+          <Button asChild variant="outline">
+            <Link to={exportCenterHref}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Export center
+            </Link>
+          </Button>
         }
       >
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_220px_180px_220px_auto]">
