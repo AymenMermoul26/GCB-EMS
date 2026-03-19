@@ -1,6 +1,7 @@
 import { AlertCircle, Info } from 'lucide-react'
 
 import { MyQrCard } from '@/components/employee/MyQrCard'
+import { PageHeader, SURFACE_CARD_CLASS_NAME } from '@/components/common/page-header'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useRole } from '@/hooks/use-role'
@@ -14,20 +15,16 @@ export function EmployeeMyQrPage() {
       title="My QR Code"
       subtitle="Share your verified public profile securely."
     >
-      <section className="mb-5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-3 h-1 w-28 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">Public Profile QR</h2>
-          <p className="text-sm text-slate-600">
-            Use this QR code to share your public profile. Only fields approved by HR are visible.
-          </p>
-        </div>
-      </section>
+      <PageHeader
+        title="Public Profile QR"
+        description="Use this QR code to share your public profile. Only fields approved by HR are visible."
+        className="mb-5"
+      />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <MyQrCard employeId={employeId} className="mt-0 rounded-2xl border-slate-200/80 shadow-sm" />
 
-        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+        <Card className={SURFACE_CARD_CLASS_NAME}>
           <CardHeader>
             <CardTitle className="text-base">Usage Notes</CardTitle>
           </CardHeader>

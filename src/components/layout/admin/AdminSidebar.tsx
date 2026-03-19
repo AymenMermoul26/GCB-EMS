@@ -19,7 +19,7 @@ import {
 import { NavLink, useLocation } from 'react-router-dom'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -360,9 +360,9 @@ function AdminSidebarContent({
                 {item.label}
               </span>
               {badgeCount > 0 && !compactMode ? (
-                <Badge className="relative z-10 ml-2 border-transparent bg-red-600 text-white">
+                <StatusBadge tone="danger" className="relative z-10 ml-2 text-white">
                   {badgeCount}
-                </Badge>
+                </StatusBadge>
               ) : null}
               {badgeCount > 0 && compactMode ? (
                 <span

@@ -13,6 +13,8 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { EmptyState, ErrorState } from '@/components/common/page-state'
+import { BRAND_BUTTON_CLASS_NAME, PageHeader } from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +26,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -181,55 +182,43 @@ export function DepartmentsPage() {
       title="Departments"
       subtitle="Manage department records and assignments."
     >
-      <div className="sticky top-2 z-20 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Departments</h1>
-              {departmentsQuery.isPending ? (
-                <Skeleton className="h-6 w-24 rounded-full" />
-              ) : (
-                <Badge variant="secondary" className="rounded-full">
-                  {totalDepartments} total
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Create, update, and manage department availability.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
-            {departmentsQuery.isPending ? (
-              <>
-                <Skeleton className="h-10 w-full sm:w-64" />
-                <Skeleton className="h-10 w-full sm:w-44" />
-              </>
-            ) : (
-              <>
-                <div className="relative w-full sm:w-64">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="Search department..."
-                    className="pl-9"
-                    aria-label="Search departments"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
-                  onClick={openCreateDialog}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Department
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Departments"
+        description="Create, update, and manage department availability."
+        className="sticky top-2 z-20 mb-6"
+        badges={
+          departmentsQuery.isPending ? (
+            <Skeleton className="h-6 w-24 rounded-full" />
+          ) : (
+            <StatusBadge tone="neutral">{totalDepartments} total</StatusBadge>
+          )
+        }
+        actions={
+          departmentsQuery.isPending ? (
+            <>
+              <Skeleton className="h-10 w-full sm:w-64" />
+              <Skeleton className="h-10 w-full sm:w-44" />
+            </>
+          ) : (
+            <>
+              <div className="relative w-full sm:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search departments..."
+                  className="pl-9"
+                  aria-label="Search departments"
+                />
+              </div>
+              <Button type="button" className={BRAND_BUTTON_CLASS_NAME} onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Department
+              </Button>
+            </>
+          )
+        }
+      />
 
       {departmentsQuery.isError ? (
         <ErrorState
@@ -292,7 +281,7 @@ export function DepartmentsPage() {
               actions={
                 <Button
                   type="button"
-                  className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                  className={BRAND_BUTTON_CLASS_NAME}
                   onClick={openCreateDialog}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -321,9 +310,13 @@ export function DepartmentsPage() {
                       <TableCell className="font-medium">{department.nom}</TableCell>
                       <TableCell>
                         {department.code ? (
-                          <Badge variant="outline" className="font-mono text-xs">
+                          <StatusBadge
+                            tone="neutral"
+                            emphasis="outline"
+                            className="bg-white font-mono text-xs"
+                          >
                             {department.code}
-                          </Badge>
+                          </StatusBadge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

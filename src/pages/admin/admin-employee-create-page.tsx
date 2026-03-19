@@ -14,8 +14,12 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import {
+  BRAND_BUTTON_CLASS_NAME,
+  PageHeader,
+} from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -164,29 +168,25 @@ export function AdminEmployeeCreatePage() {
       title="Create Employee"
       subtitle="Add a new employee record to the EMS directory."
     >
-      <div className="sticky top-2 z-20 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="px-0 text-muted-foreground"
-              onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}
-              disabled={isSubmitting}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to employees
-            </Button>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Create Employee</h1>
-            <p className="text-sm text-muted-foreground">
-              Add a new employee and generate access details securely.
-            </p>
-            <Badge variant="outline" className="rounded-full">
-              Step 1 of 1
-            </Badge>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="Create Employee"
+        description="Add a new employee and generate access details securely."
+        className="sticky top-2 z-20 mb-6"
+        backAction={
+          <Button
+            type="button"
+            variant="ghost"
+            className="px-0 text-muted-foreground"
+            onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}
+            disabled={isSubmitting}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to employees
+          </Button>
+        }
+        badges={<StatusBadge tone="neutral" emphasis="outline">Step 1 of 1</StatusBadge>}
+        actions={
+          <>
             <Button
               type="button"
               variant="outline"
@@ -199,7 +199,7 @@ export function AdminEmployeeCreatePage() {
               type="submit"
               form={formId}
               disabled={isSubmitting || departmentsQuery.isPending || !form.formState.isValid}
-              className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+              className={BRAND_BUTTON_CLASS_NAME}
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -208,9 +208,9 @@ export function AdminEmployeeCreatePage() {
               )}
               {isSubmitting ? 'Creating...' : 'Create Employee'}
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <form
         id={formId}
@@ -327,9 +327,9 @@ export function AdminEmployeeCreatePage() {
             <div className="space-y-2">
               <Label>Status</Label>
               <div className="flex h-10 items-center rounded-md border px-3">
-                <Badge className="border-transparent bg-emerald-100 text-emerald-800">
+                <StatusBadge tone="success">
                   Active on creation
-                </Badge>
+                </StatusBadge>
               </div>
             </div>
           </CardContent>
@@ -657,7 +657,7 @@ export function AdminEmployeeCreatePage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <FieldError message={form.formState.errors.email?.message}>
-              <Label htmlFor="email">Email professionnel</Label>
+              <Label htmlFor="email">Work Email</Label>
               <Input
                 id="email"
                 type="email"

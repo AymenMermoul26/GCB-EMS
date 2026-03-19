@@ -31,7 +31,12 @@ import {
   ErrorState,
   PageStateSkeleton,
 } from '@/components/common/page-state'
-import { Badge } from '@/components/ui/badge'
+import {
+  BRAND_BUTTON_CLASS_NAME,
+  PageHeader,
+  SURFACE_CARD_CLASS_NAME,
+} from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -89,6 +94,7 @@ import {
 } from '@/utils/modification-requests'
 
 type QrRefreshField = 'poste' | 'email' | 'telephone' | 'photo_url'
+const EMPTY_FIELD_VALUE = '\u2014'
 
 interface SelfEditComparableValues {
   poste: string | null
@@ -128,24 +134,36 @@ function getChangedSelfEditFields(
   return trackedFields.filter((field) => previous[field] !== next[field])
 }
 
-function getStatusVariant(status: string): 'secondary' | 'outline' {
+function getStatusTone(status: string): 'success' | 'warning' | 'danger' | 'neutral' {
   if (status === 'ACCEPTEE') {
-    return 'secondary'
+    return 'success'
   }
 
-  return 'outline'
-}
-
-function getStatusClassName(status: string): string {
   if (status === 'REJETEE') {
-    return 'border-destructive text-destructive'
+    return 'danger'
   }
 
   if (status === 'EN_ATTENTE') {
-    return 'border-amber-300 text-amber-700'
+    return 'warning'
   }
 
-  return ''
+  return 'neutral'
+}
+
+function formatRequestStatus(status: string): string {
+  if (status === 'ACCEPTEE') {
+    return 'Approved'
+  }
+
+  if (status === 'REJETEE') {
+    return 'Rejected'
+  }
+
+  if (status === 'EN_ATTENTE') {
+    return 'Pending'
+  }
+
+  return status
 }
 
 function formatFieldValue(value: string | null): string {
@@ -155,19 +173,19 @@ function formatFieldValue(value: string | null): string {
 
 function formatProfileValue(value: string | null | undefined): string {
   const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : '—'
+  return normalized && normalized.length > 0 ? normalized : EMPTY_FIELD_VALUE
 }
 
 function formatProfileDate(value: string | null | undefined): string {
   if (!value) {
-    return '—'
+    return EMPTY_FIELD_VALUE
   }
 
   return new Date(`${value}T00:00:00`).toLocaleDateString()
 }
 
 function formatProfileNumber(value: number | null | undefined): string {
-  return value === null || value === undefined ? '—' : String(value)
+  return value === null || value === undefined ? EMPTY_FIELD_VALUE : String(value)
 }
 
 interface FormFieldProps {
@@ -512,16 +530,12 @@ export function EmployeeProfileManagePage() {
         </Alert>
       ) : null}
 
-      <section className="sticky top-16 z-20 mb-6 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm backdrop-blur">
-        <div className="mb-2 h-1 w-24 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-slate-900">Manage My Profile</h2>
-            <p className="text-sm text-slate-600">
-              Update your information and submit changes for HR approval.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Manage My Profile"
+        description="Update your information and submit changes for HR approval."
+        className="sticky top-16 z-20 mb-6"
+        actions={
+          <>
             <Button asChild variant="outline">
               <Link to={ROUTES.EMPLOYEE_PROFILE}>Cancel</Link>
             </Button>
@@ -529,7 +543,7 @@ export function EmployeeProfileManagePage() {
               type="button"
               onClick={() => void handleOpenConfirm()}
               disabled={!canSubmitApproval}
-              className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
+              className={BRAND_BUTTON_CLASS_NAME}
             >
               {submitRequestMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -538,13 +552,13 @@ export function EmployeeProfileManagePage() {
               )}
               {submitRequestMutation.isPending ? 'Sending...' : 'Submit for Approval'}
             </Button>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <UserRound className="h-4 w-4 text-slate-600" />
@@ -616,7 +630,7 @@ export function EmployeeProfileManagePage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lock className="h-4 w-4 text-slate-600" />
@@ -643,7 +657,7 @@ export function EmployeeProfileManagePage() {
                   value={formatProfileValue(employee.lieuNaissance)}
                 />
                 <ReadOnlyRow
-                  label="Nationalité"
+                  label="Nationality"
                   value={formatProfileValue(employee.nationalite)}
                 />
                 <ReadOnlyRow
@@ -660,7 +674,7 @@ export function EmployeeProfileManagePage() {
                 <ReadOnlyRow label="Employee ID" value={employee.matricule} />
                 <ReadOnlyRow label="Department" value={departmentName ?? employee.departementId} />
                 <ReadOnlyRow
-                  label="Catégorie professionnelle"
+                  label="Professional Category"
                   value={formatProfileValue(
                     getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
                   )}
@@ -673,8 +687,8 @@ export function EmployeeProfileManagePage() {
                   label="Hire Date"
                   value={formatProfileDate(employee.dateRecrutement)}
                 />
-                <ReadOnlyRow label="Diplôme" value={formatProfileValue(employee.diplome)} />
-                <ReadOnlyRow label="Spécialité" value={formatProfileValue(employee.specialite)} />
+                <ReadOnlyRow label="Degree" value={formatProfileValue(employee.diplome)} />
+                <ReadOnlyRow label="Specialization" value={formatProfileValue(employee.specialite)} />
               </div>
 
               <div className="rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2.5">
@@ -690,7 +704,7 @@ export function EmployeeProfileManagePage() {
             </CardContent>
           </Card>
 
-          <Card id="requests" className="rounded-2xl border-slate-200/80 shadow-sm scroll-mt-24">
+          <Card id="requests" className={`${SURFACE_CARD_CLASS_NAME} scroll-mt-24`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
@@ -749,7 +763,7 @@ export function EmployeeProfileManagePage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-slate-600" />
@@ -805,7 +819,7 @@ export function EmployeeProfileManagePage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle>Recent Requests</CardTitle>
               <CardDescription>Track your latest submitted modification requests.</CardDescription>
@@ -850,12 +864,9 @@ export function EmployeeProfileManagePage() {
                         <TableRow key={request.id}>
                           <TableCell>{REQUEST_FIELD_LABELS[request.champCible]}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant={getStatusVariant(request.statutDemande)}
-                              className={getStatusClassName(request.statutDemande)}
-                            >
-                              {request.statutDemande}
-                            </Badge>
+                            <StatusBadge tone={getStatusTone(request.statutDemande)}>
+                              {formatRequestStatus(request.statutDemande)}
+                            </StatusBadge>
                           </TableCell>
                           <TableCell>{new Date(request.createdAt).toLocaleDateString()}</TableCell>
                         </TableRow>

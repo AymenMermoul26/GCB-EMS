@@ -8,7 +8,8 @@ import {
   ErrorState,
   SectionSkeleton,
 } from '@/components/common/page-state'
-import { Badge } from '@/components/ui/badge'
+import { SURFACE_CARD_CLASS_NAME } from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getPublicProfileRoute } from '@/constants/routes'
@@ -41,20 +42,23 @@ function resolveQrStatus(token: TokenQR | null): MyQrStatus {
   return 'ACTIVE'
 }
 
-function statusBadge(status: MyQrStatus): { label: string; className?: string } {
+function statusBadge(status: MyQrStatus): {
+  label: string
+  tone: 'success' | 'warning' | 'danger' | 'neutral'
+} {
   if (status === 'ACTIVE') {
-    return { label: 'Active' }
+    return { label: 'Active', tone: 'success' }
   }
 
   if (status === 'EXPIRED') {
-    return { label: 'Expired', className: 'border-amber-300 text-amber-700' }
+    return { label: 'Expired', tone: 'warning' }
   }
 
   if (status === 'REVOKED') {
-    return { label: 'Revoked', className: 'border-destructive text-destructive' }
+    return { label: 'Revoked', tone: 'danger' }
   }
 
-  return { label: 'Not assigned' }
+  return { label: 'Not assigned', tone: 'neutral' }
 }
 
 function formatDate(value: string | null): string {
@@ -116,7 +120,7 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
   }
 
   return (
-    <Card className={cn('mt-4', className)}>
+    <Card className={cn(SURFACE_CARD_CLASS_NAME, 'mt-4', className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <QrCode className="h-4 w-4" />
@@ -141,9 +145,9 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
         {!tokenQuery.isPending && !tokenQuery.isError ? (
           <>
             <div className="flex flex-wrap items-center gap-3">
-              <Badge variant="outline" className={statusMeta.className}>
+              <StatusBadge tone={statusMeta.tone} emphasis="outline">
                 {statusMeta.label}
-              </Badge>
+              </StatusBadge>
               <p className="text-xs text-muted-foreground">
                 Expires: {formatDate(token?.expiresAt ?? null)}
               </p>

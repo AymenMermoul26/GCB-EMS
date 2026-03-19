@@ -1,13 +1,8 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import { FileText, Loader2, Mail, Printer, Send } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { FileText, Printer } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useForm } from 'react-hook-form'
-import { toast } from 'sonner'
-import { z } from 'zod'
+import { useEffect, useMemo, useState } from 'react'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -15,27 +10,14 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
-import { useSendEmployeeInformationSheetMutation } from '@/services/employeeSheetService'
 
-const COMPANY_NAME = 'LA SOCI\u00C9T\u00C9 NATIONALE DE G\u00C9NIE-CIVIL & B\u00C2TIMENT'
+const COMPANY_NAME = 'LA SOCIETE NATIONALE DE GENIE-CIVIL & BATIMENT'
 const APP_NAME = 'GCB Employee Management System'
-
-const sendSheetSchema = z.object({
-  recipientEmail: z.string().trim().email('Enter a valid recipient email address.'),
-  subject: z.string().trim().max(200, 'Subject must be 200 characters or fewer.'),
-  customMessage: z.string().trim().max(1000, 'Message must be 1000 characters or fewer.'),
-})
-
-type SendSheetFormValues = z.infer<typeof sendSheetSchema>
 
 interface EmployeeInformationSheetDialogProps {
   employee: {
@@ -196,38 +178,12 @@ export function EmployeeInformationSheetDialog({
   isLoading = false,
 }: EmployeeInformationSheetDialogProps) {
   const [open, setOpen] = useState(false)
-  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false)
   const [generatedAt, setGeneratedAt] = useState(() => formatDateTime(new Date().toISOString()))
 
-  const fullName = useMemo(
-    () => `${employee.prenom} ${employee.nom}`.replace(/\s+/g, ' ').trim(),
-    [employee.nom, employee.prenom],
+  const printableDocumentName = useMemo(
+    () => `employee-sheet-${employee.matricule || employee.id}`,
+    [employee.id, employee.matricule],
   )
-
-  const defaultSubject = useMemo(() => `Employee Information Sheet - ${fullName}`, [fullName])
-
-  const defaultMessage = useMemo(
-    () =>
-      `Please find below the employee information summary for ${fullName}. Use the secure application link in this message to review the full internal record.`,
-    [fullName],
-  )
-
-  const form = useForm<SendSheetFormValues>({
-    resolver: zodResolver(sendSheetSchema),
-    defaultValues: {
-      recipientEmail: '',
-      subject: defaultSubject,
-      customMessage: defaultMessage,
-    },
-  })
-
-  useEffect(() => {
-    form.reset({
-      recipientEmail: '',
-      subject: defaultSubject,
-      customMessage: defaultMessage,
-    })
-  }, [defaultMessage, defaultSubject, form])
 
   useEffect(() => {
     const handleAfterPrint = () => {
@@ -242,29 +198,9 @@ export function EmployeeInformationSheetDialog({
     }
   }, [])
 
-  const sendSheetMutation = useSendEmployeeInformationSheetMutation({
-    onSuccess: (data) => {
-      if (data.warning) {
-        toast.warning(data.warning)
-      }
-
-      toast.success('Employee information sheet sent.')
-      setIsEmailDialogOpen(false)
-      sendSheetMutation.reset()
-      form.reset({
-        recipientEmail: '',
-        subject: defaultSubject,
-        customMessage: defaultMessage,
-      })
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
-
   const handlePrint = () => {
     const previousTitle = document.title
-    document.title = `employee-sheet-${employee.matricule || employee.id}`
+    document.title = printableDocumentName
     document.body.classList.add('employee-sheet-printing')
 
     window.requestAnimationFrame(() => {
@@ -275,16 +211,6 @@ export function EmployeeInformationSheetDialog({
       }, 200)
     })
   }
-
-  const onSubmit = form.handleSubmit(async (values) => {
-    await sendSheetMutation.mutateAsync({
-      employeId: employee.id,
-      recipientEmail: values.recipientEmail,
-      subject: values.subject,
-      customMessage: values.customMessage,
-      appBaseUrl: window.location.origin,
-    })
-  })
 
   return (
     <>
@@ -349,7 +275,7 @@ export function EmployeeInformationSheetDialog({
           <DialogHeader>
             <DialogTitle>Employee Information Sheet</DialogTitle>
             <DialogDescription>
-              Preview the internal employee sheet, print it, or send a structured summary by email.
+              Preview the internal employee sheet and print or save it as PDF.
             </DialogDescription>
           </DialogHeader>
 
@@ -374,127 +300,15 @@ export function EmployeeInformationSheetDialog({
               <Card className="rounded-2xl border border-slate-200/80 bg-slate-50/60 shadow-none">
                 <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-slate-900">Version A delivery</p>
+                    <p className="text-sm font-medium text-slate-900">Export options</p>
                     <p className="text-sm text-slate-500">
-                      Email sends a structured summary and secure internal link only. No PDF attachment is generated server-side.
+                      Use your browser print dialog to print the sheet or save a PDF copy for internal use.
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={handlePrint}>
-                      <Printer className="mr-2 h-4 w-4" />
-                      Print / Save as PDF
-                    </Button>
-                    <Dialog
-                      open={isEmailDialogOpen}
-                      onOpenChange={(nextOpen) => {
-                        setIsEmailDialogOpen(nextOpen)
-                        if (!nextOpen) {
-                          sendSheetMutation.reset()
-                        }
-                      }}
-                    >
-                      <DialogTrigger asChild>
-                        <Button
-                          type="button"
-                          className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:brightness-95"
-                        >
-                          <Mail className="mr-2 h-4 w-4" />
-                          Send by Email
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-lg">
-                        <DialogHeader>
-                          <DialogTitle>Send employee information sheet</DialogTitle>
-                          <DialogDescription>
-                            The email will include a structured summary and a secure internal application link.
-                          </DialogDescription>
-                        </DialogHeader>
-
-                        <form className="space-y-4" onSubmit={onSubmit}>
-                          {sendSheetMutation.isError ? (
-                            <Alert variant="destructive">
-                              <AlertTitle>Email sending failed</AlertTitle>
-                              <AlertDescription>{sendSheetMutation.error.message}</AlertDescription>
-                            </Alert>
-                          ) : null}
-
-                          <div className="space-y-2">
-                            <Label htmlFor="sheet-recipient-email">Recipient email</Label>
-                            <Input
-                              id="sheet-recipient-email"
-                              type="email"
-                              placeholder="internal.service@company.com"
-                              disabled={sendSheetMutation.isPending}
-                              {...form.register('recipientEmail')}
-                            />
-                            {form.formState.errors.recipientEmail?.message ? (
-                              <p className="text-sm text-destructive">
-                                {form.formState.errors.recipientEmail.message}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="sheet-subject">Subject</Label>
-                            <Input
-                              id="sheet-subject"
-                              placeholder={defaultSubject}
-                              disabled={sendSheetMutation.isPending}
-                              {...form.register('subject')}
-                            />
-                            {form.formState.errors.subject?.message ? (
-                              <p className="text-sm text-destructive">
-                                {form.formState.errors.subject.message}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="sheet-custom-message">Custom message</Label>
-                            <Textarea
-                              id="sheet-custom-message"
-                              rows={5}
-                              disabled={sendSheetMutation.isPending}
-                              {...form.register('customMessage')}
-                            />
-                            {form.formState.errors.customMessage?.message ? (
-                              <p className="text-sm text-destructive">
-                                {form.formState.errors.customMessage.message}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <DialogFooter className="gap-2 sm:justify-between">
-                            <p className="text-xs text-slate-500">
-                              Secure link target: internal admin employee profile.
-                            </p>
-                            <div className="flex gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsEmailDialogOpen(false)}
-                                disabled={sendSheetMutation.isPending}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                type="submit"
-                                disabled={sendSheetMutation.isPending}
-                                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:brightness-95"
-                              >
-                                {sendSheetMutation.isPending ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Send className="mr-2 h-4 w-4" />
-                                )}
-                                {sendSheetMutation.isPending ? 'Sending...' : 'Send by Email'}
-                              </Button>
-                            </div>
-                          </DialogFooter>
-                        </form>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
+                  <Button type="button" variant="outline" onClick={handlePrint}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print / Save as PDF
+                  </Button>
                 </div>
               </Card>
             </div>

@@ -13,6 +13,9 @@
 import { type CSSProperties, type ReactNode, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { ErrorState } from '@/components/common/page-state'
+import { PageHeader } from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -875,21 +878,13 @@ export function AdminMonitoringPage() {
         title="Monitoring Dashboard"
         subtitle="Summarized technical view of tracked system activity."
       >
-        <Alert variant="destructive" className="rounded-2xl">
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Failed to load monitoring dashboard</AlertTitle>
-          <AlertDescription className="mt-2 flex flex-wrap items-center gap-3">
-            <span>{dashboardQuery.error.message}</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void dashboardQuery.refetch()}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          title="Failed to load monitoring dashboard"
+          description="We couldn't load technical monitoring right now."
+          message={dashboardQuery.error.message}
+          icon={ShieldAlert}
+          onRetry={() => void dashboardQuery.refetch()}
+        />
       </DashboardLayout>
     )
   }
@@ -906,44 +901,26 @@ export function AdminMonitoringPage() {
       subtitle="Summarized technical view of tracked system activity."
     >
       <div className="space-y-6">
-        <div className="sticky top-2 z-20 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
+        <PageHeader
+          title="Monitoring Dashboard"
+          description="Track recent audit, QR, email, and security-related signals without leaving the admin workspace."
+          className="sticky top-2 z-20"
+          badges={
+            <>
+              <StatusBadge tone="brand" className="gap-1.5">
                 <Activity className="h-3.5 w-3.5" />
                 Technical monitoring
-              </div>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                    Monitoring Dashboard
-                  </h2>
-                  <Badge variant="secondary" className="rounded-full">
-                    {dashboard.filteredEvents} visible
-                  </Badge>
-                  {category !== 'ALL' ? (
-                    <Badge variant="outline" className="rounded-full">
-                      {selectedCategoryLabel}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="max-w-3xl text-sm text-slate-600">
-                  Track recent audit, QR, email, and security-related signals without leaving the admin workspace.
-                </p>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                  <span>{dashboard.rangeLabel}</span>
-                  <span>•</span>
-                  <span>{dashboard.totalAvailableEvents} total events in scope</span>
-                  <span>•</span>
-                  <span>
-                    {dashboardQuery.isFetching ? 'Refreshing live data...' : 'Auto-refresh every minute'}
-                  </span>
-                </div>
-              </div>
-              <div className="h-1.5 w-24 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:flex">
+              </StatusBadge>
+              <StatusBadge tone="neutral">{dashboard.filteredEvents} visible</StatusBadge>
+              {category !== 'ALL' ? (
+                <StatusBadge tone="info" emphasis="outline">
+                  {selectedCategoryLabel}
+                </StatusBadge>
+              ) : null}
+            </>
+          }
+          actions={
+            <>
               <Select value={period} onValueChange={(value) => setPeriod(value as MonitoringPeriod)}>
                 <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Period" />
@@ -999,9 +976,19 @@ export function AdminMonitoringPage() {
                 <FileClock className="mr-2 h-4 w-4" />
                 Audit Log
               </Button>
-            </div>
+            </>
+          }
+        >
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span>{dashboard.rangeLabel}</span>
+            <span>•</span>
+            <span>{dashboard.totalAvailableEvents} total events in scope</span>
+            <span>•</span>
+            <span>
+              {dashboardQuery.isFetching ? 'Refreshing live data...' : 'Auto-refresh every minute'}
+            </span>
           </div>
-        </div>
+        </PageHeader>
 
         {dashboard.filteredEvents === 0 ? (
           <Alert className="rounded-2xl border border-slate-200 bg-slate-50 text-slate-800">
@@ -1141,14 +1128,14 @@ export function AdminMonitoringPage() {
             <CardHeader className="space-y-2">
               <CardTitle className="text-base font-semibold">Email activity</CardTitle>
               <CardDescription>
-                Invite and information-sheet delivery activity tracked by backend audit events.
+                Invite delivery activity tracked by backend audit events.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <MetricBars
                 items={dashboard.emailActivity}
                 emptyTitle="No email events"
-                emptyDescription="Tracked invite and information-sheet email activity will appear here."
+                emptyDescription="Tracked invite email activity will appear here."
               />
               <div className="border-t border-slate-200 pt-5">
                 <RecentInviteActivityList

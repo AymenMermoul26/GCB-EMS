@@ -137,18 +137,6 @@ const ACTION_META: Record<string, MonitoringActionMeta> = {
     critical: true,
     failed: true,
   },
-  EMPLOYEE_SHEET_SENT: {
-    label: 'Information Sheet Sent',
-    categoryKey: 'email',
-    tone: 'orange',
-  },
-  EMPLOYEE_SHEET_SEND_FAILED: {
-    label: 'Information Sheet Failed',
-    categoryKey: 'email',
-    tone: 'rose',
-    critical: true,
-    failed: true,
-  },
   VISIBILITY_UPDATED: {
     label: 'Visibility Updated',
     categoryKey: 'visibility',

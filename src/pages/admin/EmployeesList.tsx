@@ -25,6 +25,8 @@ import {
   PageStateSkeleton,
   SearchEmptyState,
 } from '@/components/common/page-state'
+import { BRAND_BUTTON_CLASS_NAME, PageHeader } from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +37,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -136,12 +137,6 @@ function getInitials(employee: Employee) {
 
 function isEmptyValue(value: string | null | undefined) {
   return !value || value.trim().length === 0
-}
-
-function getEmployeeStatusBadgeClass(isActive: boolean): string {
-  return isActive
-    ? 'bg-emerald-50 text-emerald-700'
-    : 'border-slate-300 bg-slate-200/70 text-slate-700'
 }
 
 export function EmployeesListPage() {
@@ -367,182 +362,172 @@ export function EmployeesListPage() {
       title="Employees"
       subtitle="Employee directory and management workspace."
     >
-      <div className="sticky top-2 z-10 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Employees</h2>
-              <Badge variant="secondary" className="rounded-full px-3">
-                {total}
-              </Badge>
+      <PageHeader
+        title="Employees"
+        description="Manage employees, visibility, and QR tokens."
+        className="sticky top-2 z-10 mb-6"
+        badges={<StatusBadge tone="neutral">{total} total</StatusBadge>}
+        actionsClassName="xl:max-w-3xl"
+        actions={
+          <>
+            <div className="relative min-w-[250px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search employees"
+                value={searchInput}
+                onChange={(event) => {
+                  setSearchInput(event.target.value)
+                  setPage(1)
+                }}
+                placeholder="Search by name, employee ID, or email..."
+                className="pl-9"
+              />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Manage employees, visibility, and QR tokens.
-            </p>
-            <div className="h-1.5 w-24 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-          </div>
 
-          <div className="flex w-full flex-col gap-3 xl:max-w-3xl xl:items-end">
-            <div className="flex w-full flex-wrap items-center gap-2">
-              <div className="relative min-w-[250px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  aria-label="Search employees"
-                  value={searchInput}
-                  onChange={(event) => {
-                    setSearchInput(event.target.value)
-                    setPage(1)
-                  }}
-                  placeholder="Search by name, matricule, email..."
-                  className="pl-9"
-                />
-              </div>
+            <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" aria-label="Open filters">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filters
+                  {hasActiveFilters ? (
+                    <span className="ml-2 inline-flex h-2.5 w-2.5 rounded-full bg-[#ff6b35]" />
+                  ) : null}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Filter employees</DialogTitle>
+                  <DialogDescription>
+                    Narrow down results by department and active status.
+                  </DialogDescription>
+                </DialogHeader>
 
-              <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button type="button" variant="outline" aria-label="Open filters">
-                    <Filter className="mr-2 h-4 w-4" />
-                    Filters
-                    {hasActiveFilters ? (
-                      <span className="ml-2 inline-flex h-2.5 w-2.5 rounded-full bg-[#ff6b35]" />
-                    ) : null}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Filter employees</DialogTitle>
-                    <DialogDescription>
-                      Narrow down results by department and active status.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Department</p>
-                      <Select
-                        value={departmentFilter}
-                        onValueChange={(value) => {
-                          setDepartmentFilter(value)
-                          setPage(1)
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select department" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All departments</SelectItem>
-                          {(departmentsQuery.data ?? []).map((department) => (
-                            <SelectItem key={department.id} value={department.id}>
-                              {department.nom}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Status</p>
-                      <Select
-                        value={statusFilter}
-                        onValueChange={(value: StatusFilter) => {
-                          setStatusFilter(value)
-                          setPage(1)
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All statuses</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Page size</p>
-                      <Select
-                        value={String(pageSize)}
-                        onValueChange={(value) => {
-                          setPageSize(Number(value))
-                          setPage(1)
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select page size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Department</p>
+                    <Select
+                      value={departmentFilter}
+                      onValueChange={(value) => {
+                        setDepartmentFilter(value)
+                        setPage(1)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All departments</SelectItem>
+                        {(departmentsQuery.data ?? []).map((department) => (
+                          <SelectItem key={department.id} value={department.id}>
+                            {department.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  <DialogFooter className="mt-2 gap-2 sm:justify-between">
-                    <Button type="button" variant="outline" onClick={handleClearFilters}>
-                      Clear filters
-                    </Button>
-                    <Button type="button" onClick={() => setIsFilterDialogOpen(false)}>
-                      Apply filters
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Status</p>
+                    <Select
+                      value={statusFilter}
+                      onValueChange={(value: StatusFilter) => {
+                        setStatusFilter(value)
+                        setPage(1)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleExportCsv}
-                disabled={exporting || employeesQuery.isPending}
-              >
-                <FileDown className="mr-2 h-4 w-4" />
-                {exporting ? 'Exporting...' : 'Export CSV'}
-              </Button>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Page size</p>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(value) => {
+                        setPageSize(Number(value))
+                        setPage(1)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select page size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-              <Button
-                type="button"
-                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
-                onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Employee
-              </Button>
-            </div>
+                <DialogFooter className="mt-2 gap-2 sm:justify-between">
+                  <Button type="button" variant="outline" onClick={handleClearFilters}>
+                    Clear filters
+                  </Button>
+                  <Button type="button" onClick={() => setIsFilterDialogOpen(false)}>
+                    Apply filters
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
-            <div className="flex w-full items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
-                Showing {from}-{to} of {total}
-                {employeesQuery.isFetching ? ' (updating...)' : ''}
-              </p>
-              <div className="inline-flex items-center rounded-xl border bg-slate-50 p-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                  className={viewMode === 'grid' ? 'bg-slate-900 text-white hover:bg-slate-800' : ''}
-                  onClick={() => setViewMode('grid')}
-                >
-                  <LayoutGrid className="mr-2 h-4 w-4" />
-                  Grid
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={viewMode === 'table' ? 'default' : 'ghost'}
-                  className={viewMode === 'table' ? 'bg-slate-900 text-white hover:bg-slate-800' : ''}
-                  onClick={() => setViewMode('table')}
-                >
-                  <List className="mr-2 h-4 w-4" />
-                  Table
-                </Button>
-              </div>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportCsv}
+              disabled={exporting || employeesQuery.isPending}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              {exporting ? 'Exporting...' : 'Export CSV'}
+            </Button>
+
+            <Button
+              type="button"
+              className={BRAND_BUTTON_CLASS_NAME}
+              onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Employee
+            </Button>
+          </>
+        }
+      >
+        <div className="flex w-full items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Showing {from}-{to} of {total}
+            {employeesQuery.isFetching ? ' (updating...)' : ''}
+          </p>
+          <div className="inline-flex items-center rounded-xl border bg-slate-50 p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              className={viewMode === 'grid' ? 'bg-slate-900 text-white hover:bg-slate-800' : ''}
+              onClick={() => setViewMode('grid')}
+            >
+              <LayoutGrid className="mr-2 h-4 w-4" />
+              Grid
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={viewMode === 'table' ? 'default' : 'ghost'}
+              className={viewMode === 'table' ? 'bg-slate-900 text-white hover:bg-slate-800' : ''}
+              onClick={() => setViewMode('table')}
+            >
+              <List className="mr-2 h-4 w-4" />
+              Table
+            </Button>
           </div>
         </div>
-      </div>
+      </PageHeader>
 
       {employeesQuery.isError ? (
         <ErrorState
@@ -571,7 +556,7 @@ export function EmployeesListPage() {
                     Clear filters
                   </Button>
                   <Button
-                    className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95"
+                    className={BRAND_BUTTON_CLASS_NAME}
                     onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
                   >
                     Add Employee
@@ -654,12 +639,9 @@ export function EmployeesListPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge
-                        variant={employee.isActive ? 'secondary' : 'outline'}
-                        className={getEmployeeStatusBadgeClass(employee.isActive)}
-                      >
+                      <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
                         {employee.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                      </StatusBadge>
                     </div>
 
                     <div
@@ -842,12 +824,9 @@ export function EmployeesListPage() {
                         {formatDepartmentName(departmentNameById, employee.departementId)}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={employee.isActive ? 'secondary' : 'outline'}
-                          className={getEmployeeStatusBadgeClass(employee.isActive)}
-                        >
+                        <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
                           {employee.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
+                        </StatusBadge>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">

@@ -6,7 +6,6 @@ export type AuditAction =
   | 'EMPLOYEE_INVITE_SENT'
   | 'EMPLOYEE_INVITE_FAILED'
   | 'EMPLOYEE_SELF_UPDATED'
-  | 'EMPLOYEE_SHEET_SEND_FAILED'
   | 'REQUEST_SUBMITTED'
   | 'REQUEST_APPROVED'
   | 'REQUEST_REJECTED'
@@ -16,7 +15,6 @@ export type AuditAction =
   | 'QR_REFRESH_COMPLETED'
   | 'VISIBILITY_UPDATED'
   | 'QR_REFRESH_REQUIRED_CREATED'
-  | 'EMPLOYEE_SHEET_SENT'
 
 export interface AuditLogItem {
   id: string

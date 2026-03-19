@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -102,9 +102,12 @@ export function NotificationsMenu() {
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 ? (
-          <Badge className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] px-1 text-[10px] text-white">
+          <StatusBadge
+            tone="brand"
+            className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-[10px] text-white"
+          >
             {unreadCount > 99 ? '99+' : unreadCount}
-          </Badge>
+          </StatusBadge>
         ) : null}
       </Button>
 
@@ -118,9 +121,9 @@ export function NotificationsMenu() {
               </div>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 ? (
-                  <Badge className="rounded-full border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white">
+                  <StatusBadge tone="brand" className="rounded-full text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
-                  </Badge>
+                  </StatusBadge>
                 ) : null}
                 <Button
                   type="button"
@@ -232,12 +235,13 @@ export function NotificationsMenu() {
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
-                        <Badge
-                          variant={notification.isRead ? 'secondary' : 'outline'}
-                          className={cn(!notification.isRead && 'border-[#ff6b35] text-[#ff6b35]', 'text-[10px]')}
+                        <StatusBadge
+                          tone={notification.isRead ? 'neutral' : 'brand'}
+                          emphasis={notification.isRead ? 'soft' : 'outline'}
+                          className="text-[10px]"
                         >
                           {notification.isRead ? 'Read' : 'Unread'}
-                        </Badge>
+                        </StatusBadge>
                         {!notification.isRead ? (
                           <Button
                             type="button"

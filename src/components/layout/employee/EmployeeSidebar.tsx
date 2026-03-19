@@ -18,7 +18,7 @@ import {
 import { Link, useLocation } from 'react-router-dom'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -407,9 +407,9 @@ function EmployeeSidebarContent({
         )}
 
         <div className={cn('flex items-center justify-between', compactMode && 'justify-center')}>
-          <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
+          <StatusBadge tone="neutral" emphasis="outline" className="bg-white">
             Employee
-          </Badge>
+          </StatusBadge>
           {employeeQuery.isError ? (
             <span className="text-[11px] text-muted-foreground">Profile unavailable</span>
           ) : null}

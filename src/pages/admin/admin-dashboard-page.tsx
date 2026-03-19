@@ -18,6 +18,8 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { BRAND_BUTTON_CLASS_NAME, PageHeader } from '@/components/common/page-header'
+import { ErrorState } from '@/components/common/page-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -127,10 +129,6 @@ function getActivityLabel(action: string): string {
       return 'Invite delivery failed'
     case 'EMPLOYEE_SELF_UPDATED':
       return 'Employee self-updated'
-    case 'EMPLOYEE_SHEET_SENT':
-      return 'Information sheet sent'
-    case 'EMPLOYEE_SHEET_SEND_FAILED':
-      return 'Information sheet failed'
     case 'REQUEST_SUBMITTED':
       return 'Request submitted'
     case 'REQUEST_APPROVED':
@@ -161,7 +159,6 @@ function getActivityBadgeClass(action: string): string {
     case 'VISIBILITY_UPDATED':
       return 'border-transparent bg-emerald-100 text-emerald-700'
     case 'EMPLOYEE_INVITE_SENT':
-    case 'EMPLOYEE_SHEET_SENT':
       return 'border-transparent bg-orange-100 text-orange-700'
     case 'QR_GENERATED':
     case 'QR_REGENERATED':
@@ -170,7 +167,6 @@ function getActivityBadgeClass(action: string): string {
     case 'REQUEST_REJECTED':
     case 'EMPLOYEE_DEACTIVATED':
     case 'EMPLOYEE_INVITE_FAILED':
-    case 'EMPLOYEE_SHEET_SEND_FAILED':
     case 'QR_REVOKED':
       return 'border-transparent bg-rose-100 text-rose-700'
     case 'REQUEST_SUBMITTED':
@@ -509,21 +505,13 @@ export function AdminDashboardPage() {
   if (dashboardQuery.isError && !dashboard) {
     return (
       <DashboardLayout title="Dashboard" subtitle="Operational overview for HR administration.">
-        <Alert variant="destructive" className="rounded-2xl">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Failed to load dashboard</AlertTitle>
-          <AlertDescription className="mt-2 flex flex-wrap items-center gap-3">
-            <span>{dashboardQuery.error.message}</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void dashboardQuery.refetch()}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          title="Failed to load dashboard"
+          description="We couldn't load the HR dashboard right now."
+          message={dashboardQuery.error.message}
+          icon={AlertTriangle}
+          onRetry={() => void dashboardQuery.refetch()}
+        />
       </DashboardLayout>
     )
   }
@@ -535,26 +523,17 @@ export function AdminDashboardPage() {
   return (
     <DashboardLayout title="Dashboard" subtitle="Operational overview for HR administration.">
       <div className="space-y-6">
-        <Card className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
-                <LayoutDashboard className="h-3.5 w-3.5" />
-                Admin command center
-              </div>
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                  System dashboard
-                </h2>
-                <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                  Track workforce activity, pending operations, and the administrative items
-                  that need attention.
-                </p>
-              </div>
-              <div className="h-1.5 w-24 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
+        <PageHeader
+          title="System Dashboard"
+          description="Track workforce activity, pending operations, and the administrative items that need attention."
+          badges={
+            <Badge className="border-transparent bg-orange-100 text-orange-700">
+              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" />
+              Admin command center
+            </Badge>
+          }
+          actions={
+            <>
               <Button
                 type="button"
                 variant="outline"
@@ -568,15 +547,15 @@ export function AdminDashboardPage() {
               </Button>
               <Button
                 type="button"
-                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                className={BRAND_BUTTON_CLASS_NAME}
                 onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Employee
               </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </>
+          }
+        />
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[

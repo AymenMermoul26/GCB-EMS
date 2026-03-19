@@ -21,6 +21,8 @@ import {
   ErrorState,
   SearchEmptyState,
 } from '@/components/common/page-state'
+import { PageHeader } from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +33,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -85,16 +86,16 @@ import { REQUEST_FIELD_LABELS, toEmployeeUpdatePayload } from '@/utils/modificat
 
 type StatusFilter = DemandeStatut | 'ALL'
 
-function getStatusClassName(status: DemandeStatut): string {
+function getStatusTone(status: DemandeStatut): 'warning' | 'success' | 'danger' {
   if (status === 'EN_ATTENTE') {
-    return 'border-transparent bg-amber-100 text-amber-800'
+    return 'warning'
   }
 
   if (status === 'ACCEPTEE') {
-    return 'border-transparent bg-emerald-100 text-emerald-800'
+    return 'success'
   }
 
-  return 'border-transparent bg-rose-100 text-rose-800'
+  return 'danger'
 }
 
 function getStatusLabel(status: DemandeStatut): string {
@@ -370,24 +371,18 @@ export function AdminRequestsPage() {
       title="Modification Requests"
       subtitle="Review and process employee profile change requests."
     >
-      <div className="sticky top-2 z-20 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Modification Requests</h1>
-              <Badge variant="secondary" className="rounded-full">
-                Total {total}
-              </Badge>
-              <Badge className="rounded-full border-transparent bg-amber-500 text-white">
-                Pending {pendingCount}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Review and approve/reject employee profile changes.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+      <PageHeader
+        title="Modification Requests"
+        description="Review and approve or reject employee profile changes."
+        className="sticky top-2 z-20 mb-6"
+        badges={
+          <>
+            <StatusBadge tone="neutral">Total {total}</StatusBadge>
+            <StatusBadge tone="warning">Pending {pendingCount}</StatusBadge>
+          </>
+        }
+        actions={
+          <>
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -396,7 +391,7 @@ export function AdminRequestsPage() {
                   setSearchInput(event.target.value)
                   setPage(1)
                 }}
-                placeholder="Search by employee name, matricule..."
+                placeholder="Search by employee name or employee ID..."
                 className="pl-9"
                 aria-label="Search requests"
               />
@@ -418,12 +413,14 @@ export function AdminRequestsPage() {
               onClick={() => void requestsQuery.refetch()}
               disabled={requestsQuery.isFetching}
             >
-              <RefreshCw className={`mr-2 h-4 w-4 ${requestsQuery.isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${requestsQuery.isFetching ? 'animate-spin' : ''}`}
+              />
               Refresh
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {requestsQuery.isError ? (
         <ErrorState
@@ -535,9 +532,9 @@ export function AdminRequestsPage() {
                           </p>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusClassName(request.statutDemande)}>
+                          <StatusBadge tone={getStatusTone(request.statutDemande)}>
                             {getStatusLabel(request.statutDemande)}
-                          </Badge>
+                          </StatusBadge>
                         </TableCell>
                         <TableCell>{new Date(request.createdAt).toLocaleString()}</TableCell>
                         <TableCell onClick={(event) => event.stopPropagation()}>
@@ -630,9 +627,9 @@ export function AdminRequestsPage() {
             <Bell className="h-4 w-4" />
             My Notifications
             {(unreadNotificationsCountQuery.data ?? 0) > 0 ? (
-              <Badge className="border-transparent bg-red-600 text-white">
+              <StatusBadge tone="danger">
                 {unreadNotificationsCountQuery.data}
-              </Badge>
+              </StatusBadge>
             ) : null}
           </CardTitle>
         </CardHeader>
@@ -674,7 +671,7 @@ export function AdminRequestsPage() {
                           Mark read
                         </Button>
                       ) : (
-                        <Badge variant="secondary">Read</Badge>
+                        <StatusBadge tone="neutral">Read</StatusBadge>
                       )}
                     </div>
                   </div>
@@ -786,9 +783,9 @@ export function AdminRequestsPage() {
                 </DialogTitle>
                 <DialogDescription className="flex items-center gap-2">
                   <span>{selectedRequest.employeMatricule ?? selectedRequest.employeId}</span>
-                  <Badge className={getStatusClassName(selectedRequest.statutDemande)}>
+                  <StatusBadge tone={getStatusTone(selectedRequest.statutDemande)}>
                     {getStatusLabel(selectedRequest.statutDemande)}
-                  </Badge>
+                  </StatusBadge>
                 </DialogDescription>
               </DialogHeader>
 

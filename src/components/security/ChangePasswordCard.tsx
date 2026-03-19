@@ -5,6 +5,10 @@ import { type UseFormRegisterReturn, useForm } from 'react-hook-form'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import {
+  BRAND_BUTTON_CLASS_NAME,
+  SURFACE_CARD_CLASS_NAME,
+} from '@/components/common/page-header'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -156,9 +160,9 @@ export function ChangePasswordCard({
   }
 
   return (
-    <Card id={anchorId} className={cn(className)}>
+    <Card id={anchorId} className={cn(SURFACE_CARD_CLASS_NAME, className)}>
       <CardHeader>
-        <CardTitle>{effectiveTitle}</CardTitle>
+        <CardTitle className="text-base font-semibold">{effectiveTitle}</CardTitle>
         <p className="text-sm text-muted-foreground">{effectiveDescription}</p>
         <p className="text-xs text-muted-foreground">
           Password must be at least 8 characters and different from your current password.
@@ -204,7 +208,7 @@ export function ChangePasswordCard({
             <Button
               type="submit"
               disabled={isSubmitting || !isValidAndDirty}
-              className="w-full border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
+              className={cn('w-full', BRAND_BUTTON_CLASS_NAME)}
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -252,7 +256,7 @@ export function ChangePasswordCard({
             <Button
               type="submit"
               disabled={isSubmitting || !isValidAndDirty}
-              className="w-full border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
+              className={cn('w-full', BRAND_BUTTON_CLASS_NAME)}
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

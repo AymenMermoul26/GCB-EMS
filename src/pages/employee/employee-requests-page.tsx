@@ -20,7 +20,12 @@ import {
   ErrorState,
   SearchEmptyState,
 } from '@/components/common/page-state'
-import { Badge } from '@/components/ui/badge'
+import {
+  BRAND_BUTTON_CLASS_NAME,
+  PageHeader,
+  SURFACE_CARD_CLASS_NAME,
+} from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -61,13 +66,13 @@ type StatusFilter = 'ALL' | DemandeStatut
 function getStatusMeta(status: DemandeStatut): {
   label: string
   icon: typeof Clock3
-  className: string
+  tone: 'success' | 'warning' | 'danger'
 } {
   if (status === 'ACCEPTEE') {
     return {
       label: 'Approved',
       icon: CheckCircle2,
-      className: 'border-emerald-300 text-emerald-700',
+      tone: 'success',
     }
   }
 
@@ -75,14 +80,14 @@ function getStatusMeta(status: DemandeStatut): {
     return {
       label: 'Rejected',
       icon: XCircle,
-      className: 'border-destructive text-destructive',
+      tone: 'danger',
     }
   }
 
   return {
     label: 'Pending',
     icon: Clock3,
-    className: 'border-amber-300 text-amber-700',
+    tone: 'warning',
   }
 }
 
@@ -158,25 +163,22 @@ export function EmployeeRequestsPage() {
       title="My Requests"
       subtitle="Track the status of your profile change submissions."
     >
-      <section className="sticky top-16 z-20 mb-6 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm backdrop-blur">
-        <div className="mb-2 h-1 w-24 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold text-slate-900">My Requests</h2>
-              <Badge variant="outline" className="border-slate-300 text-slate-700">
-                Total {requestsQuery.data?.total ?? requests.length}
-              </Badge>
-              <Badge className="border-amber-300 bg-amber-50 text-amber-700">
-                Pending {pendingCount}
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-slate-600">
-              Track the status of your profile change submissions.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+      <PageHeader
+        title="My Requests"
+        description="Track the status of your profile change submissions."
+        className="sticky top-16 z-20 mb-6"
+        badges={
+          <>
+            <StatusBadge tone="neutral" emphasis="outline">
+              Total {requestsQuery.data?.total ?? requests.length}
+            </StatusBadge>
+            <StatusBadge tone="warning" emphasis="outline">
+              Pending {pendingCount}
+            </StatusBadge>
+          </>
+        }
+        actions={
+          <>
             <div className="relative min-w-[220px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -201,15 +203,12 @@ export function EmployeeRequestsPage() {
                 <SelectItem value="REJETEE">Rejected</SelectItem>
               </SelectContent>
             </Select>
-            <Button
-              asChild
-              className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
-            >
+            <Button asChild className={BRAND_BUTTON_CLASS_NAME}>
               <Link to={`${ROUTES.EMPLOYEE_PROFILE_MANAGE}#requests`}>New Request</Link>
             </Button>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <Alert className="mb-4 border-slate-200 bg-slate-50">
         <AlertTitle>Review Workflow</AlertTitle>
@@ -218,7 +217,7 @@ export function EmployeeRequestsPage() {
         </AlertDescription>
       </Alert>
 
-      <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+      <Card className={SURFACE_CARD_CLASS_NAME}>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Request History</CardTitle>
           <CardDescription>
@@ -315,10 +314,10 @@ export function EmployeeRequestsPage() {
                               </p>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={statusMeta.className}>
+                              <StatusBadge tone={statusMeta.tone} emphasis="outline">
                                 <StatusIcon className="mr-1 h-3.5 w-3.5" />
                                 {statusMeta.label}
-                              </Badge>
+                              </StatusBadge>
                             </TableCell>
                             <TableCell>{formatDateTime(request.traiteAt)}</TableCell>
                             <TableCell className="text-right">
@@ -360,10 +359,10 @@ export function EmployeeRequestsPage() {
                               {buildRequestSummary(request)}
                             </p>
                           </div>
-                          <Badge variant="outline" className={statusMeta.className}>
+                          <StatusBadge tone={statusMeta.tone} emphasis="outline">
                             <StatusIcon className="mr-1 h-3.5 w-3.5" />
                             {statusMeta.label}
-                          </Badge>
+                          </StatusBadge>
                         </div>
                       </button>
                     )
@@ -382,9 +381,12 @@ export function EmployeeRequestsPage() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   Request Details
-                  <Badge variant="outline" className={getStatusMeta(selectedRequest.statutDemande).className}>
+                  <StatusBadge
+                    tone={getStatusMeta(selectedRequest.statutDemande).tone}
+                    emphasis="outline"
+                  >
                     {getStatusMeta(selectedRequest.statutDemande).label}
-                  </Badge>
+                  </StatusBadge>
                 </DialogTitle>
                 <DialogDescription>
                   Submitted on {formatDateTime(selectedRequest.createdAt)}

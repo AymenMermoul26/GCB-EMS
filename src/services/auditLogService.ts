@@ -34,6 +34,8 @@ interface ModificationRequestLookupRow {
   id: string
 }
 
+const EXCLUDED_AUDIT_ACTIONS_FILTER = '(EMPLOYEE_SHEET_SENT,EMPLOYEE_SHEET_SEND_FAILED)'
+
 function paginate(page = 1, pageSize = 20) {
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -136,7 +138,6 @@ function toEndOfDay(date: string): string {
 function toDetailsPreview(action: string, detailsJson: Record<string, unknown>): string {
   const matricule = readText(detailsJson.matricule)
   const recipientEmail = readText(detailsJson.recipient_email)
-  const subject = readText(detailsJson.subject)
   const fieldKey = readText(detailsJson.field_key)
   const triggerSource = readText(detailsJson.trigger_source)
   const failureReason = readText(detailsJson.failure_reason)
@@ -182,16 +183,6 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return changedFields.length > 0
         ? `Employee updated: ${changedFields.map(formatFieldLabel).join(', ')}.`
         : 'Employee submitted direct profile updates.'
-    case 'EMPLOYEE_SHEET_SEND_FAILED':
-      if (recipientEmail && failureReason) {
-        return `Information sheet email to ${recipientEmail} failed: ${failureReason}`
-      }
-      if (recipientEmail) {
-        return `Information sheet email to ${recipientEmail} failed.`
-      }
-      return failureReason
-        ? `Information sheet email failed: ${failureReason}`
-        : 'Information sheet email failed.'
     case 'REQUEST_SUBMITTED':
       return changedFields.length > 0
         ? `Request submitted for ${changedFields.map(formatFieldLabel).join(', ')}.`
@@ -249,14 +240,6 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return fieldKey
         ? `${formatFieldLabel(fieldKey)} visibility set to ${isPublic ? 'public' : 'private'}.`
         : 'Updated public profile visibility.'
-    case 'EMPLOYEE_SHEET_SENT':
-      if (recipientEmail && subject) {
-        return `Sent employee information sheet to ${recipientEmail} with subject "${subject}".`
-      }
-      if (recipientEmail) {
-        return `Sent employee information sheet to ${recipientEmail}.`
-      }
-      return 'Sent an employee information sheet by email.'
     default: {
       const summaryEntries = Object.entries(detailsJson)
         .filter(([, value]) => value !== null && value !== undefined && value !== '')
@@ -357,6 +340,7 @@ export async function listLogs(
     .select('id, actor_user_id, action, target_type, target_id, details_json, created_at', {
       count: 'exact',
     })
+    .not('action', 'in', EXCLUDED_AUDIT_ACTIONS_FILTER)
     .order('created_at', { ascending: false })
 
   if (params.action && params.action !== 'ALL') {

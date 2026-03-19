@@ -55,6 +55,7 @@ interface TimelineBucket {
 }
 
 const AUDIT_FETCH_BATCH_SIZE = 500
+const EXCLUDED_AUDIT_ACTIONS_FILTER = '(EMPLOYEE_SHEET_SENT,EMPLOYEE_SHEET_SEND_FAILED)'
 
 const QR_ACTIVITY_CONFIG = [
   {
@@ -100,18 +101,6 @@ const EMAIL_ACTIVITY_CONFIG = [
     key: 'EMPLOYEE_INVITE_FAILED',
     label: 'Invite Failures',
     helper: 'Invite email attempts that failed',
-    tone: 'rose',
-  },
-  {
-    key: 'EMPLOYEE_SHEET_SENT',
-    label: 'Sheets Sent',
-    helper: 'Employee information sheets sent',
-    tone: 'orange',
-  },
-  {
-    key: 'EMPLOYEE_SHEET_SEND_FAILED',
-    label: 'Sheet Failures',
-    helper: 'Information sheet sends that failed',
     tone: 'rose',
   },
 ] as const
@@ -317,6 +306,7 @@ async function listAuditRowsInRange(
     const { data, error } = await supabase
       .from('audit_log')
       .select('id, actor_user_id, action, target_type, target_id, details_json, created_at')
+      .not('action', 'in', EXCLUDED_AUDIT_ACTIONS_FILTER)
       .gte('created_at', startAt)
       .lte('created_at', endAt)
       .order('created_at', { ascending: false })
@@ -506,7 +496,6 @@ function buildTopActions(rows: MonitoringAuditRow[]): MonitoringTopActionItem[] 
 
 function buildAttentionItems(rows: MonitoringAuditRow[]): MonitoringInsightItem[] {
   const failedEmailCount = rows.filter((row) => row.action === 'EMPLOYEE_INVITE_FAILED').length
-  const failedSheetCount = rows.filter((row) => row.action === 'EMPLOYEE_SHEET_SEND_FAILED').length
   const qrRefreshRequiredCount = rows.filter(
     (row) => row.action === 'QR_REFRESH_REQUIRED_CREATED',
   ).length
@@ -524,16 +513,6 @@ function buildAttentionItems(rows: MonitoringAuditRow[]): MonitoringInsightItem[
       title: 'Invite email failures',
       description: 'Invite delivery failures recorded in the selected window.',
       count: failedEmailCount,
-      tone: 'danger',
-    })
-  }
-
-  if (failedSheetCount > 0) {
-    items.push({
-      id: 'failed-sheets',
-      title: 'Information sheet failures',
-      description: 'Employee sheet delivery attempts that need review.',
-      count: failedSheetCount,
       tone: 'danger',
     })
   }
@@ -583,7 +562,6 @@ function buildAttentionItems(rows: MonitoringAuditRow[]): MonitoringInsightItem[
 
 function buildDetailsPreview(action: string, detailsJson: Record<string, unknown>): string {
   const recipientEmail = readText(detailsJson.recipient_email)
-  const subject = readText(detailsJson.subject)
   const matricule = readText(detailsJson.matricule)
   const triggerSource = readText(detailsJson.trigger_source)
   const failureReason = readText(detailsJson.failure_reason)
@@ -641,20 +619,6 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
       return recipientEmail
         ? `Invite email to ${recipientEmail} failed.`
         : 'Employee invite email failed.'
-    case 'EMPLOYEE_SHEET_SENT':
-      if (recipientEmail && subject) {
-        return `Sent an employee information sheet to ${recipientEmail} with subject "${subject}".`
-      }
-      return recipientEmail
-        ? `Sent an employee information sheet to ${recipientEmail}.`
-        : 'Sent an employee information sheet.'
-    case 'EMPLOYEE_SHEET_SEND_FAILED':
-      if (recipientEmail && failureReason) {
-        return `Information sheet email to ${recipientEmail} failed: ${failureReason}`
-      }
-      return recipientEmail
-        ? `Information sheet email to ${recipientEmail} failed.`
-        : 'Information sheet email failed.'
     case 'VISIBILITY_UPDATED':
       return fieldKey
         ? `${formatFieldLabel(fieldKey)} visibility was updated.`

@@ -8,7 +8,8 @@ import {
   ErrorState,
   SearchEmptyState,
 } from '@/components/common/page-state'
-import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -178,24 +179,18 @@ export function NotificationsPage() {
       title="Notifications"
       subtitle="System updates, workflow alerts, and employee changes."
     >
-      <div className="sticky top-2 z-20 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Notifications</h1>
-              <Badge variant="secondary" className="rounded-full">
-                Total {totalCount}
-              </Badge>
-              <Badge className="rounded-full border-transparent bg-amber-500 text-white">
-                Unread {unreadCount}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              System updates, workflow alerts, and employee changes.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+      <PageHeader
+        title="Notifications"
+        description="System updates, workflow alerts, and employee changes."
+        className="sticky top-2 z-20 mb-6"
+        badges={
+          <>
+            <StatusBadge tone="neutral">Total {totalCount}</StatusBadge>
+            <StatusBadge tone="warning">Unread {unreadCount}</StatusBadge>
+          </>
+        }
+        actions={
+          <>
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -239,12 +234,14 @@ export function NotificationsPage() {
               onClick={() => void notificationsQuery.refetch()}
               disabled={notificationsQuery.isFetching}
             >
-              <RefreshCw className={cn('mr-2 h-4 w-4', notificationsQuery.isFetching && 'animate-spin')} />
+              <RefreshCw
+                className={cn('mr-2 h-4 w-4', notificationsQuery.isFetching && 'animate-spin')}
+              />
               Refresh
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {notificationsQuery.isError ? (
         <ErrorState
@@ -347,12 +344,12 @@ export function NotificationsPage() {
                               </div>
 
                               <div className="flex flex-col items-end gap-2" onClick={(event) => event.stopPropagation()}>
-                                <Badge
-                                  variant={isUnread ? 'outline' : 'secondary'}
-                                  className={isUnread ? 'border-[#ff6b35] text-[#ff6b35]' : ''}
+                                <StatusBadge
+                                  tone={isUnread ? 'brand' : 'neutral'}
+                                  emphasis={isUnread ? 'outline' : 'soft'}
                                 >
                                   {isUnread ? 'Unread' : 'Read'}
-                                </Badge>
+                                </StatusBadge>
 
                                 <div className="flex items-center gap-2">
                                   {isUnread ? (

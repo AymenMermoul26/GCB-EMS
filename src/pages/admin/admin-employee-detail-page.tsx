@@ -25,6 +25,12 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import {
+  BRAND_BUTTON_CLASS_NAME,
+  PageHeader,
+} from '@/components/common/page-header'
+import { EmptyState, ErrorState } from '@/components/common/page-state'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -218,7 +224,7 @@ const VISIBILITY_FIELDS: Array<{ key: EmployeeVisibilityFieldKey; label: string 
   { key: 'poste', label: 'Job Title' },
   { key: 'email', label: 'Email' },
   { key: 'telephone', label: 'Phone' },
-  { key: 'photo_url', label: 'URL de la photo' },
+  { key: 'photo_url', label: 'Photo URL' },
   { key: 'departement', label: 'Department' },
   { key: 'matricule', label: 'Employee ID' },
 ]
@@ -808,15 +814,12 @@ export function AdminEmployeeDetailPage() {
         title="Employee Profile"
         subtitle="Could not load employee details."
       >
-        <Alert variant="destructive">
-          <AlertTitle>Could not load employee</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-            <span>{employeeQuery.error.message}</span>
-            <Button variant="outline" size="sm" onClick={() => void employeeQuery.refetch()}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <ErrorState
+          title="Could not load employee"
+          description="We couldn't load this employee profile right now."
+          message={employeeQuery.error.message}
+          onRetry={() => void employeeQuery.refetch()}
+        />
       </DashboardLayout>
     )
   }
@@ -827,15 +830,16 @@ export function AdminEmployeeDetailPage() {
         title="Employee Profile"
         subtitle="Employee not found."
       >
-        <Card className="rounded-2xl">
-          <CardContent className="space-y-3 p-6">
-            <p className="text-sm text-muted-foreground">Employee not found.</p>
+        <EmptyState
+          title="Employee not found"
+          description="The requested employee record could not be found."
+          actions={
             <Button variant="outline" onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to employees
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       </DashboardLayout>
     )
   }
@@ -845,29 +849,27 @@ export function AdminEmployeeDetailPage() {
       title="Employee Profile"
       subtitle="Employee details, QR profile, visibility, and audit activity."
     >
-      <div className="sticky top-2 z-20 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="px-0 text-muted-foreground"
-              onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to employees
-            </Button>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Employee Profile</h1>
-            <p className="text-sm text-muted-foreground">
-              Employee details, QR profile, visibility, and audit activity.
-            </p>
-          </div>
-
+      <PageHeader
+        title="Employee Profile"
+        description="Employee details, QR profile, visibility, and audit activity."
+        className="sticky top-2 z-20 mb-6"
+        backAction={
+          <Button
+            type="button"
+            variant="ghost"
+            className="px-0 text-muted-foreground"
+            onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to employees
+          </Button>
+        }
+        actions={
           <div className="flex flex-wrap items-center gap-2">
             {employee.isActive ? (
               <Button
                 type="button"
-                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                className={BRAND_BUTTON_CLASS_NAME}
                 onClick={goToEditSection}
               >
                 <UserPen className="mr-2 h-4 w-4" />
@@ -876,7 +878,7 @@ export function AdminEmployeeDetailPage() {
             ) : (
               <Button
                 type="button"
-                className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
+                className={BRAND_BUTTON_CLASS_NAME}
                 disabled={isStatusMutationPending}
                 onClick={() => setEmployeeStatusAction('activate')}
               >
@@ -1030,8 +1032,8 @@ export function AdminEmployeeDetailPage() {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
-      </div>
+        }
+      />
       <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card
@@ -1083,16 +1085,9 @@ export function AdminEmployeeDetailPage() {
                   >
                     {currentPrenom || employee.prenom} {currentNom || employee.nom}
                   </p>
-                  <Badge
-                    variant={employee.isActive ? 'secondary' : 'outline'}
-                    className={
-                      employee.isActive
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'border-slate-300 bg-slate-200/70 text-slate-700'
-                    }
-                  >
+                  <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
                     {employee.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
+                  </StatusBadge>
                 </div>
               </div>
 
@@ -1104,7 +1099,7 @@ export function AdminEmployeeDetailPage() {
                 <InfoLine label="Birth Date" value={formatCivilDate(employee.dateNaissance)} />
                 <InfoLine label="Nationality" value={formatCivilValue(employee.nationalite)} />
                 <InfoLine
-                  label="Catégorie"
+                  label="Category"
                   value={formatEmploymentValue(
                     getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
                   )}
@@ -1159,7 +1154,7 @@ export function AdminEmployeeDetailPage() {
                   ) : (
                     <UserCheck className="mr-1 h-4 w-4" />
                   )}
-                  {employee.isActive ? 'D?sactiver' : 'Activer'}
+                  {employee.isActive ? 'Deactivate' : 'Activate'}
                 </Button>
               </div>
             </CardContent>
@@ -1215,14 +1210,14 @@ export function AdminEmployeeDetailPage() {
                       value={formatCivilValue(employee.lieuNaissance)}
                     />
                     <InfoGrid
-                      label="Nationalité"
+                      label="Nationality"
                       value={formatCivilValue(employee.nationalite)}
                     />
                     <InfoGrid label="Employee ID" value={employee.matricule} mono />
                     <InfoGrid label="Job Title" value={formatOptionalValue(employee.poste)} />
                     <InfoGrid label="Department" value={departmentName} />
                     <InfoGrid
-                      label="Catégorie professionnelle"
+                      label="Professional Category"
                       value={formatEmploymentValue(
                         getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
                       )}
@@ -1268,7 +1263,7 @@ export function AdminEmployeeDetailPage() {
                     />
                     <InfoGrid label="Address" value={formatCivilValue(employee.adresse)} />
                     <InfoGrid
-                      label="Numéro de sécurité sociale"
+                      label="Social Security Number"
                       value={formatCivilValue(employee.numeroSecuriteSociale)}
                     />
                   </div>
@@ -1281,8 +1276,8 @@ export function AdminEmployeeDetailPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
-                    <InfoGrid label="Diplôme" value={formatCivilValue(employee.diplome)} />
-                    <InfoGrid label="Spécialité" value={formatCivilValue(employee.specialite)} />
+                    <InfoGrid label="Degree" value={formatCivilValue(employee.diplome)} />
+                    <InfoGrid label="Specialization" value={formatCivilValue(employee.specialite)} />
                   </div>
 
                   <div className="rounded-lg border bg-slate-50/50 p-3">

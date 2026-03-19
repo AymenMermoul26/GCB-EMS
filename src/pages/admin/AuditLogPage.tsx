@@ -15,6 +15,8 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { EmptyState, ErrorState, SearchEmptyState } from '@/components/common/page-state'
+import { PageHeader } from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -96,12 +98,6 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     category: 'Employee',
     tone: 'amber',
   },
-  EMPLOYEE_SHEET_SEND_FAILED: {
-    label: 'Information Sheet Failed',
-    category: 'Communication',
-    tone: 'rose',
-    critical: true,
-  },
   REQUEST_SUBMITTED: {
     label: 'Request Submitted',
     category: 'Request',
@@ -150,11 +146,6 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     category: 'Public Profile',
     tone: 'slate',
   },
-  EMPLOYEE_SHEET_SENT: {
-    label: 'Information Sheet Sent',
-    category: 'Communication',
-    tone: 'orange',
-  },
 }
 
 const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
@@ -166,7 +157,6 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'EMPLOYEE_INVITE_SENT', label: 'Invite Email Sent' },
   { value: 'EMPLOYEE_INVITE_FAILED', label: 'Invite Email Failed' },
   { value: 'EMPLOYEE_SELF_UPDATED', label: 'Employee Self Updated' },
-  { value: 'EMPLOYEE_SHEET_SEND_FAILED', label: 'Information Sheet Failed' },
   { value: 'REQUEST_SUBMITTED', label: 'Request Submitted' },
   { value: 'REQUEST_APPROVED', label: 'Request Approved' },
   { value: 'REQUEST_REJECTED', label: 'Request Rejected' },
@@ -176,7 +166,6 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'QR_REFRESH_COMPLETED', label: 'QR Refresh Completed' },
   { value: 'QR_REFRESH_REQUIRED_CREATED', label: 'QR Refresh Required' },
   { value: 'VISIBILITY_UPDATED', label: 'Visibility Updated' },
-  { value: 'EMPLOYEE_SHEET_SENT', label: 'Information Sheet Sent' },
 ]
 
 function shortId(value: string | null): string {
@@ -408,66 +397,60 @@ export function AuditLogPage() {
 
   return (
     <DashboardLayout title="Audit Log" subtitle="Track sensitive actions and security events.">
-      <div className="sticky top-2 z-20 mb-6 rounded-2xl border bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Audit Log</h1>
-              {auditLogQuery.isPending ? (
-                <Skeleton className="h-6 w-24 rounded-full" />
-              ) : (
-                <Badge variant="secondary" className="rounded-full">
-                  {total} total
-                </Badge>
-              )}
-              {!auditLogQuery.isPending ? (
-                <Badge variant="outline" className="rounded-full">
-                  {visibleItems.length} shown
-                </Badge>
-              ) : null}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Track sensitive actions and security events.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
-            {auditLogQuery.isPending ? (
-              <>
-                <Skeleton className="h-10 w-full sm:w-72" />
-                <Skeleton className="h-10 w-full sm:w-28" />
-                <Skeleton className="h-10 w-full sm:w-28" />
-              </>
-            ) : (
-              <>
-                <div className="relative w-full sm:w-72">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={quickSearch}
-                    onChange={(event) => setQuickSearch(event.target.value)}
-                    placeholder="Search by action, actor, employee..."
-                    className="pl-9"
-                    aria-label="Search audit log"
-                  />
-                </div>
-                <Button type="button" variant="outline" onClick={() => setIsFilterDialogOpen(true)}>
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filters
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={auditLogQuery.isFetching}
-                  onClick={() => void auditLogQuery.refetch()}
-                >
-                  <RefreshCw className={cn('mr-2 h-4 w-4', auditLogQuery.isFetching && 'animate-spin')} />
-                  Refresh
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Audit Log"
+        description="Track sensitive actions and security events."
+        className="sticky top-2 z-20 mb-6"
+        badges={
+          auditLogQuery.isPending ? (
+            <Skeleton className="h-6 w-24 rounded-full" />
+          ) : (
+            <>
+              <StatusBadge tone="neutral">{total} total</StatusBadge>
+              <StatusBadge tone="info" emphasis="outline">
+                {visibleItems.length} shown
+              </StatusBadge>
+            </>
+          )
+        }
+        actions={
+          auditLogQuery.isPending ? (
+            <>
+              <Skeleton className="h-10 w-full sm:w-72" />
+              <Skeleton className="h-10 w-full sm:w-28" />
+              <Skeleton className="h-10 w-full sm:w-28" />
+            </>
+          ) : (
+            <>
+              <div className="relative w-full sm:w-72">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={quickSearch}
+                  onChange={(event) => setQuickSearch(event.target.value)}
+                  placeholder="Search by action, actor, or employee..."
+                  className="pl-9"
+                  aria-label="Search audit log"
+                />
+              </div>
+              <Button type="button" variant="outline" onClick={() => setIsFilterDialogOpen(true)}>
+                <Filter className="mr-2 h-4 w-4" />
+                Filters
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={auditLogQuery.isFetching}
+                onClick={() => void auditLogQuery.refetch()}
+              >
+                <RefreshCw
+                  className={cn('mr-2 h-4 w-4', auditLogQuery.isFetching && 'animate-spin')}
+                />
+                Refresh
+              </Button>
+            </>
+          )
+        }
+      />
 
       {auditLogQuery.isError ? (
         <ErrorState

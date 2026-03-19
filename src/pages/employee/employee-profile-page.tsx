@@ -18,6 +18,12 @@ import {
   ErrorState,
   PageStateSkeleton,
 } from '@/components/common/page-state'
+import {
+  BRAND_BUTTON_CLASS_NAME,
+  PageHeader,
+  SURFACE_CARD_CLASS_NAME,
+} from '@/components/common/page-header'
+import { StatusBadge } from '@/components/common/status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,6 +44,8 @@ import {
 } from '@/types/employee'
 import type { TokenQR } from '@/types/token'
 
+const EMPTY_FIELD_VALUE = '\u2014'
+
 function getInitials(prenom: string, nom: string) {
   return `${prenom.trim().charAt(0)}${nom.trim().charAt(0)}`.toUpperCase() || 'EM'
 }
@@ -48,19 +56,19 @@ function formatDate(value: string): string {
 
 function formatProfileValue(value: string | null | undefined): string {
   const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : '—'
+  return normalized && normalized.length > 0 ? normalized : EMPTY_FIELD_VALUE
 }
 
 function formatProfileDate(value: string | null | undefined): string {
   if (!value) {
-    return '—'
+    return EMPTY_FIELD_VALUE
   }
 
   return new Date(`${value}T00:00:00`).toLocaleDateString()
 }
 
 function formatProfileNumber(value: number | null | undefined): string {
-  return value === null || value === undefined ? '—' : String(value)
+  return value === null || value === undefined ? EMPTY_FIELD_VALUE : String(value)
 }
 
 function isTokenValid(token: TokenQR | null): boolean {
@@ -193,16 +201,12 @@ export function EmployeeProfilePage() {
         </div>
       ) : null}
 
-      <section className="mb-5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-3 h-1 w-28 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Profile Overview</h2>
-            <p className="text-sm text-slate-600">
-              Keep your information up to date through the profile management workflow.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Profile Overview"
+        description="Keep your information up to date through the profile management workflow."
+        className="mb-5"
+        actions={
+          <>
             <Button
               type="button"
               variant="outline"
@@ -212,21 +216,18 @@ export function EmployeeProfilePage() {
               <ExternalLink className="mr-2 h-4 w-4" />
               Preview Public Profile
             </Button>
-            <Button
-              asChild
-              className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm hover:shadow-md"
-            >
+            <Button asChild className={BRAND_BUTTON_CLASS_NAME}>
               <Link to={requestChangesRoute}>
                 Request a Change
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
-        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+        <Card className={SURFACE_CARD_CLASS_NAME}>
           <CardHeader className="space-y-4">
             <div className="h-1.5 w-20 rounded-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
             <div className="flex flex-col items-center text-center">
@@ -250,12 +251,12 @@ export function EmployeeProfilePage() {
                   <Building2 className="h-3.5 w-3.5" />
                   {departmentName ?? 'Department not set'}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className={employee.isActive ? 'border-emerald-300 text-emerald-700' : ''}
+                <StatusBadge
+                  tone={employee.isActive ? 'success' : 'neutral'}
+                  emphasis={employee.isActive ? 'outline' : 'soft'}
                 >
                   {employee.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+                </StatusBadge>
               </div>
             </div>
           </CardHeader>
@@ -290,7 +291,7 @@ export function EmployeeProfilePage() {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <UserRound className="h-4 w-4 text-slate-600" />
@@ -305,13 +306,13 @@ export function EmployeeProfilePage() {
               />
               <DetailRow label="Birth Date" value={formatProfileDate(employee.dateNaissance)} />
               <DetailRow label="Birth Place" value={formatProfileValue(employee.lieuNaissance)} />
-              <DetailRow label="Nationalité" value={formatProfileValue(employee.nationalite)} />
+              <DetailRow label="Nationality" value={formatProfileValue(employee.nationalite)} />
               <DetailRow label="Email" value={employee.email ?? 'Not provided'} />
               <DetailRow label="Phone" value={employee.telephone ?? 'Not provided'} />
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldCheck className="h-4 w-4 text-slate-600" />
@@ -333,7 +334,7 @@ export function EmployeeProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
@@ -341,8 +342,8 @@ export function EmployeeProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <DetailRow label="Diplôme" value={formatProfileValue(employee.diplome)} />
-              <DetailRow label="Spécialité" value={formatProfileValue(employee.specialite)} />
+              <DetailRow label="Degree" value={formatProfileValue(employee.diplome)} />
+              <DetailRow label="Specialization" value={formatProfileValue(employee.specialite)} />
               <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   Career History
@@ -354,7 +355,7 @@ export function EmployeeProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
@@ -366,7 +367,7 @@ export function EmployeeProfilePage() {
               <DetailRow label="Department" value={departmentName ?? 'Not assigned'} />
               <DetailRow label="Employee ID" value={employee.matricule} />
               <DetailRow
-                label="Catégorie professionnelle"
+                label="Professional Category"
                 value={formatProfileValue(
                   getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
                 )}
@@ -383,7 +384,7 @@ export function EmployeeProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldCheck className="h-4 w-4 text-slate-600" />
@@ -411,16 +412,12 @@ export function EmployeeProfilePage() {
                 Your public profile is available through your QR token and HR visibility settings.
               </p>
               <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={
-                    hasValidPublicToken
-                      ? 'border-emerald-300 text-emerald-700'
-                      : 'border-amber-300 text-amber-700'
-                  }
+                <StatusBadge
+                  tone={hasValidPublicToken ? 'success' : 'warning'}
+                  emphasis="outline"
                 >
                   {hasValidPublicToken ? 'Public link active' : 'Public link unavailable'}
-                </Badge>
+                </StatusBadge>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button

@@ -1,10 +1,10 @@
-export const EMPLOYEE_SEXE_OPTIONS = ['M', 'F'] as const
+﻿export const EMPLOYEE_SEXE_OPTIONS = ['M', 'F'] as const
 export const EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS = ['Cadre', 'Agent'] as const
 export const EMPLOYEE_TYPE_CONTRAT_OPTIONS = ['CDI', 'CDD'] as const
 export const EMPLOYEE_SITUATION_FAMILIALE_OPTIONS = [
-  'Célibataire',
-  'Marié(e)',
-  'Divorcé(e)',
+  'C\u00e9libataire',
+  'Mari\u00e9(e)',
+  'Divorc\u00e9(e)',
   'Veuf(ve)',
 ] as const
 
@@ -33,13 +33,13 @@ export const EMPLOYEE_TYPE_CONTRAT_LABELS: Record<EmployeeTypeContrat, string> =
   CDD: 'Fixed-term (CDD)',
 }
 
-export const EMPLOYEE_SITUATION_FAMILIALE_LABELS: Record<
-  EmployeeSituationFamiliale,
-  string
-> = {
-  'Célibataire': 'Single',
-  'Marié(e)': 'Married',
-  'Divorcé(e)': 'Divorced',
+export const EMPLOYEE_SITUATION_FAMILIALE_LABELS: Record<string, string> = {
+  'C\u00e9libataire': 'Single',
+  'CÃ©libataire': 'Single',
+  'Mari\u00e9(e)': 'Married',
+  'MariÃ©(e)': 'Married',
+  'Divorc\u00e9(e)': 'Divorced',
+  'DivorcÃ©(e)': 'Divorced',
   'Veuf(ve)': 'Widowed',
 }
 
@@ -163,3 +163,4 @@ export interface CreateEmployeePayload {
 }
 
 export type UpdateEmployeePayload = Partial<CreateEmployeePayload>
+
