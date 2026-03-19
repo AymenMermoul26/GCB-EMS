@@ -179,6 +179,36 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return failureReason
         ? `Employee invite email failed: ${failureReason}`
         : 'Employee invite email failed.'
+    case 'EMPLOYEE_SHEET_PREVIEWED':
+      return matricule
+        ? `Previewed employee information sheet for ${matricule}.`
+        : 'Previewed an employee information sheet.'
+    case 'EMPLOYEE_SHEET_EXPORTED': {
+      const format = readText(detailsJson.format)
+      if (matricule && format === 'pdf') {
+        return `Exported employee information sheet PDF for ${matricule}.`
+      }
+      if (matricule) {
+        return `Started print or PDF export for employee information sheet ${matricule}.`
+      }
+      return format === 'pdf'
+        ? 'Exported an employee information sheet PDF.'
+        : 'Started a print or PDF export for an employee information sheet.'
+    }
+    case 'EMPLOYEE_SHEET_EMAIL_SENT':
+      return recipientEmail
+        ? `Sent employee information sheet email to ${recipientEmail}.`
+        : 'Sent an employee information sheet email.'
+    case 'EMPLOYEE_SHEET_EMAIL_FAILED':
+      if (recipientEmail && failureReason) {
+        return `Employee information sheet email to ${recipientEmail} failed: ${failureReason}`
+      }
+      if (recipientEmail) {
+        return `Employee information sheet email to ${recipientEmail} failed.`
+      }
+      return failureReason
+        ? `Employee information sheet email failed: ${failureReason}`
+        : 'Employee information sheet email failed.'
     case 'EMPLOYEE_SELF_UPDATED':
       return changedFields.length > 0
         ? `Employee updated: ${changedFields.map(formatFieldLabel).join(', ')}.`

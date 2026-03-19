@@ -1128,14 +1128,14 @@ export function AdminMonitoringPage() {
             <CardHeader className="space-y-2">
               <CardTitle className="text-base font-semibold">Email activity</CardTitle>
               <CardDescription>
-                Invite delivery activity tracked by backend audit events.
+                Invite and document delivery activity tracked by backend audit events.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <MetricBars
                 items={dashboard.emailActivity}
                 emptyTitle="No email events"
-                emptyDescription="Tracked invite email activity will appear here."
+                emptyDescription="Tracked invite and document email activity will appear here."
               />
               <div className="border-t border-slate-200 pt-5">
                 <RecentInviteActivityList

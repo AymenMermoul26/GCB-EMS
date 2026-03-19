@@ -1,6 +1,6 @@
 import { ChevronLeft, Printer } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES, getPayrollEmployeeRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { usePrintDocument } from '@/hooks/use-print-document'
 import { PayrollLayout } from '@/layouts/payroll-layout'
 import { useLogPayrollEmployeeSheetExportMutation } from '@/services/payrollExportsService'
 import { usePayrollEmployeeQuery } from '@/services/payrollEmployeesService'
@@ -98,18 +99,10 @@ export function PayrollEmployeeSheetPage() {
     return `payroll-employee-sheet-${employeeMatriculeForMemo || employeeIdForMemo}`
   }, [employeeIdForMemo, employeeMatriculeForMemo])
 
-  useEffect(() => {
-    const handleAfterPrint = () => {
-      document.body.classList.remove('payroll-sheet-printing')
-    }
-
-    window.addEventListener('afterprint', handleAfterPrint)
-
-    return () => {
-      window.removeEventListener('afterprint', handleAfterPrint)
-      document.body.classList.remove('payroll-sheet-printing')
-    }
-  }, [])
+  const { printDocument } = usePrintDocument({
+    bodyClassName: 'payroll-sheet-printing',
+    defaultDocumentTitle: printableDocumentName,
+  })
 
   const handlePrint = async () => {
     if (!employeeQuery.data) {
@@ -127,17 +120,7 @@ export function PayrollEmployeeSheetPage() {
       return
     }
 
-    const previousTitle = document.title
-    document.title = printableDocumentName
-    document.body.classList.add('payroll-sheet-printing')
-
-    window.requestAnimationFrame(() => {
-      window.print()
-      window.setTimeout(() => {
-        document.title = previousTitle
-        document.body.classList.remove('payroll-sheet-printing')
-      }, 200)
-    })
+    printDocument(printableDocumentName)
   }
 
   if (employeeQuery.isPending) {

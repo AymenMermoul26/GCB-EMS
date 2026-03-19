@@ -971,18 +971,24 @@ export function AdminEmployeeDetailPage() {
                 matricule: employee.matricule,
                 nom: employee.nom,
                 prenom: employee.prenom,
+                sexe: employee.sexe,
+                dateNaissance: employee.dateNaissance,
+                lieuNaissance: employee.lieuNaissance,
+                nationalite: employee.nationalite,
+                situationFamiliale: employee.situationFamiliale,
+                nombreEnfants: employee.nombreEnfants,
+                adresse: employee.adresse,
                 poste: employee.poste,
+                categorieProfessionnelle: employee.categorieProfessionnelle,
+                typeContrat: employee.typeContrat,
+                dateRecrutement: employee.dateRecrutement,
                 email: employee.email,
                 telephone: employee.telephone,
                 photoUrl: employee.photoUrl,
                 isActive: employee.isActive,
-                createdAt: employee.createdAt,
-                updatedAt: employee.updatedAt,
               }}
               departmentName={departmentName}
-              accountRole={employeeProfile?.role ?? null}
-              isAccountLinked={Boolean(employeeProfile?.userId)}
-              isLoading={employeeQuery.isPending || employeeProfileQuery.isPending}
+              isLoading={employeeQuery.isPending}
             />
 
             <Dialog open={isMoreActionsOpen} onOpenChange={setIsMoreActionsOpen}>

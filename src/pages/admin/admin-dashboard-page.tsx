@@ -127,6 +127,14 @@ function getActivityLabel(action: string): string {
       return 'Invite email sent'
     case 'EMPLOYEE_INVITE_FAILED':
       return 'Invite delivery failed'
+    case 'EMPLOYEE_SHEET_PREVIEWED':
+      return 'Sheet previewed'
+    case 'EMPLOYEE_SHEET_EXPORTED':
+      return 'Sheet exported'
+    case 'EMPLOYEE_SHEET_EMAIL_SENT':
+      return 'Sheet email sent'
+    case 'EMPLOYEE_SHEET_EMAIL_FAILED':
+      return 'Sheet email failed'
     case 'EMPLOYEE_SELF_UPDATED':
       return 'Employee self-updated'
     case 'REQUEST_SUBMITTED':
@@ -159,7 +167,9 @@ function getActivityBadgeClass(action: string): string {
     case 'VISIBILITY_UPDATED':
       return 'border-transparent bg-emerald-100 text-emerald-700'
     case 'EMPLOYEE_INVITE_SENT':
+    case 'EMPLOYEE_SHEET_EMAIL_SENT':
       return 'border-transparent bg-orange-100 text-orange-700'
+    case 'EMPLOYEE_SHEET_EXPORTED':
     case 'QR_GENERATED':
     case 'QR_REGENERATED':
     case 'QR_REFRESH_COMPLETED':
@@ -167,11 +177,14 @@ function getActivityBadgeClass(action: string): string {
     case 'REQUEST_REJECTED':
     case 'EMPLOYEE_DEACTIVATED':
     case 'EMPLOYEE_INVITE_FAILED':
+    case 'EMPLOYEE_SHEET_EMAIL_FAILED':
     case 'QR_REVOKED':
       return 'border-transparent bg-rose-100 text-rose-700'
     case 'REQUEST_SUBMITTED':
     case 'QR_REFRESH_REQUIRED_CREATED':
       return 'border-transparent bg-amber-100 text-amber-700'
+    case 'EMPLOYEE_SHEET_PREVIEWED':
+      return 'border-transparent bg-slate-100 text-slate-700'
     default:
       return 'border-transparent bg-slate-100 text-slate-700'
   }

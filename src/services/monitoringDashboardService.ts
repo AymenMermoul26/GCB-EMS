@@ -103,6 +103,18 @@ const EMAIL_ACTIVITY_CONFIG = [
     helper: 'Invite email attempts that failed',
     tone: 'rose',
   },
+  {
+    key: 'EMPLOYEE_SHEET_EMAIL_SENT',
+    label: 'Sheet Emails Sent',
+    helper: 'Employee information sheet emails sent',
+    tone: 'orange',
+  },
+  {
+    key: 'EMPLOYEE_SHEET_EMAIL_FAILED',
+    label: 'Sheet Email Failures',
+    helper: 'Employee information sheet email attempts that failed',
+    tone: 'rose',
+  },
 ] as const
 
 function normalizeDetailsJson(value: unknown): Record<string, unknown> {
@@ -495,7 +507,9 @@ function buildTopActions(rows: MonitoringAuditRow[]): MonitoringTopActionItem[] 
 }
 
 function buildAttentionItems(rows: MonitoringAuditRow[]): MonitoringInsightItem[] {
-  const failedEmailCount = rows.filter((row) => row.action === 'EMPLOYEE_INVITE_FAILED').length
+  const failedEmailCount = rows.filter(
+    (row) => categorizeAuditAction(row.action) === 'email' && isFailedAuditAction(row.action),
+  ).length
   const qrRefreshRequiredCount = rows.filter(
     (row) => row.action === 'QR_REFRESH_REQUIRED_CREATED',
   ).length
@@ -619,6 +633,33 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
       return recipientEmail
         ? `Invite email to ${recipientEmail} failed.`
         : 'Employee invite email failed.'
+    case 'EMPLOYEE_SHEET_PREVIEWED':
+      return matricule
+        ? `Previewed employee information sheet for ${matricule}.`
+        : 'Previewed an employee information sheet.'
+    case 'EMPLOYEE_SHEET_EXPORTED': {
+      const format = readText(detailsJson.format)
+      if (matricule && format === 'pdf') {
+        return `Exported employee information sheet PDF for ${matricule}.`
+      }
+      if (matricule) {
+        return `Started print or PDF export for employee information sheet ${matricule}.`
+      }
+      return format === 'pdf'
+        ? 'Exported an employee information sheet PDF.'
+        : 'Started a print or PDF export for an employee information sheet.'
+    }
+    case 'EMPLOYEE_SHEET_EMAIL_SENT':
+      return recipientEmail
+        ? `Sent employee information sheet email to ${recipientEmail}.`
+        : 'Sent an employee information sheet email.'
+    case 'EMPLOYEE_SHEET_EMAIL_FAILED':
+      if (recipientEmail && failureReason) {
+        return `Employee information sheet email to ${recipientEmail} failed: ${failureReason}`
+      }
+      return recipientEmail
+        ? `Employee information sheet email to ${recipientEmail} failed.`
+        : 'Employee information sheet email failed.'
     case 'VISIBILITY_UPDATED':
       return fieldKey
         ? `${formatFieldLabel(fieldKey)} visibility was updated.`

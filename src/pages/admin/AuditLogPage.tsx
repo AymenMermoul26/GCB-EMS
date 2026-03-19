@@ -93,6 +93,27 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     tone: 'rose',
     critical: true,
   },
+  EMPLOYEE_SHEET_PREVIEWED: {
+    label: 'Sheet Previewed',
+    category: 'Document',
+    tone: 'slate',
+  },
+  EMPLOYEE_SHEET_EXPORTED: {
+    label: 'Sheet Exported',
+    category: 'Document',
+    tone: 'sky',
+  },
+  EMPLOYEE_SHEET_EMAIL_SENT: {
+    label: 'Sheet Email Sent',
+    category: 'Communication',
+    tone: 'orange',
+  },
+  EMPLOYEE_SHEET_EMAIL_FAILED: {
+    label: 'Sheet Email Failed',
+    category: 'Communication',
+    tone: 'rose',
+    critical: true,
+  },
   EMPLOYEE_SELF_UPDATED: {
     label: 'Employee Self Updated',
     category: 'Employee',
@@ -156,6 +177,10 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'EMPLOYEE_DEACTIVATED', label: 'Employee Deactivated' },
   { value: 'EMPLOYEE_INVITE_SENT', label: 'Invite Email Sent' },
   { value: 'EMPLOYEE_INVITE_FAILED', label: 'Invite Email Failed' },
+  { value: 'EMPLOYEE_SHEET_PREVIEWED', label: 'Sheet Previewed' },
+  { value: 'EMPLOYEE_SHEET_EXPORTED', label: 'Sheet Exported' },
+  { value: 'EMPLOYEE_SHEET_EMAIL_SENT', label: 'Sheet Email Sent' },
+  { value: 'EMPLOYEE_SHEET_EMAIL_FAILED', label: 'Sheet Email Failed' },
   { value: 'EMPLOYEE_SELF_UPDATED', label: 'Employee Self Updated' },
   { value: 'REQUEST_SUBMITTED', label: 'Request Submitted' },
   { value: 'REQUEST_APPROVED', label: 'Request Approved' },

@@ -137,6 +137,28 @@ const ACTION_META: Record<string, MonitoringActionMeta> = {
     critical: true,
     failed: true,
   },
+  EMPLOYEE_SHEET_PREVIEWED: {
+    label: 'Sheet Previewed',
+    categoryKey: 'employee',
+    tone: 'slate',
+  },
+  EMPLOYEE_SHEET_EXPORTED: {
+    label: 'Sheet Exported',
+    categoryKey: 'employee',
+    tone: 'sky',
+  },
+  EMPLOYEE_SHEET_EMAIL_SENT: {
+    label: 'Sheet Email Sent',
+    categoryKey: 'email',
+    tone: 'orange',
+  },
+  EMPLOYEE_SHEET_EMAIL_FAILED: {
+    label: 'Sheet Email Failed',
+    categoryKey: 'email',
+    tone: 'rose',
+    critical: true,
+    failed: true,
+  },
   VISIBILITY_UPDATED: {
     label: 'Visibility Updated',
     categoryKey: 'visibility',

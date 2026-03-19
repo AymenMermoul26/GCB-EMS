@@ -1,59 +1,39 @@
-import { FileText, Printer } from 'lucide-react'
+import { Download, FileText, Loader2, Mail, Printer, Send } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
-import gcbLogo from '@/assets/brand/gcb-logo.svg'
-import { Badge } from '@/components/ui/badge'
+import {
+  EmployeeInformationSheetDocument,
+  type EmployeeInformationSheetDocumentEmployee,
+} from '@/components/admin/employee-information-sheet-document'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-
-const COMPANY_NAME = 'LA SOCIETE NATIONALE DE GENIE-CIVIL & BATIMENT'
-const APP_NAME = 'GCB Employee Management System'
+import { usePrintDocument } from '@/hooks/use-print-document'
+import {
+  logEmployeeInformationSheetPreview,
+  useDownloadEmployeeInformationSheetPdfMutation,
+  useLogEmployeeInformationSheetExportMutation,
+  useSendEmployeeInformationSheetMutation,
+} from '@/services/employeeDocumentsService'
 
 interface EmployeeInformationSheetDialogProps {
-  employee: {
-    id: string
-    matricule: string
-    nom: string
-    prenom: string
-    poste: string | null
-    email: string | null
-    telephone: string | null
-    photoUrl: string | null
-    isActive: boolean
-    createdAt: string
-    updatedAt: string
-  }
+  employee: EmployeeInformationSheetDocumentEmployee
   departmentName?: string | null
-  accountRole?: string | null
-  isAccountLinked?: boolean
   isLoading?: boolean
-}
-
-interface InformationSheetDocumentProps {
-  employee: EmployeeInformationSheetDialogProps['employee']
-  departmentName?: string | null
-  accountRole?: string | null
-  isAccountLinked?: boolean
-  generatedAt: string
-  className?: string
-}
-
-function formatDisplayValue(value: string | null | undefined, fallback = 'Not set'): string {
-  if (!value || value.trim().length === 0) {
-    return fallback
-  }
-
-  return value
 }
 
 function formatDateTime(value: string): string {
@@ -63,153 +43,123 @@ function formatDateTime(value: string): string {
   }).format(new Date(value))
 }
 
-function getInitials(prenom: string, nom: string): string {
-  const first = prenom.trim().charAt(0)
-  const second = nom.trim().charAt(0)
-  return `${first}${second}`.toUpperCase() || 'NA'
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200/80 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
-    </div>
-  )
-}
-
-function InformationSheetDocument({
-  employee,
-  departmentName,
-  accountRole,
-  isAccountLinked,
-  generatedAt,
-  className,
-}: InformationSheetDocumentProps) {
-  const fullName = `${employee.prenom} ${employee.nom}`.replace(/\s+/g, ' ').trim()
-  const accountStatus = isAccountLinked ? 'Linked account' : 'Not linked'
-  const safeDepartment = formatDisplayValue(departmentName, 'Department not assigned')
-
-  return (
-    <div className={`employee-sheet-document bg-white text-slate-900 ${className ?? ''}`.trim()}>
-      <div className="h-1.5 w-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
-
-      <div className="space-y-8 p-10">
-        <header className="flex items-start justify-between gap-6 border-b border-slate-200 pb-6">
-          <div className="flex min-w-0 items-center gap-4">
-            <img
-              src={gcbLogo}
-              alt="GCB company logo"
-              className="h-20 w-20 flex-shrink-0 object-contain"
-            />
-            <div className="min-w-0 space-y-2">
-              <p className="text-base font-semibold uppercase tracking-[0.08em] text-slate-900">
-                {COMPANY_NAME}
-              </p>
-              <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-                  Employee Information Sheet
-                </h1>
-                <p className="mt-1 text-sm text-slate-500">Generated on {generatedAt}</p>
-              </div>
-            </div>
-          </div>
-
-          <Badge className="border-transparent bg-slate-100 text-slate-700">
-            Internal administrative use
-          </Badge>
-        </header>
-
-        <section className="grid gap-8 lg:grid-cols-[180px_minmax(0,1fr)]">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm">
-            {employee.photoUrl ? (
-              <img src={employee.photoUrl} alt={fullName} className="h-[220px] w-full object-cover" />
-            ) : (
-              <div className="flex h-[220px] items-center justify-center bg-slate-100 text-5xl font-semibold text-slate-500">
-                {getInitials(employee.prenom, employee.nom)}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-5">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
-                Employee identity
-              </p>
-              <h2 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
-                {fullName}
-              </h2>
-              <p className="mt-2 text-lg text-slate-600">
-                {formatDisplayValue(employee.poste, 'Position not set')}
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InfoRow label="Employee ID" value={employee.matricule} />
-              <InfoRow label="Department" value={safeDepartment} />
-              <InfoRow label="Professional email" value={formatDisplayValue(employee.email)} />
-              <InfoRow label="Professional phone" value={formatDisplayValue(employee.telephone)} />
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-2">
-          <InfoRow label="Employee status" value={employee.isActive ? 'Active' : 'Inactive'} />
-          <InfoRow label="Account status" value={accountStatus} />
-          <InfoRow label="Account role" value={formatDisplayValue(accountRole, 'Not assigned')} />
-          <InfoRow label="Record created" value={formatDateTime(employee.createdAt)} />
-          <InfoRow label="Last updated" value={formatDateTime(employee.updatedAt)} />
-          <InfoRow label="Generated by" value={APP_NAME} />
-        </section>
-
-        <footer className="border-t border-slate-200 pt-5 text-sm text-slate-500">
-          Generated by GCB Employee Management System
-        </footer>
-      </div>
-    </div>
-  )
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 export function EmployeeInformationSheetDialog({
   employee,
   departmentName,
-  accountRole,
-  isAccountLinked,
   isLoading = false,
 }: EmployeeInformationSheetDialogProps) {
   const [open, setOpen] = useState(false)
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
   const [generatedAt, setGeneratedAt] = useState(() => formatDateTime(new Date().toISOString()))
+  const [recipientEmail, setRecipientEmail] = useState(employee.email ?? '')
+  const [recipientEmailError, setRecipientEmailError] = useState<string | null>(null)
+  const previewLoggedRef = useRef(false)
 
   const printableDocumentName = useMemo(
     () => `employee-sheet-${employee.matricule || employee.id}`,
     [employee.id, employee.matricule],
   )
 
+  const { printDocument } = usePrintDocument({
+    bodyClassName: 'employee-sheet-printing',
+    defaultDocumentTitle: printableDocumentName,
+  })
+
+  const downloadPdfMutation = useDownloadEmployeeInformationSheetPdfMutation()
+  const logPrintExportMutation = useLogEmployeeInformationSheetExportMutation()
+  const sendDocumentMutation = useSendEmployeeInformationSheetMutation()
+
   useEffect(() => {
-    const handleAfterPrint = () => {
-      document.body.classList.remove('employee-sheet-printing')
+    if (!open) {
+      previewLoggedRef.current = false
+      return
     }
 
-    window.addEventListener('afterprint', handleAfterPrint)
-
-    return () => {
-      window.removeEventListener('afterprint', handleAfterPrint)
-      document.body.classList.remove('employee-sheet-printing')
+    if (isLoading || previewLoggedRef.current) {
+      return
     }
-  }, [])
 
-  const handlePrint = () => {
-    const previousTitle = document.title
-    document.title = printableDocumentName
-    document.body.classList.add('employee-sheet-printing')
-
-    window.requestAnimationFrame(() => {
-      window.print()
-      window.setTimeout(() => {
-        document.title = previousTitle
-        document.body.classList.remove('employee-sheet-printing')
-      }, 200)
+    previewLoggedRef.current = true
+    void logEmployeeInformationSheetPreview(employee).catch((error) => {
+      console.error('Failed to log employee information sheet preview', error)
     })
+  }, [employee, isLoading, open])
+
+  const handlePrint = async () => {
+    try {
+      await logPrintExportMutation.mutateAsync({
+        target: employee,
+        channel: 'print_pdf',
+        details: {
+          format: 'print_pdf',
+        },
+      })
+    } catch (error) {
+      console.error('Failed to log employee information sheet print export', error)
+    }
+
+    printDocument(printableDocumentName)
+  }
+
+  const handleDownloadPdf = async () => {
+    try {
+      const result = await downloadPdfMutation.mutateAsync({
+        employee,
+        departmentName,
+      })
+
+      if (result.warning) {
+        toast.error(result.warning)
+        return
+      }
+
+      toast.success(`PDF downloaded as ${result.fileName}.`)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not download the employee information sheet PDF.',
+      )
+    }
+  }
+
+  const handleSendByEmail = async () => {
+    const normalizedEmail = recipientEmail.trim().toLowerCase()
+
+    if (!normalizedEmail) {
+      setRecipientEmailError('Recipient email is required.')
+      return
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      setRecipientEmailError('Enter a valid recipient email address.')
+      return
+    }
+
+    setRecipientEmailError(null)
+
+    try {
+      const result = await sendDocumentMutation.mutateAsync({
+        employeId: employee.id,
+        recipientEmail: normalizedEmail,
+      })
+
+      toast.success(`Employee information sheet sent to ${result.recipient_email}.`)
+      if (result.warning) {
+        toast.error(result.warning)
+      }
+      setIsSendDialogOpen(false)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not send the employee information sheet by email.',
+      )
+    }
   }
 
   return (
@@ -260,8 +210,13 @@ export function EmployeeInformationSheetDialog({
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen)
+
           if (nextOpen) {
             setGeneratedAt(formatDateTime(new Date().toISOString()))
+            setRecipientEmail(employee.email ?? '')
+            setRecipientEmailError(null)
+          } else {
+            setIsSendDialogOpen(false)
           }
         }}
       >
@@ -275,7 +230,8 @@ export function EmployeeInformationSheetDialog({
           <DialogHeader>
             <DialogTitle>Employee Information Sheet</DialogTitle>
             <DialogDescription>
-              Preview the internal employee sheet and print or save it as PDF.
+              Preview the controlled employee document, print it, download a PDF copy, or send it
+              by email through the backend delivery flow.
             </DialogDescription>
           </DialogHeader>
 
@@ -287,30 +243,138 @@ export function EmployeeInformationSheetDialog({
           ) : (
             <div className="space-y-4">
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <InformationSheetDocument
+                <EmployeeInformationSheetDocument
                   employee={employee}
                   departmentName={departmentName}
-                  accountRole={accountRole}
-                  isAccountLinked={isAccountLinked}
                   generatedAt={generatedAt}
                   className="mx-auto w-full max-w-[794px] rounded-2xl border border-slate-200 shadow-sm"
                 />
               </div>
 
               <Card className="rounded-2xl border border-slate-200/80 bg-slate-50/60 shadow-none">
-                <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col gap-4 p-4">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-slate-900">Export options</p>
+                    <p className="text-sm font-medium text-slate-900">Document actions</p>
                     <p className="text-sm text-slate-500">
-                      Use your browser print dialog to print the sheet or save a PDF copy for internal use.
+                      Print the sheet, download a direct PDF copy, or send the controlled document
+                      by email through the server-side workflow.
                     </p>
                   </div>
-                  <Button type="button" variant="outline" onClick={handlePrint}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print / Save as PDF
-                  </Button>
+
+                  <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        void handlePrint()
+                      }}
+                      disabled={logPrintExportMutation.isPending}
+                    >
+                      {logPrintExportMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Printer className="mr-2 h-4 w-4" />
+                      )}
+                      {logPrintExportMutation.isPending
+                        ? 'Preparing print...'
+                        : 'Print / Save as PDF'}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        void handleDownloadPdf()
+                      }}
+                      disabled={downloadPdfMutation.isPending}
+                    >
+                      {downloadPdfMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      {downloadPdfMutation.isPending ? 'Preparing PDF...' : 'Download PDF'}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsSendDialogOpen(true)}
+                      disabled={sendDocumentMutation.isPending}
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      Send by Email
+                    </Button>
+                  </div>
                 </div>
               </Card>
+
+              <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Send Employee Information Sheet</DialogTitle>
+                    <DialogDescription>
+                      The document email is generated and sent by the backend. This action is role-checked and recorded in the audit log.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4">
+                    <Alert className="rounded-2xl border border-slate-200 bg-slate-50 text-slate-800">
+                      <Send className="h-4 w-4" />
+                      <AlertTitle>Controlled delivery</AlertTitle>
+                      <AlertDescription>
+                        Only the approved employee-sheet fields are included. Internal HR notes and unsupported sensitive fields remain excluded.
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="employee-sheet-recipient-email">Recipient email</Label>
+                      <Input
+                        id="employee-sheet-recipient-email"
+                        type="email"
+                        autoComplete="email"
+                        placeholder="recipient@company.com"
+                        value={recipientEmail}
+                        onChange={(event) => {
+                          setRecipientEmail(event.target.value)
+                          if (recipientEmailError) {
+                            setRecipientEmailError(null)
+                          }
+                        }}
+                      />
+                      {recipientEmailError ? (
+                        <p className="text-sm text-destructive">{recipientEmailError}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsSendDialogOpen(false)}
+                      disabled={sendDocumentMutation.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition hover:opacity-95 hover:shadow-md"
+                      onClick={() => {
+                        void handleSendByEmail()
+                      }}
+                      disabled={sendDocumentMutation.isPending}
+                    >
+                      {sendDocumentMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-2 h-4 w-4" />
+                      )}
+                      {sendDocumentMutation.isPending ? 'Sending...' : 'Send Email'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
         </DialogContent>
@@ -319,11 +383,9 @@ export function EmployeeInformationSheetDialog({
       {typeof document !== 'undefined'
         ? createPortal(
             <div className="employee-sheet-print-root" aria-hidden="true">
-              <InformationSheetDocument
+              <EmployeeInformationSheetDocument
                 employee={employee}
                 departmentName={departmentName}
-                accountRole={accountRole}
-                isAccountLinked={isAccountLinked}
                 generatedAt={generatedAt}
                 className="shadow-none"
               />
