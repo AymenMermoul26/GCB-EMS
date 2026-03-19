@@ -10,5 +10,6 @@ export function useRole() {
     isLoading,
     isAdmin: role === APP_ROLES.ADMIN_RH,
     isEmployee: role === APP_ROLES.EMPLOYE,
+    isPayroll: role === APP_ROLES.PAYROLL_AGENT,
   }
 }

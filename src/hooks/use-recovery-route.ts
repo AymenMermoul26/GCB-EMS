@@ -22,6 +22,10 @@ export function useRecoveryRoute() {
       return ROUTES.EMPLOYEE_PROFILE
     }
 
+    if (role === APP_ROLES.PAYROLL_AGENT) {
+      return ROUTES.PAYROLL_DASHBOARD
+    }
+
     return ROUTES.LOGIN
   }, [isLoading, role])
 

@@ -45,6 +45,19 @@ export function DashboardNav({ role }: DashboardNavProps) {
     )
   }
 
+  if (role === APP_ROLES.PAYROLL_AGENT) {
+    return (
+      <nav className="flex items-center gap-2">
+        <NavLink to={ROUTES.PAYROLL_DASHBOARD} className={linkClassName}>
+          Dashboard
+        </NavLink>
+        <NavLink to={ROUTES.PAYROLL_EMPLOYEES} className={linkClassName}>
+          Employees
+        </NavLink>
+      </nav>
+    )
+  }
+
   return (
     <nav className="flex items-center gap-2">
       <NavLink to={ROUTES.EMPLOYEE_PROFILE} className={linkClassName}>

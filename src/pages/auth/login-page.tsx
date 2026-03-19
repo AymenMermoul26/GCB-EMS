@@ -58,6 +58,11 @@ export function LoginPage() {
       return
     }
 
+    if (role === APP_ROLES.PAYROLL_AGENT) {
+      navigate(ROUTES.PAYROLL_DASHBOARD, { replace: true })
+      return
+    }
+
     navigate(ROUTES.EMPLOYEE_PROFILE, { replace: true })
   }, [navigate, role, user])
 
@@ -73,6 +78,11 @@ export function LoginPage() {
 
       if (roleInfo.role === APP_ROLES.ADMIN_RH) {
         navigate(ROUTES.ADMIN_EMPLOYEES, { replace: true })
+        return
+      }
+
+      if (roleInfo.role === APP_ROLES.PAYROLL_AGENT) {
+        navigate(ROUTES.PAYROLL_DASHBOARD, { replace: true })
         return
       }
 
@@ -231,7 +241,7 @@ export function LoginPage() {
             <Separator />
 
             <p className="text-center text-xs text-muted-foreground">
-              Roles supported: Admin RH and Employee.
+              Roles supported: Admin RH, Payroll Agent, and Employee.
             </p>
           </CardContent>
         </Card>

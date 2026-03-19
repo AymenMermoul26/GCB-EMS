@@ -4,7 +4,7 @@ import type { AppRole } from '@/constants/roles'
 
 export interface RoleInfo {
   role: AppRole
-  employeId: string
+  employeId: string | null
 }
 
 export interface AuthState {

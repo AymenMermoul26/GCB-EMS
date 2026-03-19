@@ -20,6 +20,10 @@ function normalizeRole(value: string | null): AppRole | null {
     return APP_ROLES.EMPLOYE
   }
 
+  if (value === APP_ROLES.PAYROLL_AGENT) {
+    return APP_ROLES.PAYROLL_AGENT
+  }
+
   return null
 }
 
@@ -36,7 +40,7 @@ export async function resolveRoleByUserId(
     throw new Error(error.message)
   }
 
-  if (!data?.employe_id) {
+  if (!data) {
     return null
   }
 
@@ -46,9 +50,13 @@ export async function resolveRoleByUserId(
     return null
   }
 
+  if (role !== APP_ROLES.PAYROLL_AGENT && !data?.employe_id) {
+    return null
+  }
+
   return {
     role,
-    employeId: data.employe_id,
+    employeId: data?.employe_id ?? null,
   }
 }
 

@@ -4,8 +4,10 @@ import { AppErrorBoundary } from '@/components/common/app-error-boundary'
 import { AdminRoute } from '@/components/guards/admin-route'
 import { EmployeeRoute } from '@/components/guards/employee-route'
 import { FullScreenLoader } from '@/components/common/full-screen-loader'
+import { PayrollRoute } from '@/components/guards/payroll-route'
 import { ProtectedRoute } from '@/components/guards/protected-route'
 import { RequirePasswordChange } from '@/components/guards/require-password-change'
+import { RoleRoute } from '@/components/guards/role-route'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
@@ -26,6 +28,8 @@ import { EmployeeSecurityPage } from '@/pages/employee/employee-security-page'
 import { ForbiddenPage } from '@/pages/forbidden-page'
 import { NotFoundPage } from '@/pages/not-found-page'
 import { NotificationsPage } from '@/pages/notifications-page'
+import { PayrollDashboardPage } from '@/pages/payroll/payroll-dashboard-page'
+import { PayrollEmployeesPage } from '@/pages/payroll/payroll-employees-page'
 import { PublicProfilePage } from '@/pages/public/public-profile-page'
 import { ServerErrorPage } from '@/pages/server-error-page'
 
@@ -46,6 +50,10 @@ function HomeRedirect() {
 
   if (role === APP_ROLES.ADMIN_RH) {
     return <Navigate to={ROUTES.ADMIN_DASHBOARD} replace />
+  }
+
+  if (role === APP_ROLES.PAYROLL_AGENT) {
+    return <Navigate to={ROUTES.PAYROLL_DASHBOARD} replace />
   }
 
   return <Navigate to={ROUTES.EMPLOYEE_PROFILE} replace />
@@ -85,7 +93,22 @@ export function AppRouter() {
                 <Route path={ROUTES.EMPLOYEE_SECURITY} element={<EmployeeSecurityPage />} />
               </Route>
 
-              <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+              <Route element={<PayrollRoute />}>
+                <Route path={ROUTES.PAYROLL} element={<Navigate to={ROUTES.PAYROLL_DASHBOARD} replace />} />
+                <Route path={ROUTES.PAYROLL_DASHBOARD} element={<PayrollDashboardPage />} />
+                <Route path={ROUTES.PAYROLL_EMPLOYEES} element={<PayrollEmployeesPage />} />
+              </Route>
+
+              <Route
+                element={
+                  <RoleRoute
+                    allowedRoles={[APP_ROLES.ADMIN_RH, APP_ROLES.EMPLOYE]}
+                    loadingLabel="Authorizing notifications access..."
+                  />
+                }
+              >
+                <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+              </Route>
             </Route>
           </Route>
 
