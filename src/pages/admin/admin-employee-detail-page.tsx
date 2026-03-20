@@ -128,6 +128,7 @@ import {
   getEmployeeSexeLabel,
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
+import { PUBLIC_QR_VISIBILITY_FIELDS } from '@/types/employee-governance'
 import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { downloadCanvasAsPng } from '@/utils/qr'
@@ -221,17 +222,6 @@ function requestStatusBadgeClass(status: string): string {
 
   return ''
 }
-
-const VISIBILITY_FIELDS: Array<{ key: EmployeeVisibilityFieldKey; label: string }> = [
-  { key: 'nom', label: 'Last Name' },
-  { key: 'prenom', label: 'First Name' },
-  { key: 'poste', label: 'Job Title' },
-  { key: 'email', label: 'Email' },
-  { key: 'telephone', label: 'Phone' },
-  { key: 'photo_url', label: 'Photo URL' },
-  { key: 'departement', label: 'Department' },
-  { key: 'matricule', label: 'Employee ID' },
-]
 
 const EMPTY_SELECT_VALUE = '__none__'
 
@@ -2082,7 +2072,7 @@ export function AdminEmployeeDetailPage() {
 
                     {!visibilityQuery.isPending && !visibilityQuery.isError ? (
                       <>
-                        {VISIBILITY_FIELDS.map((field) => (
+                        {PUBLIC_QR_VISIBILITY_FIELDS.map((field) => (
                           <div
                             key={field.key}
                             className="flex items-center justify-between rounded-md border px-3 py-2"

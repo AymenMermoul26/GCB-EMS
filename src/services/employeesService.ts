@@ -80,6 +80,10 @@ function normalizeSingleRowResult<T>(
   return { row: rows[0], hasMultiple: false }
 }
 
+function ensureArrayResult<T>(value: unknown): T[] | null {
+  return Array.isArray(value) ? (value as T[]) : null
+}
+
 function mapEmployee(row: EmployeeRow): Employee {
   return {
     id: row.id,
@@ -94,7 +98,6 @@ function mapEmployee(row: EmployeeRow): Employee {
     situationFamiliale: row.situation_familiale ?? null,
     nombreEnfants: row.nombre_enfants ?? null,
     adresse: row.adresse ?? null,
-    numeroSecuriteSociale: row.numero_securite_sociale ?? null,
     diplome: row.diplome ?? null,
     specialite: row.specialite ?? null,
     historiquePostes: row.historique_postes ?? null,
@@ -114,6 +117,7 @@ function mapEmployee(row: EmployeeRow): Employee {
 function mapAdminEmployee(row: AdminEmployeeRow): AdminEmployee {
   return {
     ...mapEmployee(row),
+    numeroSecuriteSociale: row.numero_securite_sociale ?? null,
     observations: row.observations,
   }
 }
@@ -294,17 +298,17 @@ export async function listEmployees(
 
 export async function getEmployee(id: string): Promise<Employee | null> {
   const { data, error } = await supabase
-    .from('Employe')
-    .select(EMPLOYEE_SELF_SELECT)
-    .eq('id', id)
-    .limit(2)
+    .rpc('get_employee_self_profile', { p_employee_id: id })
     .returns<EmployeeRow[]>()
 
   if (error) {
     throw new Error(error.message)
   }
 
-  const { row, hasMultiple } = normalizeSingleRowResult(data ?? null, 'employeesService.getEmployee')
+  const { row, hasMultiple } = normalizeSingleRowResult(
+    ensureArrayResult<EmployeeRow>(data),
+    'employeesService.getEmployee',
+  )
 
   if (hasMultiple) {
     throw new Error('Data integrity issue: multiple employee rows matched this profile.')

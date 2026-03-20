@@ -16,7 +16,7 @@ import {
   type CreateNotificationPayload,
 } from '@/services/notificationsService'
 import { roleService } from '@/services/role.service'
-import type { Employee } from '@/types/employee'
+import type { AdminEmployee, Employee } from '@/types/employee'
 import type { NotificationItem } from '@/types/notification'
 import type {
   PayrollChangeFieldKey,
@@ -71,7 +71,7 @@ export const PAYROLL_NOTIFICATION_CATEGORY_META = {
 } as const
 
 type PayrollSignalEmployeeSnapshot = Pick<
-  Employee,
+  AdminEmployee,
   | 'id'
   | 'matricule'
   | 'nom'
@@ -84,6 +84,11 @@ type PayrollSignalEmployeeSnapshot = Pick<
   | 'adresse'
   | 'numeroSecuriteSociale'
   | 'isActive'
+>
+
+type PayrollStatusSignalEmployeeSnapshot = Pick<
+  Employee,
+  'id' | 'matricule' | 'nom' | 'prenom' | 'isActive'
 >
 
 interface PayrollSignalParams {
@@ -356,8 +361,8 @@ export async function notifyPayrollUsersOfEmployeeUpdate(
 }
 
 export async function notifyPayrollUsersOfEmployeeStatusChange(
-  previousEmployee: PayrollSignalEmployeeSnapshot,
-  nextEmployee: PayrollSignalEmployeeSnapshot,
+  previousEmployee: PayrollStatusSignalEmployeeSnapshot,
+  nextEmployee: PayrollStatusSignalEmployeeSnapshot,
 ): Promise<number> {
   if (previousEmployee.isActive === nextEmployee.isActive) {
     return 0

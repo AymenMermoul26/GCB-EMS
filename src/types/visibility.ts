@@ -1,30 +1,16 @@
-export const EMPLOYEE_VISIBILITY_FIELD_KEYS = [
-  'nom',
-  'prenom',
-  'poste',
-  'email',
-  'telephone',
-  'photo_url',
-  'departement',
-  'matricule',
-] as const
+import {
+  PUBLIC_QR_VISIBLE_FIELD_KEYS,
+  PUBLIC_QR_VISIBLE_FIELD_LABELS,
+  type PublicQrVisibilityFieldKey,
+} from '@/types/employee-governance'
 
-export type EmployeeVisibilityFieldKey =
-  (typeof EMPLOYEE_VISIBILITY_FIELD_KEYS)[number]
+export const EMPLOYEE_VISIBILITY_FIELD_KEYS = [...PUBLIC_QR_VISIBLE_FIELD_KEYS]
 
-export const EMPLOYEE_VISIBILITY_FIELD_LABELS: Record<
-  EmployeeVisibilityFieldKey,
-  string
-> = {
-  nom: 'Last Name',
-  prenom: 'First Name',
-  poste: 'Job Title',
-  email: 'Email',
-  telephone: 'Phone',
-  photo_url: 'Photo',
-  departement: 'Department',
-  matricule: 'Employee ID',
-}
+export type EmployeeVisibilityFieldKey = PublicQrVisibilityFieldKey
+
+export const EMPLOYEE_VISIBILITY_FIELD_LABELS = {
+  ...PUBLIC_QR_VISIBLE_FIELD_LABELS,
+} as Record<EmployeeVisibilityFieldKey, string>
 
 export function isEmployeeVisibilityFieldKey(
   value: string,

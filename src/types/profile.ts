@@ -1,5 +1,8 @@
 import type { AppRole } from '@/constants/roles'
-import type { EmployeeVisibilityFieldKey } from '@/types/visibility'
+import {
+  EMPLOYEE_VISIBILITY_FIELD_KEYS,
+  type EmployeeVisibilityFieldKey,
+} from '@/types/visibility'
 
 export interface ProfilUtilisateur {
   id: string
@@ -13,14 +16,7 @@ export interface ProfilUtilisateur {
 export type PublicProfileFieldKey = EmployeeVisibilityFieldKey
 
 export const PUBLIC_PROFILE_FIELD_KEYS: PublicProfileFieldKey[] = [
-  'nom',
-  'prenom',
-  'poste',
-  'email',
-  'telephone',
-  'photo_url',
-  'departement',
-  'matricule',
+  ...EMPLOYEE_VISIBILITY_FIELD_KEYS,
 ]
 
 export interface PublicProfile {

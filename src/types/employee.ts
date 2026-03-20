@@ -93,7 +93,6 @@ export interface Employee {
   situationFamiliale: string | null
   nombreEnfants: number | null
   adresse: string | null
-  numeroSecuriteSociale: string | null
   diplome: string | null
   specialite: string | null
   historiquePostes: string | null
@@ -110,6 +109,7 @@ export interface Employee {
 }
 
 export interface AdminEmployee extends Employee {
+  numeroSecuriteSociale: string | null
   observations: string | null
 }
 

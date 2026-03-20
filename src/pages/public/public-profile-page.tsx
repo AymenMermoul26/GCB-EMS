@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ROUTES } from '@/constants/routes'
 import { usePublicProfile } from '@/hooks/use-public-profile'
-import type { PublicProfile } from '@/types/profile'
+import { PUBLIC_PROFILE_FIELD_KEYS, type PublicProfile } from '@/types/profile'
 import { copyTextToClipboard } from '@/utils/clipboard'
 
 interface InfoRow {
@@ -140,16 +140,7 @@ function hasVisiblePublicContent(profile: PublicProfile | null): boolean {
     return false
   }
 
-  return [
-    profile.nom,
-    profile.prenom,
-    profile.poste,
-    profile.departement,
-    profile.email,
-    profile.telephone,
-    profile.matricule,
-    profile.photo_url,
-  ].some((value) => hasText(value))
+  return PUBLIC_PROFILE_FIELD_KEYS.some((fieldKey) => hasText(profile[fieldKey]))
 }
 
 function LoadingState() {
