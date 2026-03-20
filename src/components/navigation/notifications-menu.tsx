@@ -98,6 +98,7 @@ export function NotificationsMenu() {
         variant="ghost"
         size="icon"
         aria-label="Notifications"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
       >
         <Bell className="h-5 w-5" />
@@ -112,7 +113,7 @@ export function NotificationsMenu() {
       </Button>
 
       {isOpen ? (
-        <div className="absolute right-0 z-[70] mt-2 w-[390px] max-w-[calc(100vw-1.25rem)] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_22px_45px_-25px_rgba(15,23,42,0.55)]">
+        <div className="absolute right-0 z-[70] mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_22px_45px_-25px_rgba(15,23,42,0.55)]">
           <div className="border-b border-slate-200/70 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -161,7 +162,10 @@ export function NotificationsMenu() {
             {notificationsQuery.isPending ? (
               <>
                 {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={`notifications-menu-skeleton-${index}`} className="rounded-xl border p-3">
+                  <div
+                    key={`notifications-menu-skeleton-${index}`}
+                    className="rounded-xl border border-slate-200/80 p-3"
+                  >
                     <Skeleton className="h-4 w-40" />
                     <Skeleton className="mt-2 h-4 w-full" />
                     <Skeleton className="mt-2 h-3 w-24" />
@@ -187,7 +191,7 @@ export function NotificationsMenu() {
 
             {!notificationsQuery.isPending && !notificationsQuery.isError ? (
               latestNotifications.length === 0 ? (
-                <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-center">
+                <div className="rounded-xl border border-dashed border-slate-200 bg-muted/20 p-6 text-center">
                   <p className="text-sm font-medium text-slate-900">You're all caught up</p>
                   <p className="mt-1 text-xs text-muted-foreground">No new notifications.</p>
                 </div>

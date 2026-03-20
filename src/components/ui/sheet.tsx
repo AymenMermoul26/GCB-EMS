@@ -35,14 +35,14 @@ function SheetOverlay({
 }
 
 const sheetVariants = cva(
-  'fixed z-50 bg-background p-6 shadow-lg transition ease-in-out',
+  'fixed z-50 overflow-y-auto border-slate-200/80 bg-background/95 p-5 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.55)] backdrop-blur supports-[backdrop-filter]:bg-background/90 transition ease-in-out sm:p-6',
   {
     variants: {
       side: {
-        top: 'inset-x-0 top-0 border-b',
-        bottom: 'inset-x-0 bottom-0 border-t',
-        left: 'inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm',
-        right: 'inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
+        top: 'inset-x-3 top-3 rounded-2xl border',
+        bottom: 'inset-x-3 bottom-3 rounded-2xl border',
+        left: 'inset-y-3 left-3 h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] rounded-2xl border sm:max-w-sm',
+        right: 'inset-y-3 right-3 h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] rounded-2xl border sm:max-w-sm',
       },
     },
     defaultVariants: {
@@ -65,7 +65,7 @@ function SheetContent({ side = 'right', className, children, ...props }: SheetCo
         {...props}
       >
         {children}
-        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring">
+        <SheetPrimitive.Close className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-500 opacity-90 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </SheetPrimitive.Close>

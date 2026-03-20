@@ -25,7 +25,11 @@ import {
   PageStateSkeleton,
   SearchEmptyState,
 } from '@/components/common/page-state'
-import { BRAND_BUTTON_CLASS_NAME, PageHeader } from '@/components/common/page-header'
+import {
+  BRAND_BUTTON_CLASS_NAME,
+  PageHeader,
+  SURFACE_PANEL_CLASS_NAME,
+} from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
 import {
   AlertDialog,
@@ -394,7 +398,7 @@ export function EmployeesListPage() {
                   ) : null}
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Filter employees</DialogTitle>
                   <DialogDescription>
@@ -499,12 +503,12 @@ export function EmployeesListPage() {
           </>
         }
       >
-        <div className="flex w-full items-center justify-between gap-2">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Showing {from}-{to} of {total}
             {employeesQuery.isFetching ? ' (updating...)' : ''}
           </p>
-          <div className="inline-flex items-center rounded-xl border bg-slate-50 p-1">
+          <div className="inline-flex items-center self-start rounded-xl border bg-slate-50 p-1">
             <Button
               type="button"
               size="sm"
@@ -540,7 +544,7 @@ export function EmployeesListPage() {
       ) : null}
 
       {employeesQuery.isPending ? (
-        <PageStateSkeleton variant="cards" count={8} />
+        <PageStateSkeleton variant={viewMode === 'table' ? 'table' : 'cards'} count={8} />
       ) : null}
 
       {!employeesQuery.isPending && !employeesQuery.isError && employees.length === 0 ? (
@@ -708,10 +712,11 @@ export function EmployeesListPage() {
                       </div>
                     </div>
 
-                    <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                    <div className="mt-auto grid grid-cols-2 gap-2 pt-2">
                       <Button
                         size="sm"
                         variant="outline"
+                        className="w-full"
                         onClick={() => handleOpenEmployeeDetails(employee.id)}
                       >
                         <Eye className="mr-1 h-4 w-4" />
@@ -720,6 +725,7 @@ export function EmployeesListPage() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="w-full"
                         onClick={() => handleOpenEmployeeEdit(employee.id)}
                       >
                         <UserPen className="mr-1 h-4 w-4" />
@@ -728,6 +734,7 @@ export function EmployeesListPage() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="w-full"
                         onClick={() => handleOpenEmployeeQr(employee.id)}
                         disabled={!employee.isActive}
                       >
@@ -737,11 +744,12 @@ export function EmployeesListPage() {
                       <Button
                         size="sm"
                         variant={employee.isActive ? 'destructive' : 'outline'}
-                        className={
+                        className={cn(
+                          'w-full',
                           employee.isActive
                             ? undefined
-                            : 'border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95'
-                        }
+                            : 'border-transparent bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95',
+                        )}
                         disabled={isStatusMutationPending}
                         onClick={() => setEmployeeStatusTarget(employee)}
                       >
@@ -758,7 +766,7 @@ export function EmployeesListPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border bg-white shadow-sm">
+            <div className={cn(SURFACE_PANEL_CLASS_NAME, 'overflow-hidden')}>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -829,7 +837,7 @@ export function EmployeesListPage() {
                         </StatusBadge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 xl:flex-nowrap">
                           <Button
                             size="sm"
                             variant="outline"
@@ -882,14 +890,15 @@ export function EmployeesListPage() {
             </div>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               Page {page} - Showing {from}-{to} of {total}
             </p>
-            <div className="flex gap-2">
+            <div className="flex w-full gap-2 sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
+                className="flex-1 sm:flex-none"
                 disabled={!canGoPrev || employeesQuery.isFetching}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
               >
@@ -898,6 +907,7 @@ export function EmployeesListPage() {
               <Button
                 variant="outline"
                 size="sm"
+                className="flex-1 sm:flex-none"
                 disabled={!canGoNext || employeesQuery.isFetching}
                 onClick={() => setPage((value) => value + 1)}
               >

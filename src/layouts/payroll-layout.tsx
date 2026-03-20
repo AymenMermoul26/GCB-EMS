@@ -43,10 +43,10 @@ export function PayrollLayout({
             </div>
           </header>
 
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">
-            <div className="mb-8 space-y-1">
-              <h1 className="text-2xl font-semibold text-slate-950">{title}</h1>
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
+            <div className="mb-6 max-w-3xl space-y-1 sm:mb-8">
+              <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">{title}</h1>
+              <p className="text-sm leading-6 text-muted-foreground">{subtitle}</p>
             </div>
             {children}
           </main>

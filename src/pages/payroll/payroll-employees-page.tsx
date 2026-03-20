@@ -18,11 +18,16 @@ import {
   PageStateSkeleton,
   SearchEmptyState,
 } from '@/components/common/page-state'
-import { PageHeader, SURFACE_CARD_CLASS_NAME } from '@/components/common/page-header'
+import {
+  PageHeader,
+  SURFACE_CARD_CLASS_NAME,
+  SURFACE_PANEL_CLASS_NAME,
+} from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import {
   Select,
   SelectContent,
@@ -381,7 +386,7 @@ export function PayrollEmployeesPage() {
       !payrollEmployeesQuery.isError &&
       employees.length > 0 ? (
         <>
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-600">
               Showing {employees.length} payroll employee
               {employees.length === 1 ? '' : 's'}
@@ -392,7 +397,7 @@ export function PayrollEmployeesPage() {
             </StatusBadge>
           </div>
 
-          <div className="hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm lg:block">
+          <div className={cn('hidden overflow-hidden lg:block', SURFACE_PANEL_CLASS_NAME)}>
             <Table>
               <TableHeader>
                 <TableRow>

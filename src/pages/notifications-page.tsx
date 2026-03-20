@@ -8,7 +8,7 @@ import {
   ErrorState,
   SearchEmptyState,
 } from '@/components/common/page-state'
-import { PageHeader } from '@/components/common/page-header'
+import { PageHeader, SURFACE_PANEL_CLASS_NAME } from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -253,7 +253,7 @@ export function NotificationsPage() {
         />
       ) : null}
 
-      <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+      <Card className={SURFACE_PANEL_CLASS_NAME}>
         <CardHeader className="space-y-3">
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
             <Bell className="h-4 w-4" />
@@ -263,7 +263,7 @@ export function NotificationsPage() {
             Stay updated with workflow alerts and platform events.
           </CardDescription>
           <Tabs value={viewFilter} onValueChange={(value) => setViewFilter(value as ViewFilter)}>
-            <TabsList>
+            <TabsList className="grid w-full max-w-[320px] grid-cols-3">
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="unread">Unread</TabsTrigger>
               <TabsTrigger value="read">Read</TabsTrigger>
@@ -321,29 +321,41 @@ export function NotificationsPage() {
                               }
                             }}
                           >
-                            <div className="flex items-start gap-3">
-                              <span
-                                className={cn(
-                                  'mt-1 inline-flex h-2.5 w-2.5 rounded-full',
-                                  isUnread
-                                    ? 'bg-gradient-to-br from-[#ff6b35] to-[#ffc947]'
-                                    : 'bg-muted-foreground/40',
-                                )}
-                              />
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                              <div className="flex min-w-0 flex-1 gap-3">
+                                <span
+                                  className={cn(
+                                    'mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full',
+                                    isUnread
+                                      ? 'bg-gradient-to-br from-[#ff6b35] to-[#ffc947]'
+                                      : 'bg-muted-foreground/40',
+                                  )}
+                                />
 
-                              <div className="min-w-0 flex-1 space-y-1">
-                                <p className={cn('text-sm', isUnread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700')}>
-                                  {notification.title}
-                                </p>
-                                <p className="text-sm text-muted-foreground [display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                                  {notification.body}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatRelativeTime(notification.createdAt)}
-                                </p>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <p
+                                    className={cn(
+                                      'text-sm',
+                                      isUnread
+                                        ? 'font-semibold text-slate-900'
+                                        : 'font-medium text-slate-700',
+                                    )}
+                                  >
+                                    {notification.title}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground [display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                                    {notification.body}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatRelativeTime(notification.createdAt)}
+                                  </p>
+                                </div>
                               </div>
 
-                              <div className="flex flex-col items-end gap-2" onClick={(event) => event.stopPropagation()}>
+                              <div
+                                className="flex w-full flex-col gap-2 sm:w-auto sm:items-end"
+                                onClick={(event) => event.stopPropagation()}
+                              >
                                 <StatusBadge
                                   tone={isUnread ? 'brand' : 'neutral'}
                                   emphasis={isUnread ? 'outline' : 'soft'}
@@ -351,12 +363,13 @@ export function NotificationsPage() {
                                   {isUnread ? 'Unread' : 'Read'}
                                 </StatusBadge>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                                   {isUnread ? (
                                     <Button
                                       type="button"
                                       variant="outline"
                                       size="sm"
+                                      className="w-full sm:w-auto"
                                       disabled={markReadMutation.isPending && isMarkingThis}
                                       onClick={() => {
                                         void handleMarkAsRead(notification.id)
@@ -494,13 +507,17 @@ function NotificationRowMenu({
         size="icon"
         variant="ghost"
         aria-label={`Actions for notification ${notification.id}`}
+        aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
         <MoreHorizontal className="h-4 w-4" />
       </Button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-10 z-30 w-44 rounded-lg border bg-white p-1 shadow-md">
+        <div
+          role="menu"
+          className="absolute right-0 top-10 z-30 w-44 rounded-xl border border-slate-200/80 bg-white p-1 shadow-md"
+        >
           {notification.link ? (
             <MenuItem
               onClick={() => {
@@ -547,7 +564,7 @@ function MenuItem({ children, onClick, disabled = false }: MenuItemProps) {
     <button
       type="button"
       className={cn(
-        'flex w-full items-center rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted',
+        'flex min-h-10 w-full items-center rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted',
         disabled && 'cursor-not-allowed opacity-50',
       )}
       onClick={onClick}

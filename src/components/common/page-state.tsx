@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SURFACE_CARD_CLASS_NAME } from '@/components/common/page-header'
 
 type StateSurface = 'card' | 'plain'
 type SkeletonVariant = 'cards' | 'table' | 'detail' | 'list' | 'profile' | 'public-profile'
@@ -57,7 +58,7 @@ function StateSurface({
     return (
       <div
         className={cn(
-          'rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-8',
+          'rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 sm:p-8',
           className,
         )}
       >
@@ -67,8 +68,8 @@ function StateSurface({
   }
 
   return (
-    <Card className={cn('rounded-2xl border border-slate-200/80 shadow-sm', className)}>
-      <CardContent className="p-8">{children}</CardContent>
+    <Card className={cn(SURFACE_CARD_CLASS_NAME, className)}>
+      <CardContent className="p-6 sm:p-8">{children}</CardContent>
     </Card>
   )
 }
@@ -104,7 +105,7 @@ function StateLayout({
         {actions ? (
           <div
             className={cn(
-              'flex flex-wrap gap-3',
+              'flex w-full flex-wrap gap-3',
               align === 'center' ? 'justify-center' : 'justify-start',
             )}
           >

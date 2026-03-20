@@ -230,10 +230,11 @@ export function PayrollNotificationsPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:justify-end">
                       <Button
                         type="button"
                         variant="outline"
+                        className="w-full sm:w-auto"
                         onClick={() => void handleInspectNotification(notification)}
                         disabled={markReadMutation.isPending}
                       >
@@ -241,7 +242,7 @@ export function PayrollNotificationsPage() {
                         Inspect
                       </Button>
                       {notification.link ? (
-                        <Button asChild variant="outline">
+                        <Button asChild variant="outline" className="w-full sm:w-auto">
                           <Link to={notification.link}>
                             Open employee
                             <ArrowRight className="ml-2 h-4 w-4" />

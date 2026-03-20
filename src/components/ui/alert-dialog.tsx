@@ -45,7 +45,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 shadow-lg',
+          'fixed left-1/2 top-1/2 z-50 max-h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200/80 bg-background/95 p-5 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.55)] backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:max-h-[calc(100vh-2rem)] sm:w-full sm:p-6',
           className,
         )}
         {...props}

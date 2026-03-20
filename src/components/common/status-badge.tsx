@@ -43,6 +43,7 @@ export function StatusBadge({
     <Badge
       variant={variant}
       className={cn(
+        'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium',
         emphasis === 'soft' ? SOFT_CLASSES[tone] : OUTLINE_CLASSES[tone],
         className,
       )}
