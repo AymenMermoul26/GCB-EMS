@@ -12,6 +12,7 @@ import type {
   MonitoringPeriod,
   MonitoringRecentEvent,
   MonitoringRecentInviteItem,
+  MonitoringRecentPayrollExportItem,
   MonitoringTimelinePoint,
   MonitoringTopActionItem,
 } from '@/types/monitoring-dashboard'
@@ -88,32 +89,65 @@ const QR_ACTIVITY_CONFIG = [
     helper: 'Pending QR refresh items resolved',
     tone: 'emerald',
   },
+  {
+    key: 'PUBLIC_PROFILE_VIEWED',
+    label: 'Public Profile Views',
+    helper: 'Successful public QR profile loads',
+    tone: 'emerald',
+  },
 ] as const
 
 const EMAIL_ACTIVITY_CONFIG = [
   {
-    key: 'EMPLOYEE_INVITE_SENT',
+    key: 'invite_sent',
     label: 'Invites Sent',
-    helper: 'Employee invite emails sent',
+    helper: 'Initial employee invite emails sent',
     tone: 'orange',
   },
   {
-    key: 'EMPLOYEE_INVITE_FAILED',
+    key: 'invite_resent',
+    label: 'Resend Attempts',
+    helper: 'Invite resend attempts recorded by HR',
+    tone: 'amber',
+  },
+  {
+    key: 'invite_accepted',
+    label: 'Invite Accepted',
+    helper: 'Employees completed first-login password setup',
+    tone: 'emerald',
+  },
+  {
+    key: 'invite_failed',
     label: 'Invite Failures',
-    helper: 'Invite email attempts that failed',
+    helper: 'Invite email delivery failures',
     tone: 'rose',
   },
   {
-    key: 'EMPLOYEE_SHEET_EMAIL_SENT',
-    label: 'Sheet Emails Sent',
-    helper: 'Employee information sheet emails sent',
+    key: 'document_sent',
+    label: 'Document Emails Sent',
+    helper: 'Employee document emails sent successfully',
     tone: 'orange',
   },
   {
-    key: 'EMPLOYEE_SHEET_EMAIL_FAILED',
-    label: 'Sheet Email Failures',
-    helper: 'Employee information sheet email attempts that failed',
+    key: 'document_failed',
+    label: 'Document Email Failures',
+    helper: 'Employee document emails that failed to send',
     tone: 'rose',
+  },
+] as const
+
+const PAYROLL_ACTIVITY_CONFIG = [
+  {
+    key: 'PAYROLL_EXPORT_GENERATED',
+    label: 'CSV Exports',
+    helper: 'Payroll-safe directory CSV exports generated',
+    tone: 'sky',
+  },
+  {
+    key: 'PAYROLL_EXPORT_PRINT_INITIATED',
+    label: 'Sheet Print / PDF',
+    helper: 'Payroll information-sheet print or save-as-PDF actions',
+    tone: 'amber',
   },
 ] as const
 
@@ -150,6 +184,19 @@ function readStringArray(value: unknown): string[] {
   return value
     .map((item) => readText(item))
     .filter((item): item is string => Boolean(item))
+}
+
+function readNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
 }
 
 function formatFieldLabel(value: string): string {
@@ -413,6 +460,7 @@ function buildCategoryDistribution(
       request: true,
       qr: true,
       email: true,
+      payroll: true,
       security: true,
       visibility: true,
       system: true,
@@ -451,19 +499,71 @@ function buildMetricItems(
     value: counts.get(item.key) ?? 0,
     helper: item.helper,
     tone: item.tone,
+    }))
+}
+
+function buildEmailActivity(rows: MonitoringAuditRow[]): MonitoringMetricItem[] {
+  const counts = {
+    invite_sent: 0,
+    invite_resent: 0,
+    invite_accepted: 0,
+    invite_failed: 0,
+    document_sent: 0,
+    document_failed: 0,
+  }
+
+  for (const row of rows) {
+    const detailsJson = normalizeDetailsJson(row.details_json)
+    const triggerSource = readText(detailsJson.trigger_source)
+
+    switch (row.action) {
+      case 'EMPLOYEE_INVITE_SENT':
+        if (triggerSource === 'resend_invite') {
+          counts.invite_resent += 1
+        } else {
+          counts.invite_sent += 1
+        }
+        break
+      case 'EMPLOYEE_INVITE_ACCEPTED':
+        counts.invite_accepted += 1
+        break
+      case 'EMPLOYEE_INVITE_FAILED':
+        counts.invite_failed += 1
+        break
+      case 'EMPLOYEE_SHEET_EMAIL_SENT':
+        counts.document_sent += 1
+        break
+      case 'EMPLOYEE_SHEET_EMAIL_FAILED':
+        counts.document_failed += 1
+        break
+      default:
+        break
+    }
+  }
+
+  return EMAIL_ACTIVITY_CONFIG.map((item) => ({
+    key: item.key,
+    label: item.label,
+    value: counts[item.key],
+    helper: item.helper,
+    tone: item.tone,
   }))
 }
 
 function buildRecentInviteEvents(rows: MonitoringAuditRow[]): MonitoringRecentInviteItem[] {
   return rows
     .filter(
-      (row) => row.action === 'EMPLOYEE_INVITE_SENT' || row.action === 'EMPLOYEE_INVITE_FAILED',
+      (row) =>
+        row.action === 'EMPLOYEE_INVITE_SENT' ||
+        row.action === 'EMPLOYEE_INVITE_FAILED' ||
+        row.action === 'EMPLOYEE_INVITE_ACCEPTED',
     )
     .slice(0, 5)
     .map((row) => {
       const detailsJson = normalizeDetailsJson(row.details_json)
       const employeeName = readText(detailsJson.employee_name)
       const matricule = readText(detailsJson.matricule)
+      const triggerSource = readText(detailsJson.trigger_source)
 
       return {
         id: row.id,
@@ -473,11 +573,189 @@ function buildRecentInviteEvents(rows: MonitoringAuditRow[]): MonitoringRecentIn
             ? `${employeeName} (${matricule})`
             : employeeName ?? matricule ?? 'Unknown employee',
         recipientEmail: readText(detailsJson.recipient_email) ?? 'No recipient recorded',
-        status: row.action === 'EMPLOYEE_INVITE_FAILED' ? 'failed' : 'sent',
+        status:
+          row.action === 'EMPLOYEE_INVITE_FAILED'
+            ? 'failed'
+            : row.action === 'EMPLOYEE_INVITE_ACCEPTED'
+              ? 'accepted'
+              : 'sent',
+        triggerSource:
+          triggerSource === 'invite' || triggerSource === 'resend_invite'
+            ? triggerSource
+            : null,
         createdAt: row.created_at,
         failureReason: readText(detailsJson.failure_reason) ?? undefined,
       }
     })
+}
+
+interface MonitoringAuditLookups {
+  profileByUserId: Map<string, ProfilLookupRow>
+  employeeById: Map<string, EmployeeLookupRow>
+  error?: string
+}
+
+async function buildAuditLookups(rows: MonitoringAuditRow[]): Promise<MonitoringAuditLookups> {
+  if (rows.length === 0) {
+    return {
+      profileByUserId: new Map<string, ProfilLookupRow>(),
+      employeeById: new Map<string, EmployeeLookupRow>(),
+    }
+  }
+
+  const actorUserIds = [...new Set(rows.map((row) => row.actor_user_id).filter(Boolean))] as string[]
+  const employeeIds = new Set<string>()
+
+  for (const row of rows) {
+    const detailsJson = normalizeDetailsJson(row.details_json)
+
+    if (row.target_type === 'Employe' && row.target_id) {
+      employeeIds.add(row.target_id)
+    }
+
+    const detailEmployeeId = readText(detailsJson.employee_id)
+    if (detailEmployeeId) {
+      employeeIds.add(detailEmployeeId)
+    }
+  }
+
+  const profileByUserId = new Map<string, ProfilLookupRow>()
+  const employeeById = new Map<string, EmployeeLookupRow>()
+  const errorMessages: string[] = []
+
+  if (actorUserIds.length > 0) {
+    const { data, error } = await supabase
+      .from('ProfilUtilisateur')
+      .select('user_id, role, employe_id')
+      .in('user_id', actorUserIds)
+      .returns<ProfilLookupRow[]>()
+
+    if (error) {
+      errorMessages.push(error.message)
+    } else {
+      for (const profile of data ?? []) {
+        if (profile.user_id) {
+          profileByUserId.set(profile.user_id, profile)
+        }
+        if (profile.employe_id) {
+          employeeIds.add(profile.employe_id)
+        }
+      }
+    }
+  }
+
+  const lookupEmployeeIds = [...new Set([...employeeIds].filter(Boolean))]
+
+  if (lookupEmployeeIds.length > 0) {
+    const { data, error } = await supabase
+      .from('Employe')
+      .select('id, matricule, nom, prenom')
+      .in('id', lookupEmployeeIds)
+      .returns<EmployeeLookupRow[]>()
+
+    if (error) {
+      errorMessages.push(error.message)
+    } else {
+      for (const employee of data ?? []) {
+        employeeById.set(employee.id, employee)
+      }
+    }
+  }
+
+  return {
+    profileByUserId,
+    employeeById,
+    error: errorMessages.length > 0 ? errorMessages.join(' ') : undefined,
+  }
+}
+
+function buildPayrollScopeSummary(
+  action: MonitoringRecentPayrollExportItem['action'],
+  detailsJson: Record<string, unknown>,
+): string {
+  if (action === 'PAYROLL_EXPORT_PRINT_INITIATED') {
+    return 'Single employee information sheet'
+  }
+
+  const summaryParts: string[] = []
+  const search = readText(detailsJson.search)
+  const departmentName = readText(detailsJson.department_name)
+  const status = readText(detailsJson.status)
+  const typeContrat = readText(detailsJson.type_contrat)
+
+  if (search) {
+    summaryParts.push(`Search: ${search}`)
+  }
+
+  if (departmentName) {
+    summaryParts.push(`Department: ${departmentName}`)
+  }
+
+  if (status && status !== 'ALL') {
+    summaryParts.push(`Status: ${status}`)
+  }
+
+  if (typeContrat) {
+    summaryParts.push(`Contract: ${typeContrat}`)
+  }
+
+  return summaryParts.length > 0
+    ? summaryParts.join(' | ')
+    : 'All payroll-visible employees'
+}
+
+async function buildRecentPayrollExportEvents(
+  rows: MonitoringAuditRow[],
+): Promise<{ items: MonitoringRecentPayrollExportItem[]; error?: string }> {
+  const exportRows = rows
+    .filter(
+      (row) =>
+        row.action === 'PAYROLL_EXPORT_GENERATED' ||
+        row.action === 'PAYROLL_EXPORT_PRINT_INITIATED',
+    )
+    .slice(0, 5)
+
+  if (exportRows.length === 0) {
+    return { items: [] }
+  }
+
+  const lookups = await buildAuditLookups(exportRows)
+
+  const items = exportRows.map((row) => {
+    const detailsJson = normalizeDetailsJson(row.details_json)
+    const employeeId = readText(detailsJson.employee_id) ?? (row.target_type === 'Employe' ? row.target_id : null)
+    const employee = employeeId ? lookups.employeeById.get(employeeId) : null
+    const employeeName =
+      readText(detailsJson.employee_name) ??
+      (employee ? `${employee.prenom} ${employee.nom}` : null)
+    const action: MonitoringRecentPayrollExportItem['action'] =
+      row.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
+        ? 'PAYROLL_EXPORT_PRINT_INITIATED'
+        : 'PAYROLL_EXPORT_GENERATED'
+
+    return {
+      id: row.id,
+      action,
+      actorLabel: formatActorLabel(
+        row,
+        lookups.profileByUserId,
+        lookups.employeeById,
+        detailsJson,
+      ),
+      employeeId,
+      employeeName,
+      rowCount: readNumber(detailsJson.row_count),
+      fileName: readText(detailsJson.file_name),
+      format: readText(detailsJson.format),
+      scopeSummary: buildPayrollScopeSummary(action, detailsJson),
+      createdAt: row.created_at,
+    }
+  })
+
+  return {
+    items,
+    error: lookups.error,
+  }
 }
 
 function buildTopActions(rows: MonitoringAuditRow[]): MonitoringTopActionItem[] {
@@ -633,6 +911,10 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
       return recipientEmail
         ? `Invite email to ${recipientEmail} failed.`
         : 'Employee invite email failed.'
+    case 'EMPLOYEE_INVITE_ACCEPTED':
+      return recipientEmail
+        ? `Invite recipient ${recipientEmail} completed first-login password setup.`
+        : 'An invited employee completed first-login password setup.'
     case 'EMPLOYEE_SHEET_PREVIEWED':
       return matricule
         ? `Previewed employee information sheet for ${matricule}.`
@@ -660,6 +942,28 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
       return recipientEmail
         ? `Employee information sheet email to ${recipientEmail} failed.`
         : 'Employee information sheet email failed.'
+    case 'PAYROLL_EXPORT_GENERATED': {
+      const rowCount = readNumber(detailsJson.row_count)
+      const fileName = readText(detailsJson.file_name)
+      const scopeSummary = buildPayrollScopeSummary('PAYROLL_EXPORT_GENERATED', detailsJson)
+      if (rowCount !== null && fileName) {
+        return `Generated payroll CSV export ${fileName} with ${rowCount} row${rowCount === 1 ? '' : 's'} | ${scopeSummary}.`
+      }
+      if (rowCount !== null) {
+        return `Generated payroll CSV export with ${rowCount} row${rowCount === 1 ? '' : 's'} | ${scopeSummary}.`
+      }
+      return `Generated a payroll CSV export | ${scopeSummary}.`
+    }
+    case 'PAYROLL_EXPORT_PRINT_INITIATED':
+      return matricule
+        ? `Started payroll information-sheet print or PDF export for ${matricule}.`
+        : 'Started a payroll information-sheet print or PDF export.'
+    case 'PUBLIC_PROFILE_VIEWED': {
+      const publicFieldsCount = readNumber(detailsJson.public_fields_count)
+      return publicFieldsCount !== null
+        ? `Public QR profile loaded with ${publicFieldsCount} visible field${publicFieldsCount === 1 ? '' : 's'}.`
+        : 'Public QR profile was viewed successfully.'
+    }
     case 'VISIBILITY_UPDATED':
       return fieldKey
         ? `${formatFieldLabel(fieldKey)} visibility was updated.`
@@ -688,6 +992,10 @@ function formatTargetLabel(
   employeeById: Map<string, EmployeeLookupRow>,
 ): string {
   if (!row.target_id) {
+    if (row.target_type === 'payroll_export') {
+      return 'Payroll export activity'
+    }
+
     return row.target_type
   }
 
@@ -723,6 +1031,10 @@ function formatTargetLabel(
 
   if (row.target_type === 'employee_visibility') {
     return 'Employee visibility settings'
+  }
+
+  if (row.target_type === 'payroll_export') {
+    return 'Payroll export activity'
   }
 
   return `${row.target_type} (${row.target_id.slice(0, 8)})`
@@ -767,61 +1079,7 @@ async function buildRecentCriticalEvents(
     return { items: [] }
   }
 
-  const actorUserIds = [
-    ...new Set(criticalRows.map((row) => row.actor_user_id).filter(Boolean)),
-  ] as string[]
-  const employeeIds = new Set(
-    criticalRows
-      .filter((row) => row.target_type === 'Employe' && row.target_id)
-      .map((row) => row.target_id as string),
-  )
-
-  const profileByUserId = new Map<string, ProfilLookupRow>()
-  const employeeById = new Map<string, EmployeeLookupRow>()
-  const errorMessages: string[] = []
-
-  if (actorUserIds.length > 0) {
-    const { data, error } = await supabase
-      .from('ProfilUtilisateur')
-      .select('user_id, role, employe_id')
-      .in('user_id', actorUserIds)
-      .returns<ProfilLookupRow[]>()
-
-    if (error) {
-      errorMessages.push(error.message)
-    } else {
-      for (const profile of data ?? []) {
-        if (profile.user_id) {
-          profileByUserId.set(profile.user_id, profile)
-        }
-        if (profile.employe_id) {
-          employeeIds.add(profile.employe_id)
-        }
-      }
-    }
-  }
-
-  const lookupEmployeeIds = [
-    ...new Set(
-      [...employeeIds].filter(Boolean),
-    ),
-  ]
-
-  if (lookupEmployeeIds.length > 0) {
-    const { data, error } = await supabase
-      .from('Employe')
-      .select('id, matricule, nom, prenom')
-      .in('id', lookupEmployeeIds)
-      .returns<EmployeeLookupRow[]>()
-
-    if (error) {
-      errorMessages.push(error.message)
-    } else {
-      for (const employee of data ?? []) {
-        employeeById.set(employee.id, employee)
-      }
-    }
-  }
+  const lookups = await buildAuditLookups(criticalRows)
 
   const items: MonitoringRecentEvent[] = criticalRows.map((row) => {
     const detailsJson = normalizeDetailsJson(row.details_json)
@@ -831,12 +1089,17 @@ async function buildRecentCriticalEvents(
     return {
       id: row.id,
       actorUserId: row.actor_user_id,
-      actorLabel: formatActorLabel(row, profileByUserId, employeeById, detailsJson),
+      actorLabel: formatActorLabel(
+        row,
+        lookups.profileByUserId,
+        lookups.employeeById,
+        detailsJson,
+      ),
       action: row.action,
       actionLabel: actionMeta.label,
       targetType: row.target_type,
       targetId: row.target_id,
-      targetLabel: formatTargetLabel(row, detailsJson, employeeById),
+      targetLabel: formatTargetLabel(row, detailsJson, lookups.employeeById),
       detailsJson,
       detailsPreview: buildDetailsPreview(row.action, detailsJson),
       createdAt: row.created_at,
@@ -849,7 +1112,7 @@ async function buildRecentCriticalEvents(
 
   return {
     items,
-    error: errorMessages.length > 0 ? errorMessages.join(' ') : undefined,
+    error: lookups.error,
   }
 }
 
@@ -866,13 +1129,19 @@ export async function getMonitoringDashboardData(
   const totalEvents = filteredRows.length
   const qrEvents = filteredRows.filter((row) => categorizeAuditAction(row.action) === 'qr').length
   const emailEvents = filteredRows.filter((row) => categorizeAuditAction(row.action) === 'email').length
+  const payrollEvents = filteredRows.filter(
+    (row) => categorizeAuditAction(row.action) === 'payroll',
+  ).length
   const securityEvents = filteredRows.filter(
     (row) => categorizeAuditAction(row.action) === 'security',
   ).length
   const failedEvents = filteredRows.filter((row) => isFailedAuditAction(row.action)).length
   const criticalEvents = filteredRows.filter((row) => isCriticalAuditAction(row.action)).length
 
-  const recentCriticalEventsResult = await buildRecentCriticalEvents(filteredRows)
+  const [recentCriticalEventsResult, recentPayrollExportEventsResult] = await Promise.all([
+    buildRecentCriticalEvents(filteredRows),
+    buildRecentPayrollExportEvents(filteredRows),
+  ])
 
   return {
     period,
@@ -887,6 +1156,7 @@ export async function getMonitoringDashboardData(
       totalEvents,
       qrEvents,
       emailEvents,
+      payrollEvents,
       securityEvents,
       failedEvents,
       criticalEvents,
@@ -894,13 +1164,16 @@ export async function getMonitoringDashboardData(
     activityTimeline: buildTimeline(filteredRows, buckets),
     categoryDistribution: buildCategoryDistribution(filteredRows),
     qrActivity: buildMetricItems(filteredRows, QR_ACTIVITY_CONFIG),
-    emailActivity: buildMetricItems(filteredRows, EMAIL_ACTIVITY_CONFIG),
+    emailActivity: buildEmailActivity(filteredRows),
     recentInviteEvents: buildRecentInviteEvents(filteredRows),
+    payrollActivity: buildMetricItems(filteredRows, PAYROLL_ACTIVITY_CONFIG),
+    recentPayrollExportEvents: recentPayrollExportEventsResult.items,
     recentCriticalEvents: recentCriticalEventsResult.items,
     topActions: buildTopActions(filteredRows),
     attentionItems: buildAttentionItems(filteredRows),
     sectionErrors: {
       recentCriticalEvents: recentCriticalEventsResult.error,
+      recentPayrollExports: recentPayrollExportEventsResult.error,
     },
   }
 }

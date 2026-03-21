@@ -10,8 +10,10 @@ import type {
   AdminDashboardData,
   DashboardAlertItem,
   DashboardDepartmentMetric,
+  DashboardInviteLifecycleSummary,
   DashboardRecentEmployee,
   DashboardRecentInvite,
+  DashboardRecentPayrollExport,
 } from '@/types/admin-dashboard'
 
 interface DashboardEmployeeRow {
@@ -37,10 +39,32 @@ interface ActiveQrRow {
 
 interface InviteAuditRow {
   id: string
-  action: 'EMPLOYEE_INVITE_SENT' | 'EMPLOYEE_INVITE_FAILED'
+  action: 'EMPLOYEE_INVITE_SENT' | 'EMPLOYEE_INVITE_FAILED' | 'EMPLOYEE_INVITE_ACCEPTED'
   target_id: string | null
   details_json: unknown
   created_at: string
+}
+
+interface PayrollExportAuditRow {
+  id: string
+  actor_user_id: string | null
+  action: 'PAYROLL_EXPORT_GENERATED' | 'PAYROLL_EXPORT_PRINT_INITIATED'
+  target_id: string | null
+  details_json: unknown
+  created_at: string
+}
+
+interface ProfilLookupRow {
+  user_id: string | null
+  role: string | null
+  employe_id: string | null
+}
+
+interface EmployeeLookupRow {
+  id: string
+  matricule: string
+  nom: string
+  prenom: string
 }
 
 const INVITE_ACTIVITY_WINDOW_DAYS = 7
@@ -172,6 +196,29 @@ function readText(value: unknown): string | null {
   return null
 }
 
+function readNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+function buildEmployeeName(prenom: string, nom: string): string | null {
+  const fullName = `${prenom} ${nom}`.replace(/\s+/g, ' ').trim()
+  return fullName.length > 0 ? fullName : null
+}
+
+function normalizeInviteTriggerSource(value: unknown): 'invite' | 'resend_invite' | null {
+  const text = readText(value)
+  return text === 'invite' || text === 'resend_invite' ? text : null
+}
+
 function getRecentWindowStart(days: number): string {
   const start = new Date()
   start.setDate(start.getDate() - (days - 1))
@@ -193,24 +240,64 @@ async function countAuditActionsSince(action: string, startAt: string): Promise<
   return count ?? 0
 }
 
-async function listRecentInviteEvents(startAt: string): Promise<DashboardRecentInvite[]> {
+async function listRecentInviteLifecycleRows(startAt: string): Promise<InviteAuditRow[]> {
   const { data, error } = await supabase
     .from('audit_log')
     .select('id, action, target_id, details_json, created_at')
-    .in('action', ['EMPLOYEE_INVITE_SENT', 'EMPLOYEE_INVITE_FAILED'])
+    .in('action', ['EMPLOYEE_INVITE_SENT', 'EMPLOYEE_INVITE_FAILED', 'EMPLOYEE_INVITE_ACCEPTED'])
     .gte('created_at', startAt)
     .order('created_at', { ascending: false })
-    .limit(5)
+    .limit(100)
     .returns<InviteAuditRow[]>()
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => {
+  return data ?? []
+}
+
+function buildInviteLifecycleSummary(
+  rows: InviteAuditRow[],
+): DashboardInviteLifecycleSummary {
+  return rows.reduce<DashboardInviteLifecycleSummary>(
+    (summary, row) => {
+      const detailsJson = normalizeDetailsJson(row.details_json)
+      const triggerSource = normalizeInviteTriggerSource(detailsJson.trigger_source)
+
+      if (row.action === 'EMPLOYEE_INVITE_FAILED') {
+        summary.failed += 1
+        return summary
+      }
+
+      if (row.action === 'EMPLOYEE_INVITE_ACCEPTED') {
+        summary.accepted += 1
+        return summary
+      }
+
+      if (triggerSource === 'resend_invite') {
+        summary.resend += 1
+      } else {
+        summary.sent += 1
+      }
+
+      return summary
+    },
+    {
+      sent: 0,
+      resend: 0,
+      accepted: 0,
+      failed: 0,
+    },
+  )
+}
+
+function buildRecentInviteEvents(rows: InviteAuditRow[]): DashboardRecentInvite[] {
+  return rows.slice(0, 5).map((row) => {
     const detailsJson = normalizeDetailsJson(row.details_json)
     const employeeName = readText(detailsJson.employee_name)
     const matricule = readText(detailsJson.matricule)
+    const triggerSource = normalizeInviteTriggerSource(detailsJson.trigger_source)
 
     return {
       id: row.id,
@@ -220,9 +307,186 @@ async function listRecentInviteEvents(startAt: string): Promise<DashboardRecentI
           ? `${employeeName} (${matricule})`
           : employeeName ?? matricule ?? 'Unknown employee',
       recipientEmail: readText(detailsJson.recipient_email) ?? 'No recipient recorded',
-      status: row.action === 'EMPLOYEE_INVITE_FAILED' ? 'failed' : 'sent',
+      status:
+        row.action === 'EMPLOYEE_INVITE_FAILED'
+          ? 'failed'
+          : row.action === 'EMPLOYEE_INVITE_ACCEPTED'
+            ? 'accepted'
+            : 'sent',
+      triggerSource,
       createdAt: row.created_at,
       failureReason: readText(detailsJson.failure_reason) ?? undefined,
+    }
+  })
+}
+
+async function listRecentPayrollExportRows(startAt: string): Promise<PayrollExportAuditRow[]> {
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id, actor_user_id, action, target_id, details_json, created_at')
+    .in('action', ['PAYROLL_EXPORT_GENERATED', 'PAYROLL_EXPORT_PRINT_INITIATED'])
+    .gte('created_at', startAt)
+    .order('created_at', { ascending: false })
+    .limit(10)
+    .returns<PayrollExportAuditRow[]>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
+async function buildAuditActorLookups(
+  rows: PayrollExportAuditRow[],
+): Promise<{
+  profileByUserId: Map<string, ProfilLookupRow>
+  employeeById: Map<string, EmployeeLookupRow>
+}> {
+  const actorUserIds = [...new Set(rows.map((row) => row.actor_user_id).filter(Boolean))] as string[]
+  const employeeIds = new Set<string>()
+
+  for (const row of rows) {
+    const detailsJson = normalizeDetailsJson(row.details_json)
+    const detailEmployeeId = readText(detailsJson.employee_id)
+    if (detailEmployeeId) {
+      employeeIds.add(detailEmployeeId)
+    } else if (row.target_id) {
+      employeeIds.add(row.target_id)
+    }
+  }
+
+  const profileByUserId = new Map<string, ProfilLookupRow>()
+  const employeeById = new Map<string, EmployeeLookupRow>()
+
+  if (actorUserIds.length > 0) {
+    const { data, error } = await supabase
+      .from('ProfilUtilisateur')
+      .select('user_id, role, employe_id')
+      .in('user_id', actorUserIds)
+      .returns<ProfilLookupRow[]>()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    for (const row of data ?? []) {
+      if (row.user_id) {
+        profileByUserId.set(row.user_id, row)
+      }
+      if (row.employe_id) {
+        employeeIds.add(row.employe_id)
+      }
+    }
+  }
+
+  const lookupEmployeeIds = [...new Set([...employeeIds])]
+  if (lookupEmployeeIds.length > 0) {
+    const { data, error } = await supabase
+      .from('Employe')
+      .select('id, matricule, nom, prenom')
+      .in('id', lookupEmployeeIds)
+      .returns<EmployeeLookupRow[]>()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    for (const employee of data ?? []) {
+      employeeById.set(employee.id, employee)
+    }
+  }
+
+  return { profileByUserId, employeeById }
+}
+
+function formatActorLabel(
+  row: PayrollExportAuditRow,
+  detailsJson: Record<string, unknown>,
+  profileByUserId: Map<string, ProfilLookupRow>,
+  employeeById: Map<string, EmployeeLookupRow>,
+): string {
+  if (!row.actor_user_id) {
+    return 'System'
+  }
+
+  const profile = profileByUserId.get(row.actor_user_id)
+  if (profile?.employe_id) {
+    const employee = employeeById.get(profile.employe_id)
+    if (employee) {
+      return `${employee.prenom} ${employee.nom}${profile.role ? ` (${profile.role})` : ''}`
+    }
+  }
+
+  if (profile?.role) {
+    return `${profile.role} (${row.actor_user_id.slice(0, 8)})`
+  }
+
+  const senderEmail = readText(detailsJson.sender_email)
+  if (senderEmail) {
+    return senderEmail
+  }
+
+  return `User (${row.actor_user_id.slice(0, 8)})`
+}
+
+function buildPayrollScopeSummary(detailsJson: Record<string, unknown>, action: PayrollExportAuditRow['action']): string {
+  if (action === 'PAYROLL_EXPORT_PRINT_INITIATED') {
+    return 'Single employee information sheet'
+  }
+
+  const summaryParts: string[] = []
+  const search = readText(detailsJson.search)
+  const departmentName = readText(detailsJson.department_name)
+  const status = readText(detailsJson.status)
+  const typeContrat = readText(detailsJson.type_contrat)
+
+  if (search) {
+    summaryParts.push(`Search: ${search}`)
+  }
+
+  if (departmentName) {
+    summaryParts.push(`Department: ${departmentName}`)
+  }
+
+  if (status && status !== 'ALL') {
+    summaryParts.push(`Status: ${status}`)
+  }
+
+  if (typeContrat) {
+    summaryParts.push(`Contract: ${typeContrat}`)
+  }
+
+  return summaryParts.length > 0 ? summaryParts.join(' | ') : 'All payroll-visible employees'
+}
+
+async function listRecentPayrollExports(startAt: string): Promise<DashboardRecentPayrollExport[]> {
+  const rows = await listRecentPayrollExportRows(startAt)
+
+  if (rows.length === 0) {
+    return []
+  }
+
+  const { profileByUserId, employeeById } = await buildAuditActorLookups(rows)
+
+  return rows.slice(0, 5).map((row) => {
+    const detailsJson = normalizeDetailsJson(row.details_json)
+    const employeeId = readText(detailsJson.employee_id) ?? row.target_id
+    const employee = employeeId ? employeeById.get(employeeId) : null
+
+    return {
+      id: row.id,
+      action: row.action,
+      actorLabel: formatActorLabel(row, detailsJson, profileByUserId, employeeById),
+      employeeId,
+      employeeName:
+        readText(detailsJson.employee_name) ??
+        (employee ? buildEmployeeName(employee.prenom, employee.nom) : null),
+      rowCount: readNumber(detailsJson.row_count),
+      format: readText(detailsJson.format),
+      fileName: readText(detailsJson.file_name),
+      scopeSummary: buildPayrollScopeSummary(detailsJson, row.action),
+      createdAt: row.created_at,
     }
   })
 }
@@ -380,9 +644,9 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     unreadQrRefreshResult,
     recentRequestsResult,
     recentActivityResult,
-    invitesSentRecentResult,
-    inviteFailuresRecentResult,
-    recentInvitesResult,
+    publicProfileViewsRecentResult,
+    inviteRowsResult,
+    recentPayrollExportsResult,
   ] = await Promise.allSettled([
     listDashboardEmployees(),
     departmentsService.listDepartments(),
@@ -394,9 +658,9 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     countUnreadQrRefresh(userId),
     requestsService.listRequestsForAdmin({ page: 1, pageSize: 5 }),
     auditLogService.listLogs({ page: 1, pageSize: 6 }),
-    countAuditActionsSince('EMPLOYEE_INVITE_SENT', inviteWindowStart),
-    countAuditActionsSince('EMPLOYEE_INVITE_FAILED', inviteWindowStart),
-    listRecentInviteEvents(inviteWindowStart),
+    countAuditActionsSince('PUBLIC_PROFILE_VIEWED', inviteWindowStart),
+    listRecentInviteLifecycleRows(inviteWindowStart),
+    listRecentPayrollExports(inviteWindowStart),
   ])
 
   const employees = employeesResult.status === 'fulfilled' ? employeesResult.value : []
@@ -409,10 +673,13 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     unreadNotificationsResult.status === 'fulfilled' ? unreadNotificationsResult.value : 0
   const unreadQrRefresh =
     unreadQrRefreshResult.status === 'fulfilled' ? unreadQrRefreshResult.value : 0
-  const invitesSentRecent =
-    invitesSentRecentResult.status === 'fulfilled' ? invitesSentRecentResult.value : 0
-  const inviteFailuresRecent =
-    inviteFailuresRecentResult.status === 'fulfilled' ? inviteFailuresRecentResult.value : 0
+  const publicProfileViewsRecent =
+    publicProfileViewsRecentResult.status === 'fulfilled'
+      ? publicProfileViewsRecentResult.value
+      : 0
+  const inviteRows = inviteRowsResult.status === 'fulfilled' ? inviteRowsResult.value : []
+  const inviteLifecycleSummary = buildInviteLifecycleSummary(inviteRows)
+  const recentInvites = buildRecentInviteEvents(inviteRows)
 
   const activeQrEmployeeIds = new Set(activeQrRows.map((row) => row.employe_id))
   const activeEmployees = employees.filter((employee) => employee.is_active).length
@@ -431,8 +698,11 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
     getSettledErrorMessage(rejectedRequestsResult, 'Unable to load rejected request metrics.'),
     getSettledErrorMessage(unreadNotificationsResult, 'Unable to load unread notification count.'),
     getSettledErrorMessage(unreadQrRefreshResult, 'Unable to load QR refresh alerts.'),
-    getSettledErrorMessage(invitesSentRecentResult, 'Unable to load invite send metrics.'),
-    getSettledErrorMessage(inviteFailuresRecentResult, 'Unable to load invite failure metrics.'),
+    getSettledErrorMessage(
+      publicProfileViewsRecentResult,
+      'Unable to load recent public profile view metrics.',
+    ),
+    getSettledErrorMessage(inviteRowsResult, 'Unable to load invite lifecycle metrics.'),
   ].filter((message): message is string => Boolean(message))
 
   const sectionErrors = {
@@ -445,10 +715,14 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       recentRequestsResult,
       'Unable to load recent requests.',
     ) ?? undefined,
-    recentInvites: getSettledErrorMessage(
-      recentInvitesResult,
-      'Unable to load recent invite activity.',
-    ) ?? undefined,
+    recentInvites:
+      getSettledErrorMessage(inviteRowsResult, 'Unable to load recent invite activity.') ??
+      undefined,
+    recentPayrollExports:
+      getSettledErrorMessage(
+        recentPayrollExportsResult,
+        'Unable to load recent payroll export activity.',
+      ) ?? undefined,
   }
 
   return {
@@ -459,8 +733,8 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       pendingRequests,
       departmentsCount: departments.length,
       unreadNotifications,
-      invitesSentRecent,
-      inviteFailuresRecent,
+      invitesSentRecent: inviteLifecycleSummary.sent,
+      inviteFailuresRecent: inviteLifecycleSummary.failed,
     },
     departmentDistribution: buildDepartmentDistribution(employees, departments),
     requestOverview: {
@@ -473,13 +747,18 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       recentActivityResult.status === 'fulfilled' ? recentActivityResult.value.items : [],
     recentRequests:
       recentRequestsResult.status === 'fulfilled' ? recentRequestsResult.value.items : [],
-    recentInvites:
-      recentInvitesResult.status === 'fulfilled' ? recentInvitesResult.value : [],
+    recentInvites,
+    inviteLifecycleSummary,
+    recentPayrollExports:
+      recentPayrollExportsResult.status === 'fulfilled'
+        ? recentPayrollExportsResult.value
+        : [],
     recentEmployees: buildRecentEmployees(employees, departments),
     qrSummary: {
       activeQrEmployees: activeQrEmployeeIds.size,
       employeesWithoutActiveQr,
       needsQrRefresh: unreadQrRefresh,
+      publicProfileViewsRecent,
     },
     alerts: buildAlerts({
       pendingRequests,
@@ -488,7 +767,7 @@ export async function getAdminDashboardData(userId: string): Promise<AdminDashbo
       employeesWithoutActiveQr,
       departmentsCount: departments.length,
       unreadQrRefresh,
-      inviteFailuresRecent,
+      inviteFailuresRecent: inviteLifecycleSummary.failed,
     }),
     sectionErrors,
   }

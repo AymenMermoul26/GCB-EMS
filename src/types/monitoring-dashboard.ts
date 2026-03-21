@@ -7,6 +7,7 @@ export type MonitoringEventCategoryKey =
   | 'request'
   | 'qr'
   | 'email'
+  | 'payroll'
   | 'security'
   | 'visibility'
   | 'system'
@@ -30,6 +31,7 @@ export interface MonitoringKpis {
   totalEvents: number
   qrEvents: number
   emailEvents: number
+  payrollEvents: number
   securityEvents: number
   failedEvents: number
   criticalEvents: number
@@ -73,9 +75,23 @@ export interface MonitoringRecentInviteItem {
   employeeId: string | null
   employeeName: string
   recipientEmail: string
-  status: 'sent' | 'failed'
+  status: 'sent' | 'failed' | 'accepted'
+  triggerSource: 'invite' | 'resend_invite' | null
   createdAt: string
   failureReason?: string
+}
+
+export interface MonitoringRecentPayrollExportItem {
+  id: string
+  action: 'PAYROLL_EXPORT_GENERATED' | 'PAYROLL_EXPORT_PRINT_INITIATED'
+  actorLabel: string
+  employeeId: string | null
+  employeeName: string | null
+  rowCount: number | null
+  fileName: string | null
+  format: string | null
+  scopeSummary: string
+  createdAt: string
 }
 
 export interface MonitoringTopActionItem {
@@ -98,6 +114,7 @@ export interface MonitoringInsightItem {
 
 export interface MonitoringSectionErrors {
   recentCriticalEvents?: string
+  recentPayrollExports?: string
 }
 
 export interface MonitoringDashboardData {
@@ -115,6 +132,8 @@ export interface MonitoringDashboardData {
   qrActivity: MonitoringMetricItem[]
   emailActivity: MonitoringMetricItem[]
   recentInviteEvents: MonitoringRecentInviteItem[]
+  payrollActivity: MonitoringMetricItem[]
+  recentPayrollExportEvents: MonitoringRecentPayrollExportItem[]
   recentCriticalEvents: MonitoringRecentEvent[]
   topActions: MonitoringTopActionItem[]
   attentionItems: MonitoringInsightItem[]

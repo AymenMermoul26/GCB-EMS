@@ -38,6 +38,11 @@ const CATEGORY_META: Record<MonitoringEventCategoryKey, MonitoringCategoryMeta> 
     color: '#f97316',
     tone: 'orange',
   },
+  payroll: {
+    label: 'Payroll',
+    color: '#8b5cf6',
+    tone: 'slate',
+  },
   security: {
     label: 'Security / Auth',
     color: '#ef4444',
@@ -137,6 +142,11 @@ const ACTION_META: Record<string, MonitoringActionMeta> = {
     critical: true,
     failed: true,
   },
+  EMPLOYEE_INVITE_ACCEPTED: {
+    label: 'Invite Accepted',
+    categoryKey: 'email',
+    tone: 'emerald',
+  },
   EMPLOYEE_SHEET_PREVIEWED: {
     label: 'Sheet Previewed',
     categoryKey: 'employee',
@@ -162,6 +172,21 @@ const ACTION_META: Record<string, MonitoringActionMeta> = {
   VISIBILITY_UPDATED: {
     label: 'Visibility Updated',
     categoryKey: 'visibility',
+    tone: 'emerald',
+  },
+  PAYROLL_EXPORT_GENERATED: {
+    label: 'Payroll Export Generated',
+    categoryKey: 'payroll',
+    tone: 'sky',
+  },
+  PAYROLL_EXPORT_PRINT_INITIATED: {
+    label: 'Payroll Sheet Print Initiated',
+    categoryKey: 'payroll',
+    tone: 'amber',
+  },
+  PUBLIC_PROFILE_VIEWED: {
+    label: 'Public Profile Viewed',
+    categoryKey: 'qr',
     tone: 'emerald',
   },
 }

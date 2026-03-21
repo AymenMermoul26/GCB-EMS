@@ -93,6 +93,11 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     tone: 'rose',
     critical: true,
   },
+  EMPLOYEE_INVITE_ACCEPTED: {
+    label: 'Invite Accepted',
+    category: 'Communication',
+    tone: 'emerald',
+  },
   EMPLOYEE_SHEET_PREVIEWED: {
     label: 'Sheet Previewed',
     category: 'Document',
@@ -167,6 +172,21 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     category: 'Public Profile',
     tone: 'slate',
   },
+  PAYROLL_EXPORT_GENERATED: {
+    label: 'Payroll Export Generated',
+    category: 'Payroll',
+    tone: 'sky',
+  },
+  PAYROLL_EXPORT_PRINT_INITIATED: {
+    label: 'Payroll Sheet Print Initiated',
+    category: 'Payroll',
+    tone: 'amber',
+  },
+  PUBLIC_PROFILE_VIEWED: {
+    label: 'Public Profile Viewed',
+    category: 'QR',
+    tone: 'emerald',
+  },
 }
 
 const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
@@ -177,6 +197,7 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'EMPLOYEE_DEACTIVATED', label: 'Employee Deactivated' },
   { value: 'EMPLOYEE_INVITE_SENT', label: 'Invite Email Sent' },
   { value: 'EMPLOYEE_INVITE_FAILED', label: 'Invite Email Failed' },
+  { value: 'EMPLOYEE_INVITE_ACCEPTED', label: 'Invite Accepted' },
   { value: 'EMPLOYEE_SHEET_PREVIEWED', label: 'Sheet Previewed' },
   { value: 'EMPLOYEE_SHEET_EXPORTED', label: 'Sheet Exported' },
   { value: 'EMPLOYEE_SHEET_EMAIL_SENT', label: 'Sheet Email Sent' },
@@ -191,6 +212,9 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'QR_REFRESH_COMPLETED', label: 'QR Refresh Completed' },
   { value: 'QR_REFRESH_REQUIRED_CREATED', label: 'QR Refresh Required' },
   { value: 'VISIBILITY_UPDATED', label: 'Visibility Updated' },
+  { value: 'PAYROLL_EXPORT_GENERATED', label: 'Payroll Export Generated' },
+  { value: 'PAYROLL_EXPORT_PRINT_INITIATED', label: 'Payroll Sheet Print Initiated' },
+  { value: 'PUBLIC_PROFILE_VIEWED', label: 'Public Profile Viewed' },
 ]
 
 function shortId(value: string | null): string {
@@ -287,6 +311,10 @@ function getEntityLabel(targetType: string): string {
 
   if (targetType === 'employee_visibility') {
     return 'Visibility'
+  }
+
+  if (targetType === 'payroll_export') {
+    return 'Payroll export'
   }
 
   return targetType

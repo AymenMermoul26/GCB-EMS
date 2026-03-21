@@ -45,6 +45,7 @@ import type {
   MonitoringPeriod,
   MonitoringRecentEvent,
   MonitoringRecentInviteItem,
+  MonitoringRecentPayrollExportItem,
   MonitoringTimelinePoint,
   MonitoringTone,
 } from '@/types/monitoring-dashboard'
@@ -61,6 +62,7 @@ const CATEGORY_OPTIONS: Array<{ value: MonitoringCategory; label: string }> = [
   { value: 'request', label: 'Request events' },
   { value: 'qr', label: 'QR events' },
   { value: 'email', label: 'Email events' },
+  { value: 'payroll', label: 'Payroll events' },
   { value: 'security', label: 'Security / auth events' },
   { value: 'visibility', label: 'Visibility events' },
   { value: 'system', label: 'System events' },
@@ -82,6 +84,11 @@ const KPI_CARD_CONFIG = {
     title: 'Email Events',
     icon: Mail,
     accent: 'bg-orange-100 text-orange-700',
+  },
+  payrollEvents: {
+    title: 'Payroll Events',
+    icon: FileClock,
+    accent: 'bg-sky-100 text-sky-700',
   },
   securityEvents: {
     title: 'Security / Auth',
@@ -147,14 +154,28 @@ function tonePanelClass(tone: 'info' | 'warning' | 'danger' | 'positive'): strin
   }
 }
 
-function inviteStatusBadgeClass(status: 'sent' | 'failed'): string {
-  return status === 'failed'
-    ? 'border-transparent bg-rose-100 text-rose-700'
-    : 'border-transparent bg-orange-100 text-orange-800'
+function inviteStatusBadgeClass(status: 'sent' | 'failed' | 'accepted'): string {
+  if (status === 'failed') {
+    return 'border-transparent bg-rose-100 text-rose-700'
+  }
+
+  if (status === 'accepted') {
+    return 'border-transparent bg-emerald-100 text-emerald-700'
+  }
+
+  return 'border-transparent bg-orange-100 text-orange-800'
 }
 
-function inviteStatusLabel(status: 'sent' | 'failed'): string {
-  return status === 'failed' ? 'Failed' : 'Sent'
+function inviteStatusLabel(status: 'sent' | 'failed' | 'accepted'): string {
+  if (status === 'failed') {
+    return 'Failed'
+  }
+
+  if (status === 'accepted') {
+    return 'Accepted'
+  }
+
+  return 'Sent'
 }
 
 function formatDateTime(value: string): string {
@@ -243,7 +264,7 @@ function MonitoringPageSkeleton() {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
+          {Array.from({ length: 7 }).map((_, index) => (
             <Card
               key={`monitoring-kpi-${index}`}
               className="rounded-2xl border border-slate-200/80 shadow-sm"
@@ -650,7 +671,7 @@ function RecentInviteActivityList({
         <div>
           <p className="text-sm font-semibold text-slate-900">Recent invite activity</p>
           <p className="text-xs text-slate-500">
-            Latest invite-email sends and failures in the selected view.
+            Latest invite sends, resend attempts, acceptances, and failures in the selected view.
           </p>
         </div>
         <Badge variant="outline" className="rounded-full">
@@ -675,13 +696,110 @@ function RecentInviteActivityList({
                   <Badge className={inviteStatusBadgeClass(item.status)}>
                     {inviteStatusLabel(item.status)}
                   </Badge>
+                  {item.triggerSource === 'resend_invite' ? (
+                    <Badge
+                      variant="outline"
+                      className="border-orange-200 bg-orange-50 text-orange-800"
+                    >
+                      Resend
+                    </Badge>
+                  ) : null}
                 </div>
                 <p className="text-sm text-slate-600">{item.recipientEmail}</p>
                 {item.failureReason ? (
                   <p className="line-clamp-2 text-xs text-rose-700">{item.failureReason}</p>
+                ) : item.status === 'accepted' ? (
+                  <p className="text-xs text-emerald-700">
+                    Employee completed first-login password setup.
+                  </p>
                 ) : (
-                  <p className="text-xs text-slate-500">Invite email audit event</p>
+                  <p className="text-xs text-slate-500">
+                    {item.triggerSource === 'resend_invite'
+                      ? 'Invite resend attempt recorded'
+                      : 'Invite email audit event'}
+                  </p>
                 )}
+              </div>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
+                  {formatRelativeDate(item.createdAt)}
+                </span>
+                {item.employeeId ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onOpenEmployee(item.employeeId as string)}
+                  >
+                    Open employee
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+function RecentPayrollExportActivityList({
+  items,
+  onOpenEmployee,
+}: {
+  items: MonitoringRecentPayrollExportItem[]
+  onOpenEmployee: (employeeId: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Recent payroll export activity</p>
+          <p className="text-xs text-slate-500">
+            Latest payroll CSV exports and payroll sheet print actions in the selected view.
+          </p>
+        </div>
+        <Badge variant="outline" className="rounded-full">
+          {items.length} shown
+        </Badge>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-center">
+          <p className="text-sm font-medium text-slate-900">No payroll export activity</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Payroll CSV exports and payroll sheet print activity will appear here when available.
+          </p>
+        </div>
+      ) : (
+        items.map((item) => (
+          <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-white p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {item.employeeName ?? 'Payroll export activity'}
+                  </p>
+                  <Badge
+                    className={
+                      item.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
+                        ? 'border-transparent bg-amber-100 text-amber-800'
+                        : 'border-transparent bg-sky-100 text-sky-700'
+                    }
+                  >
+                    {item.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
+                      ? 'Sheet print / PDF'
+                      : 'CSV export'}
+                  </Badge>
+                </div>
+                <p className="text-sm text-slate-600">{item.scopeSummary}</p>
+                <p className="text-xs text-slate-500">
+                  By {item.actorLabel}
+                  {item.rowCount !== null
+                    ? ` • ${item.rowCount} row${item.rowCount === 1 ? '' : 's'}`
+                    : ''}
+                  {item.fileName ? ` • ${item.fileName}` : item.format ? ` • ${item.format}` : ''}
+                </p>
               </div>
               <div className="flex flex-col items-start gap-2 sm:items-end">
                 <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
@@ -903,7 +1021,7 @@ export function AdminMonitoringPage() {
       <div className="space-y-6">
         <PageHeader
           title="Monitoring Dashboard"
-          description="Track recent audit, QR, email, and security-related signals without leaving the admin workspace."
+          description="Track recent audit, QR, payroll, email, and security-related signals without leaving the admin workspace."
           className="sticky top-2 z-20"
           badges={
             <>
@@ -1013,7 +1131,7 @@ export function AdminMonitoringPage() {
           </Alert>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             title={KPI_CARD_CONFIG.totalEvents.title}
             value={dashboard.kpis.totalEvents}
@@ -1031,9 +1149,16 @@ export function AdminMonitoringPage() {
           <KpiCard
             title={KPI_CARD_CONFIG.emailEvents.title}
             value={dashboard.kpis.emailEvents}
-            helper={`Tracked email operations ${periodText}`}
+            helper={`Invite and document email operations ${periodText}`}
             icon={<Mail className="h-5 w-5" />}
             accentClass={KPI_CARD_CONFIG.emailEvents.accent}
+          />
+          <KpiCard
+            title={KPI_CARD_CONFIG.payrollEvents.title}
+            value={dashboard.kpis.payrollEvents}
+            helper={`Payroll export and document actions ${periodText}`}
+            icon={<FileClock className="h-5 w-5" />}
+            accentClass={KPI_CARD_CONFIG.payrollEvents.accent}
           />
           <KpiCard
             title={KPI_CARD_CONFIG.securityEvents.title}
@@ -1107,12 +1232,12 @@ export function AdminMonitoringPage() {
           </Card>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-6 xl:grid-cols-3">
           <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
             <CardHeader className="space-y-2">
               <CardTitle className="text-base font-semibold">QR activity</CardTitle>
               <CardDescription>
-                Generated from the QR lifecycle actions already stored in the audit log.
+                Generated from QR lifecycle actions and successful public profile views.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1126,9 +1251,9 @@ export function AdminMonitoringPage() {
 
           <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
             <CardHeader className="space-y-2">
-              <CardTitle className="text-base font-semibold">Email activity</CardTitle>
+              <CardTitle className="text-base font-semibold">Invite & email activity</CardTitle>
               <CardDescription>
-                Invite and document delivery activity tracked by backend audit events.
+                Invite lifecycle and document delivery activity tracked by backend audit events.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -1140,6 +1265,35 @@ export function AdminMonitoringPage() {
               <div className="border-t border-slate-200 pt-5">
                 <RecentInviteActivityList
                   items={dashboard.recentInviteEvents}
+                  onOpenEmployee={(employeeId) => navigate(getAdminEmployeeRoute(employeeId))}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+            <CardHeader className="space-y-2">
+              <CardTitle className="text-base font-semibold">Payroll export activity</CardTitle>
+              <CardDescription>
+                Payroll-safe export actions available to admins for governance and presentation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <MetricBars
+                items={dashboard.payrollActivity}
+                emptyTitle="No payroll export activity"
+                emptyDescription="Payroll export and payroll sheet print actions will appear here."
+              />
+              <div className="border-t border-slate-200 pt-5">
+                {dashboard.sectionErrors.recentPayrollExports ? (
+                  <Alert className="mb-4 rounded-2xl border-amber-200 bg-amber-50 text-amber-900">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Partial payroll export lookup unavailable</AlertTitle>
+                    <AlertDescription>{dashboard.sectionErrors.recentPayrollExports}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <RecentPayrollExportActivityList
+                  items={dashboard.recentPayrollExportEvents}
                   onOpenEmployee={(employeeId) => navigate(getAdminEmployeeRoute(employeeId))}
                 />
               </div>
@@ -1215,7 +1369,7 @@ export function AdminMonitoringPage() {
             <div className="flex items-center gap-2">
               <FileClock className="h-4 w-4" />
               <span>
-                Monitoring data is derived from real audit log events, including QR lifecycle and backend email tracking entries.
+                Monitoring data is derived from real audit log events, including QR lifecycle, public profile access, payroll exports, and backend email tracking entries.
               </span>
             </div>
             <span>

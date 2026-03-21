@@ -74,7 +74,7 @@ const KPI_CARD_STYLES = {
   invitesSentRecent: {
     icon: Mail,
     accent: 'bg-orange-100 text-orange-700',
-    helper: 'Employee invite emails sent in the last 7 days',
+    helper: 'Initial employee invite emails sent in the last 7 days',
   },
   inviteFailuresRecent: {
     icon: AlertTriangle,
@@ -127,6 +127,8 @@ function getActivityLabel(action: string): string {
       return 'Invite email sent'
     case 'EMPLOYEE_INVITE_FAILED':
       return 'Invite delivery failed'
+    case 'EMPLOYEE_INVITE_ACCEPTED':
+      return 'Invite accepted'
     case 'EMPLOYEE_SHEET_PREVIEWED':
       return 'Sheet previewed'
     case 'EMPLOYEE_SHEET_EXPORTED':
@@ -135,6 +137,10 @@ function getActivityLabel(action: string): string {
       return 'Sheet email sent'
     case 'EMPLOYEE_SHEET_EMAIL_FAILED':
       return 'Sheet email failed'
+    case 'PAYROLL_EXPORT_GENERATED':
+      return 'Payroll export generated'
+    case 'PAYROLL_EXPORT_PRINT_INITIATED':
+      return 'Payroll sheet print started'
     case 'EMPLOYEE_SELF_UPDATED':
       return 'Employee self-updated'
     case 'REQUEST_SUBMITTED':
@@ -155,6 +161,8 @@ function getActivityLabel(action: string): string {
       return 'QR refresh completed'
     case 'VISIBILITY_UPDATED':
       return 'Visibility updated'
+    case 'PUBLIC_PROFILE_VIEWED':
+      return 'Public profile viewed'
     default:
       return action.replaceAll('_', ' ')
   }
@@ -169,11 +177,18 @@ function getActivityBadgeClass(action: string): string {
     case 'EMPLOYEE_INVITE_SENT':
     case 'EMPLOYEE_SHEET_EMAIL_SENT':
       return 'border-transparent bg-orange-100 text-orange-700'
+    case 'EMPLOYEE_INVITE_ACCEPTED':
+      return 'border-transparent bg-emerald-100 text-emerald-700'
     case 'EMPLOYEE_SHEET_EXPORTED':
     case 'QR_GENERATED':
     case 'QR_REGENERATED':
     case 'QR_REFRESH_COMPLETED':
+    case 'PAYROLL_EXPORT_GENERATED':
       return 'border-transparent bg-sky-100 text-sky-700'
+    case 'PAYROLL_EXPORT_PRINT_INITIATED':
+      return 'border-transparent bg-amber-100 text-amber-700'
+    case 'PUBLIC_PROFILE_VIEWED':
+      return 'border-transparent bg-emerald-100 text-emerald-700'
     case 'REQUEST_REJECTED':
     case 'EMPLOYEE_DEACTIVATED':
     case 'EMPLOYEE_INVITE_FAILED':
@@ -190,14 +205,28 @@ function getActivityBadgeClass(action: string): string {
   }
 }
 
-function getInviteStatusBadgeClass(status: 'sent' | 'failed'): string {
-  return status === 'failed'
-    ? 'border-transparent bg-rose-100 text-rose-700'
-    : 'border-transparent bg-orange-100 text-orange-700'
+function getInviteStatusBadgeClass(status: 'sent' | 'failed' | 'accepted'): string {
+  if (status === 'failed') {
+    return 'border-transparent bg-rose-100 text-rose-700'
+  }
+
+  if (status === 'accepted') {
+    return 'border-transparent bg-emerald-100 text-emerald-700'
+  }
+
+  return 'border-transparent bg-orange-100 text-orange-700'
 }
 
-function getInviteStatusLabel(status: 'sent' | 'failed'): string {
-  return status === 'failed' ? 'Failed' : 'Sent'
+function getInviteStatusLabel(status: 'sent' | 'failed' | 'accepted'): string {
+  if (status === 'failed') {
+    return 'Failed'
+  }
+
+  if (status === 'accepted') {
+    return 'Accepted'
+  }
+
+  return 'Sent'
 }
 
 function getRequestStatusClass(status: DemandeStatut): string {
@@ -383,7 +412,8 @@ function RecentInviteItemRow({
     employeeId: string | null
     employeeName: string
     recipientEmail: string
-    status: 'sent' | 'failed'
+    status: 'sent' | 'failed' | 'accepted'
+    triggerSource: 'invite' | 'resend_invite' | null
     createdAt: string
     failureReason?: string
   }
@@ -398,13 +428,83 @@ function RecentInviteItemRow({
             <Badge className={getInviteStatusBadgeClass(item.status)}>
               {getInviteStatusLabel(item.status)}
             </Badge>
+            {item.triggerSource === 'resend_invite' ? (
+              <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-800">
+                Resend
+              </Badge>
+            ) : null}
           </div>
           <p className="text-sm text-slate-600">{item.recipientEmail}</p>
           {item.failureReason ? (
             <p className="line-clamp-2 text-xs text-rose-700">{item.failureReason}</p>
+          ) : item.status === 'accepted' ? (
+            <p className="text-xs text-emerald-700">
+              Employee completed first-login password setup.
+            </p>
           ) : (
-            <p className="text-xs text-slate-500">Employee invite audit event</p>
+            <p className="text-xs text-slate-500">
+              {item.triggerSource === 'resend_invite'
+                ? 'Invite resend attempt recorded'
+                : 'Employee invite audit event'}
+            </p>
           )}
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
+            {formatRelativeDate(item.createdAt)}
+          </span>
+          {onOpenEmployee ? (
+            <Button type="button" variant="outline" size="sm" onClick={onOpenEmployee}>
+              Open employee
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RecentPayrollExportRow({
+  item,
+  onOpenEmployee,
+}: {
+  item: {
+    id: string
+    action: 'PAYROLL_EXPORT_GENERATED' | 'PAYROLL_EXPORT_PRINT_INITIATED'
+    actorLabel: string
+    employeeId: string | null
+    employeeName: string | null
+    rowCount: number | null
+    format: string | null
+    fileName: string | null
+    scopeSummary: string
+    createdAt: string
+  }
+  onOpenEmployee?: () => void
+}) {
+  const actionLabel =
+    item.action === 'PAYROLL_EXPORT_PRINT_INITIATED' ? 'Sheet print / PDF' : 'CSV export'
+  const badgeClass =
+    item.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
+      ? 'border-transparent bg-amber-100 text-amber-800'
+      : 'border-transparent bg-sky-100 text-sky-700'
+
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-slate-900">
+              {item.employeeName ?? 'Payroll export activity'}
+            </p>
+            <Badge className={badgeClass}>{actionLabel}</Badge>
+          </div>
+          <p className="text-sm text-slate-600">{item.scopeSummary}</p>
+          <p className="text-xs text-slate-500">
+            By {item.actorLabel}
+            {item.rowCount !== null ? ` • ${item.rowCount} row${item.rowCount === 1 ? '' : 's'}` : ''}
+            {item.fileName ? ` • ${item.fileName}` : item.format ? ` • ${item.format}` : ''}
+          </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
@@ -837,6 +937,12 @@ export function AdminDashboardPage() {
                     {dashboard.qrSummary.needsQrRefresh}
                   </span>
                 </div>
+                <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                  <span className="text-sm text-slate-600">Recent public profile views</span>
+                  <span className="text-lg font-semibold text-slate-900">
+                    {dashboard.qrSummary.publicProfileViewsRecent}
+                  </span>
+                </div>
               </CardContent>
             </Card>
 
@@ -844,10 +950,10 @@ export function AdminDashboardPage() {
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                 <div>
                   <CardTitle className="text-base font-semibold">
-                    Recent invite email activity
+                    Recent invite lifecycle activity
                   </CardTitle>
                   <CardDescription>
-                    Latest employee invite sends and failures from the audit trail.
+                    Latest employee invite sends, resend attempts, acceptances, and failures from the audit trail.
                   </CardDescription>
                 </div>
                 <Button
@@ -861,17 +967,99 @@ export function AdminDashboardPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <SectionError message={dashboard.sectionErrors.recentInvites} />
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-orange-200/80 bg-orange-50 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-orange-700">
+                      Sent
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-orange-900">
+                      {dashboard.inviteLifecycleSummary.sent}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-200/80 bg-amber-50 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-amber-700">
+                      Resends
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-amber-900">
+                      {dashboard.inviteLifecycleSummary.resend}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-700">
+                      Accepted
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-emerald-900">
+                      {dashboard.inviteLifecycleSummary.accepted}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-rose-200/80 bg-rose-50 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-rose-700">
+                      Failed
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-rose-900">
+                      {dashboard.inviteLifecycleSummary.failed}
+                    </p>
+                  </div>
+                </div>
                 {dashboard.recentInvites.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
                     <p className="text-sm font-medium text-slate-900">No recent invite emails</p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Invite send and failure activity from the last 7 days will appear here.
+                      Invite sends, resend attempts, acceptances, and failures from the last 7 days will appear here.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {dashboard.recentInvites.map((item) => (
                       <RecentInviteItemRow
+                        key={item.id}
+                        item={item}
+                        onOpenEmployee={
+                          item.employeeId
+                            ? () => navigate(getAdminEmployeeRoute(item.employeeId as string))
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                <div>
+                  <CardTitle className="text-base font-semibold">
+                    Recent payroll export activity
+                  </CardTitle>
+                  <CardDescription>
+                    Recent payroll-safe export and document output actions visible to admins.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(ROUTES.ADMIN_AUDIT)}
+                >
+                  View audit log
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <SectionError message={dashboard.sectionErrors.recentPayrollExports} />
+                {dashboard.recentPayrollExports.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
+                    <p className="text-sm font-medium text-slate-900">
+                      No recent payroll exports
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Payroll CSV exports and payroll sheet print activity will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {dashboard.recentPayrollExports.map((item) => (
+                      <RecentPayrollExportRow
                         key={item.id}
                         item={item}
                         onOpenEmployee={
@@ -919,6 +1107,11 @@ export function AdminDashboardPage() {
                   title="View audit log"
                   description="Review administrative activity history"
                   onClick={() => navigate(ROUTES.ADMIN_AUDIT)}
+                />
+                <QuickActionButton
+                  title="Open monitoring"
+                  description="Inspect operational and delivery signals"
+                  onClick={() => navigate(ROUTES.ADMIN_MONITORING)}
                 />
               </CardContent>
             </Card>

@@ -179,6 +179,12 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return failureReason
         ? `Employee invite email failed: ${failureReason}`
         : 'Employee invite email failed.'
+    case 'EMPLOYEE_INVITE_ACCEPTED':
+      return matricule
+        ? `Invite accepted and first login completed for ${matricule}.`
+        : recipientEmail
+          ? `Invite accepted by ${recipientEmail}.`
+          : 'Employee completed first-login account setup.'
     case 'EMPLOYEE_SHEET_PREVIEWED':
       return matricule
         ? `Previewed employee information sheet for ${matricule}.`
@@ -270,6 +276,41 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return fieldKey
         ? `${formatFieldLabel(fieldKey)} visibility set to ${isPublic ? 'public' : 'private'}.`
         : 'Updated public profile visibility.'
+    case 'PAYROLL_EXPORT_GENERATED': {
+      const rowCount = readText(detailsJson.row_count)
+      const departmentName = readText(detailsJson.department_name)
+      const status = readText(detailsJson.status)
+      const typeContrat = readText(detailsJson.type_contrat)
+      const scopeParts = [
+        departmentName,
+        status && status !== 'ALL' ? status : null,
+        typeContrat ? `Contract ${typeContrat}` : null,
+      ].filter((value): value is string => Boolean(value))
+
+      if (rowCount && scopeParts.length > 0) {
+        return `Generated payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
+      }
+
+      if (rowCount) {
+        return `Generated payroll CSV export (${rowCount} rows).`
+      }
+
+      return 'Generated a payroll CSV export.'
+    }
+    case 'PAYROLL_EXPORT_PRINT_INITIATED':
+      return matricule
+        ? `Started payroll information sheet print or PDF export for ${matricule}.`
+        : 'Started a payroll information sheet print or PDF export.'
+    case 'PUBLIC_PROFILE_VIEWED': {
+      const publicFields = readStringArray(detailsJson.public_fields)
+      if (matricule && publicFields.length > 0) {
+        return `Public QR profile viewed for ${matricule} with fields: ${publicFields.map(formatFieldLabel).join(', ')}.`
+      }
+      if (matricule) {
+        return `Public QR profile viewed for ${matricule}.`
+      }
+      return 'A public QR profile was viewed.'
+    }
     default: {
       const summaryEntries = Object.entries(detailsJson)
         .filter(([, value]) => value !== null && value !== undefined && value !== '')
@@ -316,6 +357,10 @@ function formatTargetLabel(
 
   if (row.target_type === 'employee_visibility') {
     return 'Employee visibility settings'
+  }
+
+  if (row.target_type === 'payroll_export') {
+    return 'Payroll export activity'
   }
 
   return `${row.target_type} (${row.target_id.slice(0, 8)})`
