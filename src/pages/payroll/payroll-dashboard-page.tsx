@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  Banknote,
   Bell,
   BriefcaseBusiness,
   FileDown,
@@ -506,20 +507,30 @@ function DashboardSidePanel({ isRefreshing }: { isRefreshing: boolean }) {
         <CardHeader>
           <CardTitle className="text-base font-semibold text-slate-950">Quick links</CardTitle>
           <CardDescription>
-            Jump directly into payroll consultation routes that are already available.
+            Jump directly into payroll processing, payroll-safe employee consultation, and monitored export routes.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <QuickLinkCard
-            title="View employees"
-            description="Open the payroll employee directory."
-            href={ROUTES.PAYROLL_EMPLOYEES}
+            title="Open processing"
+            description="Create periods, calculate runs, and review lifecycle state."
+            href={ROUTES.PAYROLL_PROCESSING}
             primary
           />
           <QuickLinkCard
-            title="Search employees"
-            description="Search by employee name, ID, or email."
+            title="Configure compensation"
+            description="Maintain base salary, allowances, deductions, and eligibility."
+            href={ROUTES.PAYROLL_COMPENSATION}
+          />
+          <QuickLinkCard
+            title="View employees"
+            description="Open the payroll employee directory."
             href={ROUTES.PAYROLL_EMPLOYEES}
+          />
+          <QuickLinkCard
+            title="Manage payslip requests"
+            description="Review employee requests and deliver published payslip files."
+            href={ROUTES.PAYROLL_PAYSLIP_REQUESTS}
           />
           <QuickLinkCard
             title="View recent changes"
@@ -542,16 +553,24 @@ function DashboardSidePanel({ isRefreshing }: { isRefreshing: boolean }) {
       <Card className={SURFACE_CARD_CLASS_NAME}>
         <CardHeader>
           <CardTitle className="text-base font-semibold text-slate-950">
-            Consultation scope
+            Processing scope
           </CardTitle>
-          <CardDescription>Payroll users can review approved fields only.</CardDescription>
+          <CardDescription>Payroll workflows remain controlled and role-scoped.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
           <div className="flex items-start gap-2">
+            <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+            <p>
+              Fixed compensation inputs stay inside the payroll module and drive the simplified
+              backend calculation engine for payroll runs.
+            </p>
+          </div>
+          <div className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
             <p>
-              This dashboard is informational only. It does not expose editing, QR management,
-              public-profile controls, or employee approval flows.
+              Payroll agents can create periods, configure fixed compensation, calculate runs, and
+              publish payslip metadata, but employee records, QR management, public-profile controls,
+              and admin approval flows remain out of scope here.
             </p>
           </div>
           <div className="flex items-start gap-2">
@@ -564,8 +583,9 @@ function DashboardSidePanel({ isRefreshing }: { isRefreshing: boolean }) {
           <div className="flex items-start gap-2">
             <FileDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
             <p>
-              Payroll exports remain limited to payroll-safe CSV fields and logged export actions
-              only.
+              Payroll exports remain limited to payroll-safe CSV fields, while payroll processing now
+              stores simplified gross, deductions, and net snapshots without introducing advanced
+              statutory payroll rules yet.
             </p>
           </div>
         </CardContent>
@@ -726,18 +746,18 @@ export function PayrollDashboardPage() {
   return (
     <PayrollLayout
       title="Payroll Dashboard"
-      subtitle="Read-only access to payroll-relevant employee insights."
+      subtitle="Controlled access to payroll processing foundations and payroll-relevant insights."
       onSignOut={signOut}
       userEmail={user?.email ?? null}
     >
       <PageHeader
         title="Payroll Dashboard"
-        description="Track payroll-visible employee composition, recent HR changes, and the operational shortcuts needed for payroll consultation."
+        description="Track payroll-visible employee composition, recent HR changes, and the operational shortcuts needed for payroll consultation and controlled payroll processing setup."
         className="mb-6"
         badges={
           <>
             <StatusBadge tone="neutral" emphasis="outline">
-              Read-only
+              Controlled workflow
             </StatusBadge>
             <StatusBadge tone="brand">
               {unreadPayrollChangesCount === null
@@ -755,8 +775,8 @@ export function PayrollDashboardPage() {
               </Link>
             </Button>
             <Button asChild className={BRAND_BUTTON_CLASS_NAME}>
-              <Link to={ROUTES.PAYROLL_EMPLOYEES}>
-                View Employees
+              <Link to={ROUTES.PAYROLL_PROCESSING}>
+                Open Processing
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

@@ -1,5 +1,6 @@
 import type { AuditLogItem } from '@/types/audit-log'
 import type { ModificationRequest } from '@/types/modification-request'
+import type { MonitoringTone } from '@/types/monitoring-dashboard'
 
 export interface DashboardKpis {
   totalEmployees: number
@@ -61,16 +62,19 @@ export interface DashboardInviteLifecycleSummary {
   failed: number
 }
 
-export interface DashboardRecentPayrollExport {
+export interface DashboardRecentPayrollActivity {
   id: string
-  action: 'PAYROLL_EXPORT_GENERATED' | 'PAYROLL_EXPORT_PRINT_INITIATED'
+  action: string
+  actionLabel: string
+  tone: MonitoringTone
   actorLabel: string
+  targetLabel: string
   employeeId: string | null
   employeeName: string | null
   rowCount: number | null
   format: string | null
   fileName: string | null
-  scopeSummary: string
+  summary: string
   createdAt: string
 }
 
@@ -87,7 +91,7 @@ export interface AdminDashboardSectionErrors {
   recentActivity?: string
   recentRequests?: string
   recentInvites?: string
-  recentPayrollExports?: string
+  recentPayrollActivity?: string
 }
 
 export interface AdminDashboardData {
@@ -99,7 +103,7 @@ export interface AdminDashboardData {
   recentEmployees: DashboardRecentEmployee[]
   recentInvites: DashboardRecentInvite[]
   inviteLifecycleSummary: DashboardInviteLifecycleSummary
-  recentPayrollExports: DashboardRecentPayrollExport[]
+  recentPayrollActivity: DashboardRecentPayrollActivity[]
   qrSummary: DashboardQrSummary
   alerts: DashboardAlertItem[]
   sectionErrors: AdminDashboardSectionErrors

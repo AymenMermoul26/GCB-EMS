@@ -182,6 +182,77 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     category: 'Payroll',
     tone: 'amber',
   },
+  PAYROLL_PERIOD_CREATED: {
+    label: 'Payroll Period Created',
+    category: 'Payroll',
+    tone: 'sky',
+  },
+  PAYROLL_RUN_CREATED: {
+    label: 'Payroll Run Created',
+    category: 'Payroll',
+    tone: 'sky',
+  },
+  PAYROLL_CALCULATION_STARTED: {
+    label: 'Payroll Calculation Started',
+    category: 'Payroll',
+    tone: 'amber',
+  },
+  PAYROLL_CALCULATION_COMPLETED: {
+    label: 'Payroll Calculation Completed',
+    category: 'Payroll',
+    tone: 'emerald',
+  },
+  PAYROLL_CALCULATION_FAILED: {
+    label: 'Payroll Calculation Failed',
+    category: 'Payroll',
+    tone: 'rose',
+    critical: true,
+  },
+  PAYROLL_RUN_UPDATED: {
+    label: 'Payroll Run Updated',
+    category: 'Payroll',
+    tone: 'amber',
+  },
+  PAYROLL_RUN_FINALIZED: {
+    label: 'Payroll Run Finalized',
+    category: 'Payroll',
+    tone: 'emerald',
+  },
+  PAYROLL_PAYSLIP_PUBLISHED: {
+    label: 'Payslip Published',
+    category: 'Payroll',
+    tone: 'emerald',
+  },
+  PAYSLIP_REQUEST_CREATED: {
+    label: 'Payslip Request Created',
+    category: 'Payroll',
+    tone: 'amber',
+  },
+  PAYSLIP_REQUEST_STATUS_UPDATED: {
+    label: 'Payslip Request Updated',
+    category: 'Payroll',
+    tone: 'sky',
+  },
+  PAYSLIP_REQUEST_FULFILLED: {
+    label: 'Payslip Request Fulfilled',
+    category: 'Payroll',
+    tone: 'emerald',
+  },
+  PAYSLIP_DOCUMENT_PUBLISHED: {
+    label: 'Payslip Document Published',
+    category: 'Payroll',
+    tone: 'emerald',
+  },
+  PAYSLIP_DOCUMENT_VIEWED: {
+    label: 'Payslip Document Viewed',
+    category: 'Payroll',
+    tone: 'slate',
+  },
+  PAYSLIP_DOCUMENT_DOWNLOADED: {
+    label: 'Payslip Document Downloaded',
+    category: 'Payroll',
+    tone: 'sky',
+  },
   PUBLIC_PROFILE_VIEWED: {
     label: 'Public Profile Viewed',
     category: 'QR',
@@ -214,6 +285,20 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'VISIBILITY_UPDATED', label: 'Visibility Updated' },
   { value: 'PAYROLL_EXPORT_GENERATED', label: 'Payroll Export Generated' },
   { value: 'PAYROLL_EXPORT_PRINT_INITIATED', label: 'Payroll Sheet Print Initiated' },
+  { value: 'PAYROLL_PERIOD_CREATED', label: 'Payroll Period Created' },
+  { value: 'PAYROLL_RUN_CREATED', label: 'Payroll Run Created' },
+  { value: 'PAYROLL_CALCULATION_STARTED', label: 'Payroll Calculation Started' },
+  { value: 'PAYROLL_CALCULATION_COMPLETED', label: 'Payroll Calculation Completed' },
+  { value: 'PAYROLL_CALCULATION_FAILED', label: 'Payroll Calculation Failed' },
+  { value: 'PAYROLL_RUN_UPDATED', label: 'Payroll Run Updated' },
+  { value: 'PAYROLL_RUN_FINALIZED', label: 'Payroll Run Finalized' },
+  { value: 'PAYROLL_PAYSLIP_PUBLISHED', label: 'Payslip Published' },
+  { value: 'PAYSLIP_REQUEST_CREATED', label: 'Payslip Request Created' },
+  { value: 'PAYSLIP_REQUEST_STATUS_UPDATED', label: 'Payslip Request Updated' },
+  { value: 'PAYSLIP_REQUEST_FULFILLED', label: 'Payslip Request Fulfilled' },
+  { value: 'PAYSLIP_DOCUMENT_PUBLISHED', label: 'Payslip Document Published' },
+  { value: 'PAYSLIP_DOCUMENT_VIEWED', label: 'Payslip Document Viewed' },
+  { value: 'PAYSLIP_DOCUMENT_DOWNLOADED', label: 'Payslip Document Downloaded' },
   { value: 'PUBLIC_PROFILE_VIEWED', label: 'Public Profile Viewed' },
 ]
 
@@ -315,6 +400,26 @@ function getEntityLabel(targetType: string): string {
 
   if (targetType === 'payroll_export') {
     return 'Payroll export'
+  }
+
+  if (targetType === 'PayrollPeriod') {
+    return 'Payroll period'
+  }
+
+  if (targetType === 'PayrollRun') {
+    return 'Payroll run'
+  }
+
+  if (targetType === 'Payslip') {
+    return 'Payslip'
+  }
+
+  if (targetType === 'PayslipRequest') {
+    return 'Payslip request'
+  }
+
+  if (targetType === 'PayslipDelivery') {
+    return 'Payslip delivery'
   }
 
   return targetType

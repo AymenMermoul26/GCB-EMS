@@ -1,6 +1,9 @@
 import {
+  Banknote,
   Bell,
+  ClipboardList,
   FileDown,
+  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -71,10 +74,28 @@ const PAYROLL_NAV_ITEMS: PayrollNavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    key: 'processing',
+    label: 'Processing',
+    to: ROUTES.PAYROLL_PROCESSING,
+    icon: ClipboardList,
+  },
+  {
+    key: 'compensation',
+    label: 'Compensation',
+    to: ROUTES.PAYROLL_COMPENSATION,
+    icon: Banknote,
+  },
+  {
     key: 'employees',
     label: 'Employees',
     to: ROUTES.PAYROLL_EMPLOYEES,
     icon: Users,
+  },
+  {
+    key: 'payslip-requests',
+    label: 'Payslip Requests',
+    to: ROUTES.PAYROLL_PAYSLIP_REQUESTS,
+    icon: FileText,
   },
   {
     key: 'exports',
@@ -384,13 +405,13 @@ function PayrollSidebarContent({
 
         <div className={cn('flex items-center justify-between gap-2', compactMode && 'justify-center')}>
           <StatusBadge tone="neutral" emphasis="outline" className="bg-white">
-            Read-only
+            Controlled
           </StatusBadge>
           {!compactMode ? (
             <span className="text-[11px] text-slate-500">
               {unreadNotificationsCount > 0
                 ? `${unreadNotificationsCount} unread change${unreadNotificationsCount === 1 ? '' : 's'}`
-                : 'Controlled access'}
+                : 'Scoped payroll workspace'}
             </span>
           ) : null}
         </div>

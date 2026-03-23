@@ -13,7 +13,11 @@ export const ROUTES = {
   ADMIN_AUDIT: '/admin/audit',
   PAYROLL: '/payroll',
   PAYROLL_DASHBOARD: '/payroll/dashboard',
+  PAYROLL_PROCESSING: '/payroll/processing',
+  PAYROLL_COMPENSATION: '/payroll/compensation',
+  PAYROLL_RUNS: '/payroll/runs',
   PAYROLL_EMPLOYEES: '/payroll/employees',
+  PAYROLL_PAYSLIP_REQUESTS: '/payroll/payslip-requests',
   PAYROLL_EXPORTS: '/payroll/exports',
   PAYROLL_NOTIFICATIONS: '/payroll/notifications',
   PAYROLL_SECURITY: '/payroll/security',
@@ -22,6 +26,7 @@ export const ROUTES = {
   EMPLOYEE_PROFILE_MANAGE: '/employee/profile/manage',
   EMPLOYEE_MY_QR: '/employee/my-qr',
   EMPLOYEE_REQUESTS: '/employee/requests',
+  EMPLOYEE_PAYSLIPS: '/employee/payslips',
   EMPLOYEE_SECURITY: '/employee/security',
   NOTIFICATIONS: '/notifications',
   PUBLIC_PROFILE_BASE: '/p',
@@ -38,3 +43,6 @@ export const getPayrollEmployeeRoute = (employeeId: string) =>
 
 export const getPayrollEmployeeSheetRoute = (employeeId: string) =>
   `${ROUTES.PAYROLL_EMPLOYEES}/${employeeId}/sheet`
+
+export const getPayrollRunRoute = (runId: string) =>
+  `${ROUTES.PAYROLL_RUNS}/${runId}`

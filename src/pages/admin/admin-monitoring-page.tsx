@@ -45,10 +45,11 @@ import type {
   MonitoringPeriod,
   MonitoringRecentEvent,
   MonitoringRecentInviteItem,
-  MonitoringRecentPayrollExportItem,
+  MonitoringRecentPayrollActivityItem,
   MonitoringTimelinePoint,
   MonitoringTone,
 } from '@/types/monitoring-dashboard'
+import { getAuditActionMeta } from '@/utils/monitoring-events'
 
 const PERIOD_OPTIONS: Array<{ value: MonitoringPeriod; label: string }> = [
   { value: 'TODAY', label: 'Today' },
@@ -743,20 +744,20 @@ function RecentInviteActivityList({
   )
 }
 
-function RecentPayrollExportActivityList({
+function RecentPayrollActivityList({
   items,
   onOpenEmployee,
 }: {
-  items: MonitoringRecentPayrollExportItem[]
+  items: MonitoringRecentPayrollActivityItem[]
   onOpenEmployee: (employeeId: string) => void
 }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Recent payroll export activity</p>
+          <p className="text-sm font-semibold text-slate-900">Recent payroll activity</p>
           <p className="text-xs text-slate-500">
-            Latest payroll CSV exports and payroll sheet print actions in the selected view.
+            Latest payroll processing, request, and document events in the selected view.
           </p>
         </div>
         <Badge variant="outline" className="rounded-full">
@@ -766,59 +767,56 @@ function RecentPayrollExportActivityList({
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-center">
-          <p className="text-sm font-medium text-slate-900">No payroll export activity</p>
+          <p className="text-sm font-medium text-slate-900">No payroll activity</p>
           <p className="mt-1 text-sm text-slate-500">
-            Payroll CSV exports and payroll sheet print activity will appear here when available.
+            Payroll processing, payslip request, and document activity will appear here when available.
           </p>
         </div>
       ) : (
-        items.map((item) => (
-          <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-white p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {item.employeeName ?? 'Payroll export activity'}
+        items.map((item) => {
+          const actionMeta = getAuditActionMeta(item.action)
+
+          return (
+            <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {item.employeeName ?? item.targetLabel}
+                    </p>
+                    <Badge className={toneBadgeClass(item.tone)}>{item.actionLabel}</Badge>
+                    <Badge variant="outline" className="text-[11px]">
+                      {actionMeta.categoryKey === 'payroll' ? 'Payroll' : actionMeta.categoryKey}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-slate-600">{item.summary}</p>
+                  <p className="text-xs text-slate-500">
+                    By {item.actorLabel}
+                    {item.rowCount !== null
+                      ? ` • ${item.rowCount} row${item.rowCount === 1 ? '' : 's'}`
+                      : ''}
+                    {item.fileName ? ` • ${item.fileName}` : item.format ? ` • ${item.format}` : ''}
                   </p>
-                  <Badge
-                    className={
-                      item.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
-                        ? 'border-transparent bg-amber-100 text-amber-800'
-                        : 'border-transparent bg-sky-100 text-sky-700'
-                    }
-                  >
-                    {item.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
-                      ? 'Sheet print / PDF'
-                      : 'CSV export'}
-                  </Badge>
                 </div>
-                <p className="text-sm text-slate-600">{item.scopeSummary}</p>
-                <p className="text-xs text-slate-500">
-                  By {item.actorLabel}
-                  {item.rowCount !== null
-                    ? ` • ${item.rowCount} row${item.rowCount === 1 ? '' : 's'}`
-                    : ''}
-                  {item.fileName ? ` • ${item.fileName}` : item.format ? ` • ${item.format}` : ''}
-                </p>
-              </div>
-              <div className="flex flex-col items-start gap-2 sm:items-end">
-                <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
-                  {formatRelativeDate(item.createdAt)}
-                </span>
-                {item.employeeId ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onOpenEmployee(item.employeeId as string)}
-                  >
-                    Open employee
-                  </Button>
-                ) : null}
+                <div className="flex flex-col items-start gap-2 sm:items-end">
+                  <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
+                    {formatRelativeDate(item.createdAt)}
+                  </span>
+                  {item.employeeId ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onOpenEmployee(item.employeeId as string)}
+                    >
+                      Open employee
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
-        ))
+          )
+        })
       )}
     </div>
   )
@@ -1156,7 +1154,7 @@ export function AdminMonitoringPage() {
           <KpiCard
             title={KPI_CARD_CONFIG.payrollEvents.title}
             value={dashboard.kpis.payrollEvents}
-            helper={`Payroll export and document actions ${periodText}`}
+            helper={`Payroll processing, request, and document actions ${periodText}`}
             icon={<FileClock className="h-5 w-5" />}
             accentClass={KPI_CARD_CONFIG.payrollEvents.accent}
           />
@@ -1273,27 +1271,27 @@ export function AdminMonitoringPage() {
 
           <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
             <CardHeader className="space-y-2">
-              <CardTitle className="text-base font-semibold">Payroll export activity</CardTitle>
+              <CardTitle className="text-base font-semibold">Payroll activity</CardTitle>
               <CardDescription>
-                Payroll-safe export actions available to admins for governance and presentation.
+                Payroll processing, payslip request, and payroll document actions available to admins for governance and presentation.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <MetricBars
                 items={dashboard.payrollActivity}
-                emptyTitle="No payroll export activity"
-                emptyDescription="Payroll export and payroll sheet print actions will appear here."
+                emptyTitle="No payroll activity"
+                emptyDescription="Payroll processing, request, and document actions will appear here."
               />
               <div className="border-t border-slate-200 pt-5">
-                {dashboard.sectionErrors.recentPayrollExports ? (
+                {dashboard.sectionErrors.recentPayrollActivity ? (
                   <Alert className="mb-4 rounded-2xl border-amber-200 bg-amber-50 text-amber-900">
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Partial payroll export lookup unavailable</AlertTitle>
-                    <AlertDescription>{dashboard.sectionErrors.recentPayrollExports}</AlertDescription>
+                    <AlertTitle>Partial payroll activity lookup unavailable</AlertTitle>
+                    <AlertDescription>{dashboard.sectionErrors.recentPayrollActivity}</AlertDescription>
                   </Alert>
                 ) : null}
-                <RecentPayrollExportActivityList
-                  items={dashboard.recentPayrollExportEvents}
+                <RecentPayrollActivityList
+                  items={dashboard.recentPayrollActivity}
                   onOpenEmployee={(employeeId) => navigate(getAdminEmployeeRoute(employeeId))}
                 />
               </div>
@@ -1369,7 +1367,7 @@ export function AdminMonitoringPage() {
             <div className="flex items-center gap-2">
               <FileClock className="h-4 w-4" />
               <span>
-                Monitoring data is derived from real audit log events, including QR lifecycle, public profile access, payroll exports, and backend email tracking entries.
+                Monitoring data is derived from real audit log events, including QR lifecycle, public profile access, payroll processing, payslip delivery, and backend email tracking entries.
               </span>
             </div>
             <span>

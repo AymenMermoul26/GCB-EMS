@@ -1,6 +1,7 @@
 import {
   Bell,
   ClipboardList,
+  FileText,
   LogOut,
   Menu,
   PencilLine,
@@ -65,6 +66,12 @@ const EMPLOYEE_NAV_ITEMS: EmployeeNavItem[] = [
     label: 'Requests',
     to: ROUTES.EMPLOYEE_REQUESTS,
     icon: ClipboardList,
+  },
+  {
+    key: 'payslips',
+    label: 'Payslips',
+    to: ROUTES.EMPLOYEE_PAYSLIPS,
+    icon: FileText,
   },
   {
     key: 'my-qr',

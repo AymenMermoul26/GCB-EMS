@@ -184,6 +184,78 @@ const ACTION_META: Record<string, MonitoringActionMeta> = {
     categoryKey: 'payroll',
     tone: 'amber',
   },
+  PAYROLL_PERIOD_CREATED: {
+    label: 'Payroll Period Created',
+    categoryKey: 'payroll',
+    tone: 'sky',
+  },
+  PAYROLL_RUN_CREATED: {
+    label: 'Payroll Run Created',
+    categoryKey: 'payroll',
+    tone: 'sky',
+  },
+  PAYROLL_CALCULATION_STARTED: {
+    label: 'Payroll Calculation Started',
+    categoryKey: 'payroll',
+    tone: 'amber',
+  },
+  PAYROLL_CALCULATION_COMPLETED: {
+    label: 'Payroll Calculation Completed',
+    categoryKey: 'payroll',
+    tone: 'emerald',
+  },
+  PAYROLL_CALCULATION_FAILED: {
+    label: 'Payroll Calculation Failed',
+    categoryKey: 'payroll',
+    tone: 'rose',
+    critical: true,
+    failed: true,
+  },
+  PAYROLL_RUN_UPDATED: {
+    label: 'Payroll Run Updated',
+    categoryKey: 'payroll',
+    tone: 'amber',
+  },
+  PAYROLL_RUN_FINALIZED: {
+    label: 'Payroll Run Finalized',
+    categoryKey: 'payroll',
+    tone: 'emerald',
+  },
+  PAYROLL_PAYSLIP_PUBLISHED: {
+    label: 'Payslip Published',
+    categoryKey: 'payroll',
+    tone: 'emerald',
+  },
+  PAYSLIP_REQUEST_CREATED: {
+    label: 'Payslip Request Created',
+    categoryKey: 'payroll',
+    tone: 'amber',
+  },
+  PAYSLIP_REQUEST_STATUS_UPDATED: {
+    label: 'Payslip Request Updated',
+    categoryKey: 'payroll',
+    tone: 'sky',
+  },
+  PAYSLIP_REQUEST_FULFILLED: {
+    label: 'Payslip Request Fulfilled',
+    categoryKey: 'payroll',
+    tone: 'emerald',
+  },
+  PAYSLIP_DOCUMENT_PUBLISHED: {
+    label: 'Payslip Document Published',
+    categoryKey: 'payroll',
+    tone: 'emerald',
+  },
+  PAYSLIP_DOCUMENT_VIEWED: {
+    label: 'Payslip Document Viewed',
+    categoryKey: 'payroll',
+    tone: 'slate',
+  },
+  PAYSLIP_DOCUMENT_DOWNLOADED: {
+    label: 'Payslip Document Downloaded',
+    categoryKey: 'payroll',
+    tone: 'sky',
+  },
   PUBLIC_PROFILE_VIEWED: {
     label: 'Public Profile Viewed',
     categoryKey: 'qr',

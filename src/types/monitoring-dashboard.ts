@@ -81,16 +81,19 @@ export interface MonitoringRecentInviteItem {
   failureReason?: string
 }
 
-export interface MonitoringRecentPayrollExportItem {
+export interface MonitoringRecentPayrollActivityItem {
   id: string
-  action: 'PAYROLL_EXPORT_GENERATED' | 'PAYROLL_EXPORT_PRINT_INITIATED'
+  action: string
+  actionLabel: string
+  tone: MonitoringTone
   actorLabel: string
+  targetLabel: string
   employeeId: string | null
   employeeName: string | null
   rowCount: number | null
   fileName: string | null
   format: string | null
-  scopeSummary: string
+  summary: string
   createdAt: string
 }
 
@@ -114,7 +117,7 @@ export interface MonitoringInsightItem {
 
 export interface MonitoringSectionErrors {
   recentCriticalEvents?: string
-  recentPayrollExports?: string
+  recentPayrollActivity?: string
 }
 
 export interface MonitoringDashboardData {
@@ -133,7 +136,7 @@ export interface MonitoringDashboardData {
   emailActivity: MonitoringMetricItem[]
   recentInviteEvents: MonitoringRecentInviteItem[]
   payrollActivity: MonitoringMetricItem[]
-  recentPayrollExportEvents: MonitoringRecentPayrollExportItem[]
+  recentPayrollActivity: MonitoringRecentPayrollActivityItem[]
   recentCriticalEvents: MonitoringRecentEvent[]
   topActions: MonitoringTopActionItem[]
   attentionItems: MonitoringInsightItem[]

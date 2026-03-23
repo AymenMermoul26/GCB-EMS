@@ -141,6 +141,34 @@ function getActivityLabel(action: string): string {
       return 'Payroll export generated'
     case 'PAYROLL_EXPORT_PRINT_INITIATED':
       return 'Payroll sheet print started'
+    case 'PAYROLL_PERIOD_CREATED':
+      return 'Payroll period created'
+    case 'PAYROLL_RUN_CREATED':
+      return 'Payroll run created'
+    case 'PAYROLL_CALCULATION_STARTED':
+      return 'Payroll calculation started'
+    case 'PAYROLL_CALCULATION_COMPLETED':
+      return 'Payroll calculation completed'
+    case 'PAYROLL_CALCULATION_FAILED':
+      return 'Payroll calculation failed'
+    case 'PAYROLL_RUN_UPDATED':
+      return 'Payroll run updated'
+    case 'PAYROLL_RUN_FINALIZED':
+      return 'Payroll run finalized'
+    case 'PAYROLL_PAYSLIP_PUBLISHED':
+      return 'Payslip published'
+    case 'PAYSLIP_REQUEST_CREATED':
+      return 'Payslip request created'
+    case 'PAYSLIP_REQUEST_STATUS_UPDATED':
+      return 'Payslip request updated'
+    case 'PAYSLIP_REQUEST_FULFILLED':
+      return 'Payslip request fulfilled'
+    case 'PAYSLIP_DOCUMENT_PUBLISHED':
+      return 'Payslip document published'
+    case 'PAYSLIP_DOCUMENT_VIEWED':
+      return 'Payslip document viewed'
+    case 'PAYSLIP_DOCUMENT_DOWNLOADED':
+      return 'Payslip document downloaded'
     case 'EMPLOYEE_SELF_UPDATED':
       return 'Employee self-updated'
     case 'REQUEST_SUBMITTED':
@@ -184,9 +212,24 @@ function getActivityBadgeClass(action: string): string {
     case 'QR_REGENERATED':
     case 'QR_REFRESH_COMPLETED':
     case 'PAYROLL_EXPORT_GENERATED':
+    case 'PAYROLL_PERIOD_CREATED':
+    case 'PAYROLL_RUN_CREATED':
+    case 'PAYSLIP_REQUEST_STATUS_UPDATED':
+    case 'PAYSLIP_DOCUMENT_DOWNLOADED':
       return 'border-transparent bg-sky-100 text-sky-700'
     case 'PAYROLL_EXPORT_PRINT_INITIATED':
+    case 'PAYROLL_CALCULATION_STARTED':
+    case 'PAYROLL_RUN_UPDATED':
+    case 'PAYSLIP_REQUEST_CREATED':
       return 'border-transparent bg-amber-100 text-amber-700'
+    case 'PAYROLL_CALCULATION_COMPLETED':
+    case 'PAYROLL_RUN_FINALIZED':
+    case 'PAYROLL_PAYSLIP_PUBLISHED':
+    case 'PAYSLIP_REQUEST_FULFILLED':
+    case 'PAYSLIP_DOCUMENT_PUBLISHED':
+      return 'border-transparent bg-emerald-100 text-emerald-700'
+    case 'PAYSLIP_DOCUMENT_VIEWED':
+      return 'border-transparent bg-slate-100 text-slate-700'
     case 'PUBLIC_PROFILE_VIEWED':
       return 'border-transparent bg-emerald-100 text-emerald-700'
     case 'REQUEST_REJECTED':
@@ -194,6 +237,7 @@ function getActivityBadgeClass(action: string): string {
     case 'EMPLOYEE_INVITE_FAILED':
     case 'EMPLOYEE_SHEET_EMAIL_FAILED':
     case 'QR_REVOKED':
+    case 'PAYROLL_CALCULATION_FAILED':
       return 'border-transparent bg-rose-100 text-rose-700'
     case 'REQUEST_SUBMITTED':
     case 'QR_REFRESH_REQUIRED_CREATED':
@@ -464,42 +508,38 @@ function RecentInviteItemRow({
   )
 }
 
-function RecentPayrollExportRow({
+function RecentPayrollActivityRow({
   item,
   onOpenEmployee,
 }: {
   item: {
     id: string
-    action: 'PAYROLL_EXPORT_GENERATED' | 'PAYROLL_EXPORT_PRINT_INITIATED'
+    action: string
+    actionLabel: string
+    tone: 'slate' | 'emerald' | 'amber' | 'rose' | 'sky' | 'orange'
     actorLabel: string
+    targetLabel: string
     employeeId: string | null
     employeeName: string | null
     rowCount: number | null
     format: string | null
     fileName: string | null
-    scopeSummary: string
+    summary: string
     createdAt: string
   }
   onOpenEmployee?: () => void
 }) {
-  const actionLabel =
-    item.action === 'PAYROLL_EXPORT_PRINT_INITIATED' ? 'Sheet print / PDF' : 'CSV export'
-  const badgeClass =
-    item.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
-      ? 'border-transparent bg-amber-100 text-amber-800'
-      : 'border-transparent bg-sky-100 text-sky-700'
-
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-slate-900">
-              {item.employeeName ?? 'Payroll export activity'}
+              {item.employeeName ?? item.targetLabel}
             </p>
-            <Badge className={badgeClass}>{actionLabel}</Badge>
+            <Badge className={getActivityBadgeClass(item.action)}>{item.actionLabel}</Badge>
           </div>
-          <p className="text-sm text-slate-600">{item.scopeSummary}</p>
+          <p className="text-sm text-slate-600">{item.summary}</p>
           <p className="text-xs text-slate-500">
             By {item.actorLabel}
             {item.rowCount !== null ? ` • ${item.rowCount} row${item.rowCount === 1 ? '' : 's'}` : ''}
@@ -1030,10 +1070,10 @@ export function AdminDashboardPage() {
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                 <div>
                   <CardTitle className="text-base font-semibold">
-                    Recent payroll export activity
+                    Recent payroll activity
                   </CardTitle>
                   <CardDescription>
-                    Recent payroll-safe export and document output actions visible to admins.
+                    Recent payroll processing, request, and document actions visible to admins.
                   </CardDescription>
                 </div>
                 <Button
@@ -1046,20 +1086,20 @@ export function AdminDashboardPage() {
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                <SectionError message={dashboard.sectionErrors.recentPayrollExports} />
-                {dashboard.recentPayrollExports.length === 0 ? (
+                <SectionError message={dashboard.sectionErrors.recentPayrollActivity} />
+                {dashboard.recentPayrollActivity.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
                     <p className="text-sm font-medium text-slate-900">
-                      No recent payroll exports
+                      No recent payroll activity
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Payroll CSV exports and payroll sheet print activity will appear here.
+                      Payroll processing, payslip requests, and payslip document actions will appear here.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {dashboard.recentPayrollExports.map((item) => (
-                      <RecentPayrollExportRow
+                    {dashboard.recentPayrollActivity.map((item) => (
+                      <RecentPayrollActivityRow
                         key={item.id}
                         item={item}
                         onOpenEmployee={
@@ -1318,7 +1358,7 @@ export function AdminDashboardPage() {
               <FileClock className="h-4 w-4" />
               <span>
                 Dashboard metrics are derived from live employees, departments, requests,
-                notifications, audit log invite activity, and active QR tokens.
+                notifications, audit activity, payroll workflow signals, and active QR tokens.
               </span>
             </div>
             <span>

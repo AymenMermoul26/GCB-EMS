@@ -301,6 +301,159 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return matricule
         ? `Started payroll information sheet print or PDF export for ${matricule}.`
         : 'Started a payroll information sheet print or PDF export.'
+    case 'PAYROLL_PERIOD_CREATED': {
+      const periodLabel = readText(detailsJson.period_label)
+      const periodCode = readText(detailsJson.period_code)
+      const reference = periodLabel ?? periodCode
+
+      return reference
+        ? `Created payroll period ${reference}.`
+        : 'Created a payroll period.'
+    }
+    case 'PAYROLL_RUN_CREATED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+      const employeeCount = readText(detailsJson.employee_count)
+
+      if (runCode && employeeCount) {
+        return `Created payroll run ${runCode} with ${employeeCount} seeded employee entries.`
+      }
+
+      return runCode ? `Created payroll run ${runCode}.` : 'Created a payroll run.'
+    }
+    case 'PAYROLL_CALCULATION_STARTED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+
+      return runCode
+        ? `Started payroll calculation for ${runCode}.`
+        : 'Started payroll calculation.'
+    }
+    case 'PAYROLL_CALCULATION_COMPLETED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+      const calculatedCount = readText(detailsJson.calculated_employee_count)
+      const excludedCount = readText(detailsJson.excluded_employee_count)
+
+      if (runCode && calculatedCount && excludedCount) {
+        return `Completed payroll calculation for ${runCode}: ${calculatedCount} calculated, ${excludedCount} excluded.`
+      }
+
+      return runCode
+        ? `Completed payroll calculation for ${runCode}.`
+        : 'Completed payroll calculation.'
+    }
+    case 'PAYROLL_CALCULATION_FAILED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+      const failureReason = readText(detailsJson.failure_reason)
+
+      if (runCode && failureReason) {
+        return `Payroll calculation failed for ${runCode}: ${failureReason}`
+      }
+
+      return runCode
+        ? `Payroll calculation failed for ${runCode}.`
+        : failureReason
+          ? `Payroll calculation failed: ${failureReason}`
+          : 'Payroll calculation failed.'
+    }
+    case 'PAYROLL_RUN_UPDATED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+      const nextStatus = readText(detailsJson.next_status)
+
+      if (runCode && nextStatus) {
+        return `Updated payroll run ${runCode} to ${nextStatus.toLowerCase().replaceAll('_', ' ')}.`
+      }
+
+      return runCode ? `Updated payroll run ${runCode}.` : 'Updated a payroll run.'
+    }
+    case 'PAYROLL_RUN_FINALIZED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+
+      return runCode ? `Finalized payroll run ${runCode}.` : 'Finalized a payroll run.'
+    }
+    case 'PAYROLL_PAYSLIP_PUBLISHED': {
+      const employeeName = readText(detailsJson.employee_name)
+      const employeeReference =
+        employeeName && matricule
+          ? `${employeeName} (${matricule})`
+          : employeeName ?? matricule
+
+      return employeeReference
+        ? `Published payslip metadata for ${employeeReference}.`
+        : 'Published a payslip.'
+    }
+    case 'PAYSLIP_REQUEST_CREATED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const reference = periodLabel ?? periodCode
+
+      return reference
+        ? `Submitted a payslip request for ${reference}.`
+        : 'Submitted a payslip request.'
+    }
+    case 'PAYSLIP_REQUEST_STATUS_UPDATED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const nextStatus = readText(detailsJson.next_status)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && nextStatus) {
+        return `Updated payslip request ${reference} to ${nextStatus.toLowerCase().replaceAll('_', ' ')}.`
+      }
+
+      return reference
+        ? `Updated payslip request ${reference}.`
+        : 'Updated a payslip request.'
+    }
+    case 'PAYSLIP_REQUEST_FULFILLED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const reference = periodLabel ?? periodCode
+
+      return reference
+        ? `Fulfilled payslip request for ${reference}.`
+        : 'Fulfilled a payslip request.'
+    }
+    case 'PAYSLIP_DOCUMENT_PUBLISHED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const fileName = readText(detailsJson.file_name)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && fileName) {
+        return `Published payslip document ${fileName} for ${reference}.`
+      }
+
+      return reference
+        ? `Published a payslip document for ${reference}.`
+        : 'Published a payslip document.'
+    }
+    case 'PAYSLIP_DOCUMENT_VIEWED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const fileName = readText(detailsJson.file_name)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && fileName) {
+        return `Viewed payslip document ${fileName} for ${reference}.`
+      }
+
+      return reference
+        ? `Viewed a payslip document for ${reference}.`
+        : 'Viewed a payslip document.'
+    }
+    case 'PAYSLIP_DOCUMENT_DOWNLOADED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const fileName = readText(detailsJson.file_name)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && fileName) {
+        return `Downloaded payslip document ${fileName} for ${reference}.`
+      }
+
+      return reference
+        ? `Downloaded a payslip document for ${reference}.`
+        : 'Downloaded a payslip document.'
+    }
     case 'PUBLIC_PROFILE_VIEWED': {
       const publicFields = readStringArray(detailsJson.public_fields)
       if (matricule && publicFields.length > 0) {
@@ -361,6 +514,42 @@ function formatTargetLabel(
 
   if (row.target_type === 'payroll_export') {
     return 'Payroll export activity'
+  }
+
+  if (row.target_type === 'PayrollPeriod') {
+    return readText(detailsJson.period_label) ?? readText(detailsJson.period_code) ?? 'Payroll period'
+  }
+
+  if (row.target_type === 'PayrollRun') {
+    return readText(detailsJson.payroll_run_code) ?? 'Payroll run'
+  }
+
+  if (row.target_type === 'Payslip') {
+    const employeeName = readText(detailsJson.employee_name)
+    const matricule = readText(detailsJson.matricule)
+
+    if (employeeName && matricule) {
+      return `Payslip | ${employeeName} (${matricule})`
+    }
+
+    return employeeName ? `Payslip | ${employeeName}` : 'Payslip'
+  }
+
+  if (row.target_type === 'PayslipRequest') {
+    return readText(detailsJson.payroll_period_label) ??
+      readText(detailsJson.payroll_period_code) ??
+      'Payslip request'
+  }
+
+  if (row.target_type === 'PayslipDelivery') {
+    const fileName = readText(detailsJson.file_name)
+    const periodLabel = readText(detailsJson.payroll_period_label)
+
+    if (fileName && periodLabel) {
+      return `Payslip delivery | ${periodLabel} | ${fileName}`
+    }
+
+    return fileName ? `Payslip delivery | ${fileName}` : 'Payslip delivery'
   }
 
   return `${row.target_type} (${row.target_id.slice(0, 8)})`

@@ -12,7 +12,7 @@ import type {
   MonitoringPeriod,
   MonitoringRecentEvent,
   MonitoringRecentInviteItem,
-  MonitoringRecentPayrollExportItem,
+  MonitoringRecentPayrollActivityItem,
   MonitoringTimelinePoint,
   MonitoringTopActionItem,
 } from '@/types/monitoring-dashboard'
@@ -138,16 +138,40 @@ const EMAIL_ACTIVITY_CONFIG = [
 
 const PAYROLL_ACTIVITY_CONFIG = [
   {
-    key: 'PAYROLL_EXPORT_GENERATED',
-    label: 'CSV Exports',
-    helper: 'Payroll-safe directory CSV exports generated',
+    key: 'export_output',
+    label: 'Exports & Sheet Output',
+    helper: 'CSV exports and payroll-safe sheet print or PDF actions',
     tone: 'sky',
   },
   {
-    key: 'PAYROLL_EXPORT_PRINT_INITIATED',
-    label: 'Sheet Print / PDF',
-    helper: 'Payroll information-sheet print or save-as-PDF actions',
+    key: 'run_setup',
+    label: 'Periods & Runs',
+    helper: 'Payroll periods and runs prepared for processing',
+    tone: 'sky',
+  },
+  {
+    key: 'calculations',
+    label: 'Calculations',
+    helper: 'Payroll calculation starts, completions, and failures',
     tone: 'amber',
+  },
+  {
+    key: 'publication',
+    label: 'Finalization & Publication',
+    helper: 'Run finalization and payslip publication actions',
+    tone: 'emerald',
+  },
+  {
+    key: 'requests',
+    label: 'Payslip Requests',
+    helper: 'Employee payslip request submission and review actions',
+    tone: 'amber',
+  },
+  {
+    key: 'documents',
+    label: 'Payslip Documents',
+    helper: 'Published, viewed, and downloaded payslip files',
+    tone: 'slate',
   },
 ] as const
 
@@ -550,6 +574,60 @@ function buildEmailActivity(rows: MonitoringAuditRow[]): MonitoringMetricItem[] 
   }))
 }
 
+function buildPayrollActivity(rows: MonitoringAuditRow[]): MonitoringMetricItem[] {
+  const counts = {
+    export_output: 0,
+    run_setup: 0,
+    calculations: 0,
+    publication: 0,
+    requests: 0,
+    documents: 0,
+  }
+
+  for (const row of rows) {
+    switch (row.action) {
+      case 'PAYROLL_EXPORT_GENERATED':
+      case 'PAYROLL_EXPORT_PRINT_INITIATED':
+        counts.export_output += 1
+        break
+      case 'PAYROLL_PERIOD_CREATED':
+      case 'PAYROLL_RUN_CREATED':
+        counts.run_setup += 1
+        break
+      case 'PAYROLL_CALCULATION_STARTED':
+      case 'PAYROLL_CALCULATION_COMPLETED':
+      case 'PAYROLL_CALCULATION_FAILED':
+        counts.calculations += 1
+        break
+      case 'PAYROLL_RUN_UPDATED':
+      case 'PAYROLL_RUN_FINALIZED':
+      case 'PAYROLL_PAYSLIP_PUBLISHED':
+        counts.publication += 1
+        break
+      case 'PAYSLIP_REQUEST_CREATED':
+      case 'PAYSLIP_REQUEST_STATUS_UPDATED':
+      case 'PAYSLIP_REQUEST_FULFILLED':
+        counts.requests += 1
+        break
+      case 'PAYSLIP_DOCUMENT_PUBLISHED':
+      case 'PAYSLIP_DOCUMENT_VIEWED':
+      case 'PAYSLIP_DOCUMENT_DOWNLOADED':
+        counts.documents += 1
+        break
+      default:
+        break
+    }
+  }
+
+  return PAYROLL_ACTIVITY_CONFIG.map((item) => ({
+    key: item.key,
+    label: item.label,
+    value: counts[item.key],
+    helper: item.helper,
+    tone: item.tone,
+  }))
+}
+
 function buildRecentInviteEvents(rows: MonitoringAuditRow[]): MonitoringRecentInviteItem[] {
   return rows
     .filter(
@@ -669,85 +747,47 @@ async function buildAuditLookups(rows: MonitoringAuditRow[]): Promise<Monitoring
   }
 }
 
-function buildPayrollScopeSummary(
-  action: MonitoringRecentPayrollExportItem['action'],
-  detailsJson: Record<string, unknown>,
-): string {
-  if (action === 'PAYROLL_EXPORT_PRINT_INITIATED') {
-    return 'Single employee information sheet'
-  }
-
-  const summaryParts: string[] = []
-  const search = readText(detailsJson.search)
-  const departmentName = readText(detailsJson.department_name)
-  const status = readText(detailsJson.status)
-  const typeContrat = readText(detailsJson.type_contrat)
-
-  if (search) {
-    summaryParts.push(`Search: ${search}`)
-  }
-
-  if (departmentName) {
-    summaryParts.push(`Department: ${departmentName}`)
-  }
-
-  if (status && status !== 'ALL') {
-    summaryParts.push(`Status: ${status}`)
-  }
-
-  if (typeContrat) {
-    summaryParts.push(`Contract: ${typeContrat}`)
-  }
-
-  return summaryParts.length > 0
-    ? summaryParts.join(' | ')
-    : 'All payroll-visible employees'
-}
-
-async function buildRecentPayrollExportEvents(
+async function buildRecentPayrollActivity(
   rows: MonitoringAuditRow[],
-): Promise<{ items: MonitoringRecentPayrollExportItem[]; error?: string }> {
-  const exportRows = rows
-    .filter(
-      (row) =>
-        row.action === 'PAYROLL_EXPORT_GENERATED' ||
-        row.action === 'PAYROLL_EXPORT_PRINT_INITIATED',
-    )
-    .slice(0, 5)
+): Promise<{ items: MonitoringRecentPayrollActivityItem[]; error?: string }> {
+  const payrollRows = rows
+    .filter((row) => categorizeAuditAction(row.action) === 'payroll')
+    .slice(0, 8)
 
-  if (exportRows.length === 0) {
+  if (payrollRows.length === 0) {
     return { items: [] }
   }
 
-  const lookups = await buildAuditLookups(exportRows)
+  const lookups = await buildAuditLookups(payrollRows)
 
-  const items = exportRows.map((row) => {
+  const items = payrollRows.map((row) => {
     const detailsJson = normalizeDetailsJson(row.details_json)
-    const employeeId = readText(detailsJson.employee_id) ?? (row.target_type === 'Employe' ? row.target_id : null)
+    const actionMeta = getAuditActionMeta(row.action)
+    const employeeId =
+      readText(detailsJson.employee_id) ?? (row.target_type === 'Employe' ? row.target_id : null)
     const employee = employeeId ? lookups.employeeById.get(employeeId) : null
     const employeeName =
       readText(detailsJson.employee_name) ??
       (employee ? `${employee.prenom} ${employee.nom}` : null)
-    const action: MonitoringRecentPayrollExportItem['action'] =
-      row.action === 'PAYROLL_EXPORT_PRINT_INITIATED'
-        ? 'PAYROLL_EXPORT_PRINT_INITIATED'
-        : 'PAYROLL_EXPORT_GENERATED'
 
     return {
       id: row.id,
-      action,
+      action: row.action,
+      actionLabel: actionMeta.label,
+      tone: actionMeta.tone,
       actorLabel: formatActorLabel(
         row,
         lookups.profileByUserId,
         lookups.employeeById,
         detailsJson,
       ),
+      targetLabel: formatTargetLabel(row, detailsJson, lookups.employeeById),
       employeeId,
       employeeName,
       rowCount: readNumber(detailsJson.row_count),
       fileName: readText(detailsJson.file_name),
       format: readText(detailsJson.format),
-      scopeSummary: buildPayrollScopeSummary(action, detailsJson),
+      summary: buildDetailsPreview(row.action, detailsJson),
       createdAt: row.created_at,
     }
   })
@@ -793,6 +833,17 @@ function buildAttentionItems(rows: MonitoringAuditRow[]): MonitoringInsightItem[
   ).length
   const revokedQrCount = rows.filter((row) => row.action === 'QR_REVOKED').length
   const rejectedRequestCount = rows.filter((row) => row.action === 'REQUEST_REJECTED').length
+  const payrollCalculationFailureCount = rows.filter(
+    (row) => row.action === 'PAYROLL_CALCULATION_FAILED',
+  ).length
+  const rejectedPayslipRequestCount = rows.filter((row) => {
+    if (row.action !== 'PAYSLIP_REQUEST_STATUS_UPDATED') {
+      return false
+    }
+
+    const detailsJson = normalizeDetailsJson(row.details_json)
+    return readText(detailsJson.next_status) === 'REJECTED'
+  }).length
   const securityCount = rows.filter(
     (row) => categorizeAuditAction(row.action) === 'security',
   ).length
@@ -835,6 +886,26 @@ function buildAttentionItems(rows: MonitoringAuditRow[]): MonitoringInsightItem[
       title: 'Rejected requests',
       description: 'Employee requests closed without applying changes.',
       count: rejectedRequestCount,
+      tone: 'warning',
+    })
+  }
+
+  if (payrollCalculationFailureCount > 0) {
+    items.push({
+      id: 'payroll-calculation-failures',
+      title: 'Payroll calculation failures',
+      description: 'At least one payroll run failed during calculation.',
+      count: payrollCalculationFailureCount,
+      tone: 'danger',
+    })
+  }
+
+  if (rejectedPayslipRequestCount > 0) {
+    items.push({
+      id: 'rejected-payslip-requests',
+      title: 'Rejected payslip requests',
+      description: 'Employee payslip requests were closed without delivery.',
+      count: rejectedPayslipRequestCount,
       tone: 'warning',
     })
   }
@@ -943,21 +1014,182 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
         ? `Employee information sheet email to ${recipientEmail} failed.`
         : 'Employee information sheet email failed.'
     case 'PAYROLL_EXPORT_GENERATED': {
-      const rowCount = readNumber(detailsJson.row_count)
-      const fileName = readText(detailsJson.file_name)
-      const scopeSummary = buildPayrollScopeSummary('PAYROLL_EXPORT_GENERATED', detailsJson)
-      if (rowCount !== null && fileName) {
-        return `Generated payroll CSV export ${fileName} with ${rowCount} row${rowCount === 1 ? '' : 's'} | ${scopeSummary}.`
+      const rowCount = readText(detailsJson.row_count)
+      const departmentName = readText(detailsJson.department_name)
+      const status = readText(detailsJson.status)
+      const typeContrat = readText(detailsJson.type_contrat)
+      const scopeParts = [
+        departmentName,
+        status && status !== 'ALL' ? status : null,
+        typeContrat ? `Contract ${typeContrat}` : null,
+      ].filter((value): value is string => Boolean(value))
+
+      if (rowCount && scopeParts.length > 0) {
+        return `Generated payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
       }
-      if (rowCount !== null) {
-        return `Generated payroll CSV export with ${rowCount} row${rowCount === 1 ? '' : 's'} | ${scopeSummary}.`
+
+      if (rowCount) {
+        return `Generated payroll CSV export (${rowCount} rows).`
       }
-      return `Generated a payroll CSV export | ${scopeSummary}.`
+
+      return 'Generated a payroll CSV export.'
     }
     case 'PAYROLL_EXPORT_PRINT_INITIATED':
       return matricule
         ? `Started payroll information-sheet print or PDF export for ${matricule}.`
         : 'Started a payroll information-sheet print or PDF export.'
+    case 'PAYROLL_PERIOD_CREATED': {
+      const periodLabel = readText(detailsJson.period_label)
+      const periodCode = readText(detailsJson.period_code)
+      const reference = periodLabel ?? periodCode
+
+      return reference
+        ? `Created payroll period ${reference}.`
+        : 'Created a payroll period.'
+    }
+    case 'PAYROLL_RUN_CREATED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+      const employeeCount = readText(detailsJson.employee_count)
+
+      if (runCode && employeeCount) {
+        return `Created payroll run ${runCode} with ${employeeCount} seeded employee entries.`
+      }
+
+      return runCode ? `Created payroll run ${runCode}.` : 'Created a payroll run.'
+    }
+    case 'PAYROLL_CALCULATION_STARTED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+
+      return runCode
+        ? `Started payroll calculation for ${runCode}.`
+        : 'Started payroll calculation.'
+    }
+    case 'PAYROLL_CALCULATION_COMPLETED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+      const calculatedCount = readText(detailsJson.calculated_employee_count)
+      const excludedCount = readText(detailsJson.excluded_employee_count)
+
+      if (runCode && calculatedCount && excludedCount) {
+        return `Completed payroll calculation for ${runCode}: ${calculatedCount} calculated, ${excludedCount} excluded.`
+      }
+
+      return runCode
+        ? `Completed payroll calculation for ${runCode}.`
+        : 'Completed payroll calculation.'
+    }
+    case 'PAYROLL_CALCULATION_FAILED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+
+      if (runCode && failureReason) {
+        return `Payroll calculation failed for ${runCode}: ${failureReason}`
+      }
+
+      return runCode
+        ? `Payroll calculation failed for ${runCode}.`
+        : failureReason
+          ? `Payroll calculation failed: ${failureReason}`
+          : 'Payroll calculation failed.'
+    }
+    case 'PAYROLL_RUN_UPDATED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+      const nextStatus = readText(detailsJson.next_status)
+
+      if (runCode && nextStatus) {
+        return `Updated payroll run ${runCode} to ${nextStatus.toLowerCase().replaceAll('_', ' ')}.`
+      }
+
+      return runCode ? `Updated payroll run ${runCode}.` : 'Updated a payroll run.'
+    }
+    case 'PAYROLL_RUN_FINALIZED': {
+      const runCode = readText(detailsJson.payroll_run_code)
+
+      return runCode ? `Finalized payroll run ${runCode}.` : 'Finalized a payroll run.'
+    }
+    case 'PAYROLL_PAYSLIP_PUBLISHED': {
+      const employeeName = readText(detailsJson.employee_name)
+      const employeeReference =
+        employeeName && matricule
+          ? `${employeeName} (${matricule})`
+          : employeeName ?? matricule
+
+      return employeeReference
+        ? `Published payslip metadata for ${employeeReference}.`
+        : 'Published a payslip.'
+    }
+    case 'PAYSLIP_REQUEST_CREATED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const reference = periodLabel ?? periodCode
+
+      return reference
+        ? `Submitted a payslip request for ${reference}.`
+        : 'Submitted a payslip request.'
+    }
+    case 'PAYSLIP_REQUEST_STATUS_UPDATED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const nextStatus = readText(detailsJson.next_status)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && nextStatus) {
+        return `Updated payslip request ${reference} to ${nextStatus.toLowerCase().replaceAll('_', ' ')}.`
+      }
+
+      return reference
+        ? `Updated payslip request ${reference}.`
+        : 'Updated a payslip request.'
+    }
+    case 'PAYSLIP_REQUEST_FULFILLED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const reference = periodLabel ?? periodCode
+
+      return reference
+        ? `Fulfilled payslip request for ${reference}.`
+        : 'Fulfilled a payslip request.'
+    }
+    case 'PAYSLIP_DOCUMENT_PUBLISHED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const fileName = readText(detailsJson.file_name)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && fileName) {
+        return `Published payslip document ${fileName} for ${reference}.`
+      }
+
+      return reference
+        ? `Published a payslip document for ${reference}.`
+        : 'Published a payslip document.'
+    }
+    case 'PAYSLIP_DOCUMENT_VIEWED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const fileName = readText(detailsJson.file_name)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && fileName) {
+        return `Viewed payslip document ${fileName} for ${reference}.`
+      }
+
+      return reference
+        ? `Viewed a payslip document for ${reference}.`
+        : 'Viewed a payslip document.'
+    }
+    case 'PAYSLIP_DOCUMENT_DOWNLOADED': {
+      const periodLabel = readText(detailsJson.payroll_period_label)
+      const periodCode = readText(detailsJson.payroll_period_code)
+      const fileName = readText(detailsJson.file_name)
+      const reference = periodLabel ?? periodCode
+
+      if (reference && fileName) {
+        return `Downloaded payslip document ${fileName} for ${reference}.`
+      }
+
+      return reference
+        ? `Downloaded a payslip document for ${reference}.`
+        : 'Downloaded a payslip document.'
+    }
     case 'PUBLIC_PROFILE_VIEWED': {
       const publicFieldsCount = readNumber(detailsJson.public_fields_count)
       return publicFieldsCount !== null
@@ -1035,6 +1267,50 @@ function formatTargetLabel(
 
   if (row.target_type === 'payroll_export') {
     return 'Payroll export activity'
+  }
+
+  if (row.target_type === 'PayrollPeriod') {
+    const reference =
+      readText(detailsJson.period_label) ??
+      readText(detailsJson.payroll_period_label) ??
+      readText(detailsJson.period_code) ??
+      readText(detailsJson.payroll_period_code)
+
+    return reference ? `Payroll period | ${reference}` : `Payroll period (${row.target_id.slice(0, 8)})`
+  }
+
+  if (row.target_type === 'PayrollRun') {
+    const runCode = readText(detailsJson.payroll_run_code)
+    return runCode ? `Payroll run | ${runCode}` : `Payroll run (${row.target_id.slice(0, 8)})`
+  }
+
+  if (row.target_type === 'Payslip') {
+    const reference =
+      readText(detailsJson.payroll_period_label) ??
+      readText(detailsJson.payroll_period_code) ??
+      readText(detailsJson.file_name)
+
+    return reference ? `Payslip | ${reference}` : `Payslip (${row.target_id.slice(0, 8)})`
+  }
+
+  if (row.target_type === 'PayslipRequest') {
+    const reference =
+      readText(detailsJson.payroll_period_label) ?? readText(detailsJson.payroll_period_code)
+
+    return reference
+      ? `Payslip request | ${reference}`
+      : `Payslip request (${row.target_id.slice(0, 8)})`
+  }
+
+  if (row.target_type === 'PayslipDelivery') {
+    const reference =
+      readText(detailsJson.file_name) ??
+      readText(detailsJson.payroll_period_label) ??
+      readText(detailsJson.payroll_period_code)
+
+    return reference
+      ? `Payslip delivery | ${reference}`
+      : `Payslip delivery (${row.target_id.slice(0, 8)})`
   }
 
   return `${row.target_type} (${row.target_id.slice(0, 8)})`
@@ -1138,9 +1414,9 @@ export async function getMonitoringDashboardData(
   const failedEvents = filteredRows.filter((row) => isFailedAuditAction(row.action)).length
   const criticalEvents = filteredRows.filter((row) => isCriticalAuditAction(row.action)).length
 
-  const [recentCriticalEventsResult, recentPayrollExportEventsResult] = await Promise.all([
+  const [recentCriticalEventsResult, recentPayrollActivityResult] = await Promise.all([
     buildRecentCriticalEvents(filteredRows),
-    buildRecentPayrollExportEvents(filteredRows),
+    buildRecentPayrollActivity(filteredRows),
   ])
 
   return {
@@ -1166,14 +1442,14 @@ export async function getMonitoringDashboardData(
     qrActivity: buildMetricItems(filteredRows, QR_ACTIVITY_CONFIG),
     emailActivity: buildEmailActivity(filteredRows),
     recentInviteEvents: buildRecentInviteEvents(filteredRows),
-    payrollActivity: buildMetricItems(filteredRows, PAYROLL_ACTIVITY_CONFIG),
-    recentPayrollExportEvents: recentPayrollExportEventsResult.items,
+    payrollActivity: buildPayrollActivity(filteredRows),
+    recentPayrollActivity: recentPayrollActivityResult.items,
     recentCriticalEvents: recentCriticalEventsResult.items,
     topActions: buildTopActions(filteredRows),
     attentionItems: buildAttentionItems(filteredRows),
     sectionErrors: {
       recentCriticalEvents: recentCriticalEventsResult.error,
-      recentPayrollExports: recentPayrollExportEventsResult.error,
+      recentPayrollActivity: recentPayrollActivityResult.error,
     },
   }
 }
