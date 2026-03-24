@@ -37,9 +37,15 @@ import { useEmployeeQuery } from '@/services/employeesService'
 import { useMyActiveTokenQuery } from '@/services/qrService'
 import {
   getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeDiplomeLabel,
+  getEmployeeNationaliteLabel,
+  getEmployeePosteLabel,
+  getEmployeeRegionalBranchLabel,
   getEmployeeSituationFamilialeLabel,
   getEmployeeSexeLabel,
+  getEmployeeSpecialiteLabel,
   getEmployeeTypeContratLabel,
+  getEmployeeUniversiteLabel,
   type Employee,
 } from '@/types/employee'
 import type { TokenQR } from '@/types/token'
@@ -245,7 +251,9 @@ export function EmployeeProfilePage() {
                 )}
               </div>
               <h3 className="mt-4 text-xl font-semibold text-slate-900">{fullName}</h3>
-              <p className="text-sm text-slate-500">{employee.poste ?? 'Job title not set'}</p>
+              <p className="text-sm text-slate-500">
+                {getEmployeePosteLabel(employee.poste) ?? 'Job title not set'}
+              </p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <Badge variant="secondary" className="gap-1 bg-slate-100 text-slate-700">
                   <Building2 className="h-3.5 w-3.5" />
@@ -306,7 +314,10 @@ export function EmployeeProfilePage() {
               />
               <DetailRow label="Birth Date" value={formatProfileDate(employee.dateNaissance)} />
               <DetailRow label="Birth Place" value={formatProfileValue(employee.lieuNaissance)} />
-              <DetailRow label="Nationality" value={formatProfileValue(employee.nationalite)} />
+              <DetailRow
+                label="Nationality"
+                value={formatProfileValue(getEmployeeNationaliteLabel(employee.nationalite))}
+              />
               <DetailRow label="Email" value={employee.email ?? 'Not provided'} />
               <DetailRow label="Phone" value={employee.telephone ?? 'Not provided'} />
             </CardContent>
@@ -342,8 +353,18 @@ export function EmployeeProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <DetailRow label="Degree" value={formatProfileValue(employee.diplome)} />
-              <DetailRow label="Specialization" value={formatProfileValue(employee.specialite)} />
+              <DetailRow
+                label="Degree"
+                value={formatProfileValue(getEmployeeDiplomeLabel(employee.diplome))}
+              />
+              <DetailRow
+                label="Specialization"
+                value={formatProfileValue(getEmployeeSpecialiteLabel(employee.specialite))}
+              />
+              <DetailRow
+                label="University"
+                value={formatProfileValue(getEmployeeUniversiteLabel(employee.universite))}
+              />
               <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   Career History
@@ -363,8 +384,15 @@ export function EmployeeProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <DetailRow label="Job Title" value={employee.poste ?? 'Not provided'} />
+              <DetailRow
+                label="Job Title"
+                value={getEmployeePosteLabel(employee.poste) ?? 'Not provided'}
+              />
               <DetailRow label="Department" value={departmentName ?? 'Not assigned'} />
+              <DetailRow
+                label="Regional Branch"
+                value={formatProfileValue(getEmployeeRegionalBranchLabel(employee.regionalBranch))}
+              />
               <DetailRow label="Employee ID" value={employee.matricule} />
               <DetailRow
                 label="Professional Category"

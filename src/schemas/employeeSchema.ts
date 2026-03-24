@@ -3,8 +3,14 @@ import { z } from 'zod'
 import {
   EMPLOYEE_SEXE_OPTIONS,
   EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS,
+  EMPLOYEE_DIPLOME_OPTIONS,
+  EMPLOYEE_NATIONALITE_OPTIONS,
+  EMPLOYEE_POSTE_OPTIONS,
+  EMPLOYEE_REGIONAL_BRANCH_OPTIONS,
   EMPLOYEE_SITUATION_FAMILIALE_OPTIONS,
+  EMPLOYEE_SPECIALITE_OPTIONS,
   EMPLOYEE_TYPE_CONTRAT_OPTIONS,
+  EMPLOYEE_UNIVERSITE_OPTIONS,
 } from '@/types/employee'
 
 const requiredText = (label: string) =>
@@ -68,6 +74,20 @@ const optionalSexe = z
     'Please select a valid sex value',
   )
 
+const optionalNationalite = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.length === 0 ||
+      EMPLOYEE_NATIONALITE_OPTIONS.includes(
+        value as (typeof EMPLOYEE_NATIONALITE_OPTIONS)[number],
+      ),
+    'Please select a valid nationality',
+  )
+
 const optionalSituationFamiliale = z
   .string()
   .trim()
@@ -119,6 +139,72 @@ const optionalTypeContrat = z
     'Please select a valid contract type',
   )
 
+const optionalPoste = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.length === 0 ||
+      EMPLOYEE_POSTE_OPTIONS.includes(value as (typeof EMPLOYEE_POSTE_OPTIONS)[number]),
+    'Please select a valid job title',
+  )
+
+const optionalRegionalBranch = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.length === 0 ||
+      EMPLOYEE_REGIONAL_BRANCH_OPTIONS.includes(
+        value as (typeof EMPLOYEE_REGIONAL_BRANCH_OPTIONS)[number],
+      ),
+    'Please select a valid regional branch',
+  )
+
+const optionalDiplome = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.length === 0 ||
+      EMPLOYEE_DIPLOME_OPTIONS.includes(value as (typeof EMPLOYEE_DIPLOME_OPTIONS)[number]),
+    'Please select a valid degree or diploma',
+  )
+
+const optionalSpecialite = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.length === 0 ||
+      EMPLOYEE_SPECIALITE_OPTIONS.includes(
+        value as (typeof EMPLOYEE_SPECIALITE_OPTIONS)[number],
+      ),
+    'Please select a valid specialization',
+  )
+
+const optionalUniversite = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.length === 0 ||
+      EMPLOYEE_UNIVERSITE_OPTIONS.includes(
+        value as (typeof EMPLOYEE_UNIVERSITE_OPTIONS)[number],
+      ),
+    'Please select a valid university',
+  )
+
 export const optionalAlgerianMobileSchema = z
   .string()
   .trim()
@@ -137,24 +223,33 @@ export const optionalAlgerianMobileSchema = z
   }, algerianMobileErrorMessage)
 
 const createMatriculeSchema = z.string().trim().optional()
+type EmployeeQualityRefinementValues = {
+  diplome?: string
+  specialite?: string
+  universite?: string
+  dateNaissance?: string
+  dateRecrutement?: string
+}
 
 const employeeBaseFields = {
   nom: requiredText('Last name'),
   prenom: requiredText('First name'),
-  departementId: z.string().uuid('Le d?partement is required'),
+  departementId: z.string().trim().uuid('Department is required'),
+  regionalBranch: optionalRegionalBranch,
   sexe: optionalSexe,
   dateNaissance: optionalDateInput('birth date'),
   lieuNaissance: optionalText,
-  nationalite: optionalText,
+  nationalite: optionalNationalite,
   situationFamiliale: optionalSituationFamiliale,
   nombreEnfants: optionalNonNegativeIntegerText,
   adresse: optionalText,
   numeroSecuriteSociale: optionalText,
-  diplome: optionalText,
-  specialite: optionalText,
+  diplome: optionalDiplome,
+  specialite: optionalSpecialite,
+  universite: optionalUniversite,
   historiquePostes: optionalText,
   observations: optionalText,
-  poste: optionalText,
+  poste: optionalPoste,
   categorieProfessionnelle: optionalCategorieProfessionnelle,
   typeContrat: optionalTypeContrat,
   dateRecrutement: optionalDateInput('hire date'),
@@ -163,15 +258,70 @@ const employeeBaseFields = {
   photoUrl: optionalUrl,
 }
 
-export const employeeCreateSchema = z.object({
-  matricule: createMatriculeSchema,
-  ...employeeBaseFields,
-})
+function parseOptionalDateInput(value?: string): Date | null {
+  if (!value || value.trim().length === 0) {
+    return null
+  }
 
-export const employeeUpdateSchema = z.object({
-  matricule: requiredText('Employee ID'),
-  ...employeeBaseFields,
-})
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function applyEmployeeDataQualityRefinements<T extends z.ZodObject<z.ZodRawShape>>(
+  schema: T,
+) {
+  return schema.superRefine((values: EmployeeQualityRefinementValues, ctx) => {
+    const hasDegree = Boolean(values.diplome?.trim())
+    const hasSpecialization = Boolean(values.specialite?.trim())
+    const hasUniversity = Boolean(values.universite?.trim())
+
+    if ((hasSpecialization || hasUniversity) && !hasDegree) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['diplome'],
+        message: 'Select a degree before adding a specialization or university',
+      })
+    }
+
+    const birthDate = parseOptionalDateInput(values.dateNaissance)
+    const hireDate = parseOptionalDateInput(values.dateRecrutement)
+
+    if (birthDate && hireDate) {
+      if (hireDate < birthDate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['dateRecrutement'],
+          message: 'Hire date must be later than the birth date',
+        })
+      }
+
+      const minimumHireDate = new Date(birthDate.getTime())
+      minimumHireDate.setFullYear(minimumHireDate.getFullYear() + 16)
+
+      if (hireDate < minimumHireDate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['dateRecrutement'],
+          message: 'Hire date must be at least 16 years after the birth date',
+        })
+      }
+    }
+  })
+}
+
+export const employeeCreateSchema = applyEmployeeDataQualityRefinements(
+  z.object({
+    matricule: createMatriculeSchema,
+    ...employeeBaseFields,
+  }),
+)
+
+export const employeeUpdateSchema = applyEmployeeDataQualityRefinements(
+  z.object({
+    matricule: requiredText('Employee ID'),
+    ...employeeBaseFields,
+  }),
+)
 
 export const employeeSchema = employeeUpdateSchema
 
@@ -192,6 +342,11 @@ export function normalizeOptional(value?: string): string | null {
   }
 
   return trimmed
+}
+
+export function normalizeOptionalEmail(value?: string): string | null {
+  const normalized = normalizeOptional(value)
+  return normalized ? normalized.toLowerCase() : null
 }
 
 export function normalizeOptionalInteger(value?: string): number | null {

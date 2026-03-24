@@ -23,6 +23,7 @@ export type EmployeeFieldGroup =
 export type GovernedEmployeeFieldKey =
   | 'id'
   | 'departementId'
+  | 'regionalBranch'
   | 'matricule'
   | 'nom'
   | 'prenom'
@@ -43,6 +44,7 @@ export type GovernedEmployeeFieldKey =
   | 'nombreEnfants'
   | 'diplome'
   | 'specialite'
+  | 'universite'
   | 'historiquePostes'
   | 'numeroSecuriteSociale'
   | 'observations'
@@ -80,6 +82,19 @@ export const EMPLOYEE_FIELD_GOVERNANCE_RULES: EmployeeFieldGovernanceRule[] = [
       payroll_list: 'full',
       payroll_detail: 'full',
       payroll_export: 'hidden',
+      public_qr: 'hidden',
+    },
+  },
+  {
+    key: 'regionalBranch',
+    label: 'Regional Branch',
+    group: 'organization',
+    access: {
+      admin_internal: 'full',
+      employee_self: 'full',
+      payroll_list: 'full',
+      payroll_detail: 'full',
+      payroll_export: 'full',
       public_qr: 'hidden',
     },
   },
@@ -333,6 +348,19 @@ export const EMPLOYEE_FIELD_GOVERNANCE_RULES: EmployeeFieldGovernanceRule[] = [
   {
     key: 'specialite',
     label: 'Specialization',
+    group: 'education_career',
+    access: {
+      admin_internal: 'full',
+      employee_self: 'full',
+      payroll_list: 'hidden',
+      payroll_detail: 'hidden',
+      payroll_export: 'hidden',
+      public_qr: 'hidden',
+    },
+  },
+  {
+    key: 'universite',
+    label: 'University',
     group: 'education_career',
     access: {
       admin_internal: 'full',

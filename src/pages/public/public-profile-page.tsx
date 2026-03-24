@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ROUTES } from '@/constants/routes'
 import { usePublicProfile } from '@/hooks/use-public-profile'
+import { getEmployeePosteLabel } from '@/types/employee'
 import { PUBLIC_PROFILE_FIELD_KEYS, type PublicProfile } from '@/types/profile'
 import { copyTextToClipboard } from '@/utils/clipboard'
 
@@ -81,7 +82,7 @@ function buildSections(profile: PublicProfile): InfoSection[] {
   if (hasText(profile.poste)) {
     professionalRows.push({
       label: 'Job Title',
-      value: formatValue(profile.poste),
+      value: formatValue(getEmployeePosteLabel(profile.poste)),
     })
   }
 
@@ -232,7 +233,7 @@ export function PublicProfilePage() {
 
   const profile = data?.profile ?? null
   const fullName = useMemo(() => buildFullName(profile), [profile])
-  const position = formatValue(profile?.poste)
+  const position = formatValue(getEmployeePosteLabel(profile?.poste))
   const department = formatValue(profile?.departement)
   const employeeId = formatValue(profile?.matricule)
   const email = formatValue(profile?.email)

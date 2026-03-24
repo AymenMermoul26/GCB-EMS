@@ -28,6 +28,7 @@ import type {
 const PAYROLL_NOTIFICATION_SCOPE = 'payroll_change_signal'
 
 const EMPLOYMENT_CHANGE_FIELDS = new Set<PayrollChangeFieldKey>([
+  'regionalBranch',
   'categorieProfessionnelle',
   'typeContrat',
   'dateRecrutement',
@@ -41,6 +42,7 @@ const FAMILY_ADMIN_CHANGE_FIELDS = new Set<PayrollChangeFieldKey>([
 ])
 
 export const PAYROLL_CHANGE_FIELD_LABELS: Record<PayrollChangeFieldKey, string> = {
+  regionalBranch: 'Regional branch',
   categorieProfessionnelle: 'Professional category',
   typeContrat: 'Contract type',
   dateRecrutement: 'Hire date',
@@ -76,6 +78,7 @@ type PayrollSignalEmployeeSnapshot = Pick<
   | 'matricule'
   | 'nom'
   | 'prenom'
+  | 'regionalBranch'
   | 'categorieProfessionnelle'
   | 'typeContrat'
   | 'dateRecrutement'
@@ -148,6 +151,7 @@ function isPayrollNotificationCategory(value: unknown): value is PayrollNotifica
 function isPayrollChangeFieldKey(value: unknown): value is PayrollChangeFieldKey {
   return (
     value === 'categorieProfessionnelle' ||
+    value === 'regionalBranch' ||
     value === 'typeContrat' ||
     value === 'dateRecrutement' ||
     value === 'situationFamiliale' ||
@@ -280,6 +284,10 @@ export function getPayrollRelevantChangedFields(
   nextEmployee: PayrollSignalEmployeeSnapshot,
 ): PayrollChangeFieldKey[] {
   const changedFields: PayrollChangeFieldKey[] = []
+
+  if (compareNullableString(previousEmployee.regionalBranch, nextEmployee.regionalBranch)) {
+    changedFields.push('regionalBranch')
+  }
 
   if (
     compareNullableString(

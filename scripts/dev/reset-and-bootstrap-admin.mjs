@@ -11,7 +11,8 @@ const HR_DEPARTMENT_NAME = 'Ressources Humaines'
 const HR_DEPARTMENT_CODE = 'RH'
 const EMPLOYEE_LAST_NAME = 'Admin'
 const EMPLOYEE_FIRST_NAME = 'HR'
-const EMPLOYEE_JOB_TITLE = 'Administrateur RH'
+const EMPLOYEE_JOB_TITLE = 'HR Administrator'
+const EMPLOYEE_NATIONALITY = 'Algerian'
 const SAFE_RESET_TABLES = [
   'notifications',
   'audit_log',
@@ -143,10 +144,23 @@ async function ensureAdminEmployee(adminClient, departmentId) {
     .from('Employe')
     .insert({
       departement_id: departmentId,
+      regional_branch: 'Alger (El Harrach, Oued Smar)',
       matricule: ADMIN_EMPLOYEE_MATRICULE,
       nom: EMPLOYEE_LAST_NAME,
       prenom: EMPLOYEE_FIRST_NAME,
+      sexe: 'M',
       poste: EMPLOYEE_JOB_TITLE,
+      nationalite: EMPLOYEE_NATIONALITY,
+      situation_familiale: 'Marié(e)',
+      nombre_enfants: 0,
+      adresse: 'El Harrach, Alger',
+      diplome: 'Master',
+      specialite: 'Ressources humaines',
+      universite: "Universite d'Alger 3",
+      historique_postes: 'HR Officer -> HR Administrator',
+      categorie_professionnelle: 'Cadre',
+      type_contrat: 'CDI',
+      date_recrutement: '2010-01-10',
       email: ADMIN_EMAIL,
       telephone: null,
       is_active: true,

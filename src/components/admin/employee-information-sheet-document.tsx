@@ -4,6 +4,9 @@ import gcbLogo from '@/assets/brand/gcb-logo.svg'
 import { Badge } from '@/components/ui/badge'
 import {
   getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeNationaliteLabel,
+  getEmployeePosteLabel,
+  getEmployeeRegionalBranchLabel,
   getEmployeeSexeLabel,
   getEmployeeSituationFamilialeLabel,
   getEmployeeTypeContratLabel,
@@ -15,6 +18,7 @@ const DOCUMENT_TITLE = 'Employee Information Sheet'
 export interface EmployeeInformationSheetDocumentEmployee {
   id: string
   matricule: string
+  regionalBranch: string | null
   nom: string
   prenom: string
   sexe: string | null
@@ -169,13 +173,19 @@ export function EmployeeInformationSheetDocument({
                 {fullName}
               </h2>
               <p className="mt-2 text-base text-slate-600 sm:text-lg">
-                {formatDisplayValue(employee.poste, 'Job title not set')}
+                {formatDisplayValue(getEmployeePosteLabel(employee.poste), 'Job title not set')}
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <SheetField label="Employee ID" value={employee.matricule} mono />
               <SheetField label="Department" value={formatDisplayValue(departmentName)} />
+              <SheetField
+                label="Regional branch"
+                value={formatDisplayValue(
+                  getEmployeeRegionalBranchLabel(employee.regionalBranch),
+                )}
+              />
               <SheetField label="Status" value={employee.isActive ? 'Active' : 'Inactive'} />
               <SheetField
                 label="Contract type"
@@ -193,7 +203,10 @@ export function EmployeeInformationSheetDocument({
           <SheetField label="Sex" value={formatDisplayValue(getEmployeeSexeLabel(employee.sexe))} />
           <SheetField label="Birth date" value={formatDateValue(employee.dateNaissance)} />
           <SheetField label="Birth place" value={formatDisplayValue(employee.lieuNaissance)} />
-          <SheetField label="Nationality" value={formatDisplayValue(employee.nationalite)} />
+          <SheetField
+            label="Nationality"
+            value={formatDisplayValue(getEmployeeNationaliteLabel(employee.nationalite))}
+          />
           <SheetField label="Phone" value={formatDisplayValue(employee.telephone)} />
           <SheetField label="Email" value={formatDisplayValue(employee.email)} />
           <SheetField label="Address" value={formatDisplayValue(employee.adresse)} />
@@ -204,7 +217,14 @@ export function EmployeeInformationSheetDocument({
           description="Operational employment details relevant to the employee record."
         >
           <SheetField label="Department" value={formatDisplayValue(departmentName)} />
-          <SheetField label="Job title" value={formatDisplayValue(employee.poste)} />
+          <SheetField
+            label="Regional branch"
+            value={formatDisplayValue(getEmployeeRegionalBranchLabel(employee.regionalBranch))}
+          />
+          <SheetField
+            label="Job title"
+            value={formatDisplayValue(getEmployeePosteLabel(employee.poste))}
+          />
           <SheetField
             label="Professional category"
             value={formatDisplayValue(

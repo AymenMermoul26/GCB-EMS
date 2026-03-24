@@ -1,7 +1,18 @@
 import { z } from 'zod'
 import { normalizeOptional as normalizeEmployeeOptional, optionalAlgerianMobileSchema } from '@/schemas/employeeSchema'
+import { EMPLOYEE_POSTE_OPTIONS } from '@/types/employee'
 
-const optionalText = z.string().trim().optional()
+const optionalPoste = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.length === 0 ||
+      EMPLOYEE_POSTE_OPTIONS.includes(value as (typeof EMPLOYEE_POSTE_OPTIONS)[number]),
+    'Please select a valid job title',
+  )
 
 const optionalEmail = z
   .string()
@@ -22,7 +33,7 @@ const optionalUrl = z
   )
 
 export const employeeSelfEditSchema = z.object({
-  poste: optionalText,
+  poste: optionalPoste,
   email: optionalEmail,
   telephone: optionalAlgerianMobileSchema,
   photoUrl: optionalUrl,

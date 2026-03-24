@@ -67,7 +67,10 @@ import {
   normalizeOptional,
   type EmployeeSelfEditValues,
 } from '@/schemas/employeeSelfEditSchema'
-import { normalizePhoneNumberInput } from '@/schemas/employeeSchema'
+import {
+  normalizeOptionalEmail,
+  normalizePhoneNumberInput,
+} from '@/schemas/employeeSchema'
 import {
   modificationRequestSchema,
   type ModificationRequestValues,
@@ -78,10 +81,17 @@ import { useEmployeeQuery, useUpdateEmployeeMutation } from '@/services/employee
 import { notificationsService } from '@/services/notificationsService'
 import { useMyRequestsQuery, useSubmitModificationRequestMutation } from '@/services/requestsService'
 import {
+  EMPLOYEE_POSTE_LABELS,
+  EMPLOYEE_POSTE_OPTIONS,
   getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeDiplomeLabel,
+  getEmployeeNationaliteLabel,
+  getEmployeeRegionalBranchLabel,
   getEmployeeSituationFamilialeLabel,
   getEmployeeSexeLabel,
+  getEmployeeSpecialiteLabel,
   getEmployeeTypeContratLabel,
+  getEmployeeUniversiteLabel,
   type Employee,
 } from '@/types/employee'
 import {
@@ -95,6 +105,7 @@ import {
 
 type QrRefreshField = 'poste' | 'email' | 'telephone' | 'photo_url'
 const EMPTY_FIELD_VALUE = '\u2014'
+const EMPTY_SELECT_VALUE = '__none__'
 
 interface SelfEditComparableValues {
   poste: string | null
@@ -109,14 +120,14 @@ function buildComparableValues(
 ): { previous: SelfEditComparableValues; next: SelfEditComparableValues } {
   const previous: SelfEditComparableValues = {
     poste: normalizeOptional(employee.poste ?? undefined),
-    email: normalizeOptional(employee.email ?? undefined),
+    email: normalizeOptionalEmail(employee.email ?? undefined),
     telephone: normalizeOptional(employee.telephone ?? undefined),
     photo_url: normalizeOptional(employee.photoUrl ?? undefined),
   }
 
   const next: SelfEditComparableValues = {
     poste: normalizeOptional(values.poste),
-    email: normalizeOptional(values.email),
+    email: normalizeOptionalEmail(values.email),
     telephone: normalizeOptional(values.telephone),
     photo_url: normalizeOptional(values.photoUrl),
   }
@@ -381,7 +392,7 @@ export function EmployeeProfileManagePage() {
       id: employeId,
       payload: {
         poste: normalizeOptional(values.poste),
-        email: normalizeOptional(values.email),
+        email: normalizeOptionalEmail(values.email),
         telephone: normalizeOptional(values.telephone),
         photoUrl: normalizeOptional(values.photoUrl),
       },
@@ -572,7 +583,31 @@ export function EmployeeProfileManagePage() {
               <form className="space-y-5" onSubmit={onSubmitSelfEdit}>
                 <div className="grid gap-4 md:grid-cols-2">
                   <FormField label="Job Title" error={editForm.formState.errors.poste?.message}>
-                    <Input {...editForm.register('poste')} disabled={updateProfileMutation.isPending} />
+                    <Controller
+                      control={editForm.control}
+                      name="poste"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                          onValueChange={(value) =>
+                            field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                          }
+                          disabled={updateProfileMutation.isPending}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a job title" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                            {EMPLOYEE_POSTE_OPTIONS.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {EMPLOYEE_POSTE_LABELS[option]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
                   </FormField>
 
                   <FormField label="Email" error={editForm.formState.errors.email?.message}>
@@ -658,7 +693,7 @@ export function EmployeeProfileManagePage() {
                 />
                 <ReadOnlyRow
                   label="Nationality"
-                  value={formatProfileValue(employee.nationalite)}
+                  value={formatProfileValue(getEmployeeNationaliteLabel(employee.nationalite))}
                 />
                 <ReadOnlyRow
                   label="Marital Status"
@@ -674,6 +709,12 @@ export function EmployeeProfileManagePage() {
                 <ReadOnlyRow label="Employee ID" value={employee.matricule} />
                 <ReadOnlyRow label="Department" value={departmentName ?? employee.departementId} />
                 <ReadOnlyRow
+                  label="Regional Branch"
+                  value={formatProfileValue(
+                    getEmployeeRegionalBranchLabel(employee.regionalBranch),
+                  )}
+                />
+                <ReadOnlyRow
                   label="Professional Category"
                   value={formatProfileValue(
                     getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
@@ -687,8 +728,18 @@ export function EmployeeProfileManagePage() {
                   label="Hire Date"
                   value={formatProfileDate(employee.dateRecrutement)}
                 />
-                <ReadOnlyRow label="Degree" value={formatProfileValue(employee.diplome)} />
-                <ReadOnlyRow label="Specialization" value={formatProfileValue(employee.specialite)} />
+                <ReadOnlyRow
+                  label="Degree"
+                  value={formatProfileValue(getEmployeeDiplomeLabel(employee.diplome))}
+                />
+                <ReadOnlyRow
+                  label="Specialization"
+                  value={formatProfileValue(getEmployeeSpecialiteLabel(employee.specialite))}
+                />
+                <ReadOnlyRow
+                  label="University"
+                  value={formatProfileValue(getEmployeeUniversiteLabel(employee.universite))}
+                />
               </div>
 
               <div className="rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2.5">

@@ -21,15 +21,16 @@ import type {
 } from '@/types/employee'
 
 const EMPLOYEE_LIST_SELECT =
-  'id, departement_id, matricule, nom, prenom, poste, email, telephone, photo_url, is_active, created_at, updated_at'
+  'id, departement_id, regional_branch, matricule, nom, prenom, nationalite, diplome, specialite, universite, poste, type_contrat, email, telephone, photo_url, is_active, created_at, updated_at'
 const EMPLOYEE_SELF_SELECT =
-  'id, departement_id, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, diplome, specialite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at'
+  'id, departement_id, regional_branch, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, diplome, specialite, universite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at'
 const EMPLOYEE_ADMIN_SELECT =
-  'id, departement_id, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, numero_securite_sociale, diplome, specialite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at, observations'
+  'id, departement_id, regional_branch, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, numero_securite_sociale, diplome, specialite, universite, historique_postes, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active, created_at, updated_at, observations'
 
 interface EmployeeRow {
   id: string
   departement_id: string
+  regional_branch?: string | null
   matricule: string
   nom: string
   prenom: string
@@ -43,6 +44,7 @@ interface EmployeeRow {
   numero_securite_sociale?: string | null
   diplome?: string | null
   specialite?: string | null
+  universite?: string | null
   historique_postes?: string | null
   poste?: string | null
   categorie_professionnelle?: string | null
@@ -88,6 +90,7 @@ function mapEmployee(row: EmployeeRow): Employee {
   return {
     id: row.id,
     departementId: row.departement_id,
+    regionalBranch: row.regional_branch ?? null,
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
@@ -100,6 +103,7 @@ function mapEmployee(row: EmployeeRow): Employee {
     adresse: row.adresse ?? null,
     diplome: row.diplome ?? null,
     specialite: row.specialite ?? null,
+    universite: row.universite ?? null,
     historiquePostes: row.historique_postes ?? null,
     poste: row.poste ?? null,
     categorieProfessionnelle: row.categorie_professionnelle ?? null,
@@ -127,6 +131,7 @@ function toInsertPayload(payload: CreateEmployeePayload) {
 
   return {
     departement_id: payload.departementId,
+    regional_branch: payload.regionalBranch ?? null,
     matricule: normalizedMatricule && normalizedMatricule.length > 0 ? normalizedMatricule : null,
     nom: payload.nom,
     prenom: payload.prenom,
@@ -140,6 +145,7 @@ function toInsertPayload(payload: CreateEmployeePayload) {
     numero_securite_sociale: payload.numeroSecuriteSociale ?? null,
     diplome: payload.diplome ?? null,
     specialite: payload.specialite ?? null,
+    universite: payload.universite ?? null,
     historique_postes: payload.historiquePostes ?? null,
     observations: payload.observations ?? null,
     poste: payload.poste ?? null,
@@ -158,6 +164,9 @@ function toUpdatePayload(payload: UpdateEmployeePayload) {
 
   if (payload.departementId !== undefined) {
     updatePayload.departement_id = payload.departementId
+  }
+  if (payload.regionalBranch !== undefined) {
+    updatePayload.regional_branch = payload.regionalBranch
   }
   if (payload.matricule !== undefined) {
     updatePayload.matricule = payload.matricule
@@ -197,6 +206,9 @@ function toUpdatePayload(payload: UpdateEmployeePayload) {
   }
   if (payload.specialite !== undefined) {
     updatePayload.specialite = payload.specialite
+  }
+  if (payload.universite !== undefined) {
+    updatePayload.universite = payload.universite
   }
   if (payload.historiquePostes !== undefined) {
     updatePayload.historique_postes = payload.historiquePostes
@@ -264,11 +276,37 @@ export async function listEmployees(
 
   if (params.search) {
     const value = `%${params.search.trim()}%`
-    query = query.or(`matricule.ilike.${value},nom.ilike.${value},prenom.ilike.${value},email.ilike.${value}`)
+    query = query.or(
+      `matricule.ilike.${value},nom.ilike.${value},prenom.ilike.${value},email.ilike.${value},regional_branch.ilike.${value},nationalite.ilike.${value},poste.ilike.${value},diplome.ilike.${value},specialite.ilike.${value},universite.ilike.${value}`,
+    )
   }
 
   if (params.departementId) {
     query = query.eq('departement_id', params.departementId)
+  }
+
+  if (params.regionalBranch) {
+    query = query.eq('regional_branch', params.regionalBranch)
+  }
+
+  if (params.nationalite) {
+    query = query.eq('nationalite', params.nationalite)
+  }
+
+  if (params.poste) {
+    query = query.eq('poste', params.poste)
+  }
+
+  if (params.diplome) {
+    query = query.eq('diplome', params.diplome)
+  }
+
+  if (params.specialite) {
+    query = query.eq('specialite', params.specialite)
+  }
+
+  if (params.universite) {
+    query = query.eq('universite', params.universite)
   }
 
   if (params.isActive !== undefined) {

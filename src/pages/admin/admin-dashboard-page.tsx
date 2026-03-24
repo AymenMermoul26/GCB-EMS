@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils'
 import { useAdminDashboardQuery } from '@/services/adminDashboardService'
 import type { AuditLogItem } from '@/types/audit-log'
 import type { DemandeStatut, ModificationRequest } from '@/types/modification-request'
+import { getEmployeePosteLabel } from '@/types/employee'
 import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
 
 const KPI_CARD_STYLES = {
@@ -1332,7 +1333,7 @@ export function AdminDashboardPage() {
                         </Badge>
                       </div>
                       <p className="mt-1 truncate text-sm text-slate-600">
-                        {employee.poste ?? 'No job title assigned'}
+                        {getEmployeePosteLabel(employee.poste) ?? 'No job title assigned'}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span>{employee.departmentName}</span>

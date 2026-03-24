@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getEmployeePosteLabel, getEmployeeRegionalBranchLabel } from '@/types/employee'
 
 interface EmployeeBadgeDialogProps {
   employee: {
@@ -27,6 +28,7 @@ interface EmployeeBadgeDialogProps {
     nom: string
     prenom: string
     poste: string | null
+    regionalBranch?: string | null
     photoUrl: string | null
   }
   departmentName?: string
@@ -107,6 +109,7 @@ interface BadgeFaceProps {
   poste: string
   matricule: string
   departmentName?: string
+  regionalBranch?: string | null
   photoUrl: string | null
   initials: string
   publicProfileUrl: string | null
@@ -120,6 +123,7 @@ function BadgeFace({
   poste,
   matricule,
   departmentName,
+  regionalBranch,
   photoUrl,
   initials,
   publicProfileUrl,
@@ -130,6 +134,10 @@ function BadgeFace({
     typeof departmentName === 'string' && departmentName.trim().length > 0
       ? departmentName.trim()
       : 'Department not assigned'
+  const safeRegionalBranch =
+    typeof regionalBranch === 'string' && regionalBranch.trim().length > 0
+      ? getEmployeeRegionalBranchLabel(regionalBranch)?.trim() ?? regionalBranch.trim()
+      : null
 
   if (side === 'front') {
     return (
@@ -185,7 +193,11 @@ function BadgeFace({
               <p className="mt-2 text-[21px] font-medium text-slate-600">{poste}</p>
               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700">
                 <Building2 className="h-4 w-4" />
-                <span>{safeDepartmentName}</span>
+                <span>
+                  {safeRegionalBranch
+                    ? `${safeDepartmentName} | ${safeRegionalBranch}`
+                    : safeDepartmentName}
+                </span>
               </div>
             </div>
           </div>
@@ -292,7 +304,7 @@ export function EmployeeBadgeDialog({
     () => `${employee.prenom} ${employee.nom}`.replace(/\s+/g, ' ').trim(),
     [employee.nom, employee.prenom],
   )
-  const safePoste = employee.poste?.trim() ? employee.poste : 'Employee'
+  const safePoste = getEmployeePosteLabel(employee.poste)?.trim() || 'Employee'
   const initials = useMemo(
     () => getInitials(employee.nom, employee.prenom),
     [employee.nom, employee.prenom],
@@ -482,6 +494,7 @@ export function EmployeeBadgeDialog({
                         poste={safePoste}
                         matricule={employee.matricule}
                         departmentName={departmentName}
+                        regionalBranch={employee.regionalBranch}
                         photoUrl={employee.photoUrl}
                         initials={initials}
                         publicProfileUrl={publicProfileUrl}
@@ -501,6 +514,7 @@ export function EmployeeBadgeDialog({
                         poste={safePoste}
                         matricule={employee.matricule}
                         departmentName={departmentName}
+                        regionalBranch={employee.regionalBranch}
                         photoUrl={employee.photoUrl}
                         initials={initials}
                         publicProfileUrl={publicProfileUrl}
@@ -566,6 +580,7 @@ export function EmployeeBadgeDialog({
                   poste={safePoste}
                   matricule={employee.matricule}
                   departmentName={departmentName}
+                  regionalBranch={employee.regionalBranch}
                   photoUrl={employee.photoUrl}
                   initials={initials}
                   publicProfileUrl={publicProfileUrl}
@@ -580,6 +595,7 @@ export function EmployeeBadgeDialog({
                   poste={safePoste}
                   matricule={employee.matricule}
                   departmentName={departmentName}
+                  regionalBranch={employee.regionalBranch}
                   photoUrl={employee.photoUrl}
                   initials={initials}
                   publicProfileUrl={publicProfileUrl}

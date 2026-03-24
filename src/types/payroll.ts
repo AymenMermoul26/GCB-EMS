@@ -9,6 +9,7 @@ export type PayrollNotificationCategory =
   | 'new_employee'
 
 export type PayrollChangeFieldKey =
+  | 'regionalBranch'
   | 'categorieProfessionnelle'
   | 'typeContrat'
   | 'dateRecrutement'
@@ -67,6 +68,7 @@ export interface PayrollEmployeeListItem {
   id: string
   departementId: string | null
   departementNom: string | null
+  regionalBranch: string | null
   matricule: string
   nom: string
   prenom: string
@@ -80,6 +82,7 @@ export interface PayrollEmployeeDetail {
   id: string
   departementId: string | null
   departementNom: string | null
+  regionalBranch: string | null
   matricule: string
   nom: string
   prenom: string
@@ -104,6 +107,7 @@ export interface PayrollEmployeeDetail {
 export interface PayrollEmployeeListFilters {
   search?: string
   departementId?: string
+  regionalBranch?: string
   status?: PayrollEmployeeStatusFilter
   typeContrat?: string
 }
@@ -142,6 +146,7 @@ export interface PayrollEmployeeExportRow {
   id: string
   departementId: string | null
   departementNom: string | null
+  regionalBranch: string | null
   matricule: string
   nom: string
   prenom: string
@@ -172,6 +177,7 @@ export interface PayrollExportHistoryItem {
   search: string | null
   departmentId: string | null
   departmentName: string | null
+  regionalBranch: string | null
   status: PayrollEmployeeStatusFilter
   typeContrat: string | null
   createdAt: string

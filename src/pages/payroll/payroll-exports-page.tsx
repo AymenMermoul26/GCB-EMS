@@ -54,7 +54,12 @@ import {
   usePayrollEmployeesDirectoryQuery,
   usePayrollEmployeesQuery,
 } from '@/services/payrollEmployeesService'
-import { getEmployeeTypeContratLabel } from '@/types/employee'
+import {
+  EMPLOYEE_REGIONAL_BRANCH_LABELS,
+  EMPLOYEE_REGIONAL_BRANCH_OPTIONS,
+  getEmployeeRegionalBranchLabel,
+  getEmployeeTypeContratLabel,
+} from '@/types/employee'
 import type {
   PayrollEmployeeListFilters,
   PayrollEmployeeListItem,
@@ -68,6 +73,7 @@ const EXPORT_FIELD_LABELS = [
   'Last name',
   'First name',
   'Department',
+  'Regional branch',
   'Job title',
   'Professional category',
   'Contract type',
@@ -110,6 +116,10 @@ function formatContractType(value: string | null | undefined): string {
   return getEmployeeTypeContratLabel(value) ?? 'Not set'
 }
 
+function formatRegionalBranch(value: string | null | undefined): string {
+  return getEmployeeRegionalBranchLabel(value) ?? 'All regional branches'
+}
+
 function formatExportActionLabel(action: PayrollExportAction): string {
   return action === 'PAYROLL_EXPORT_PRINT_INITIATED'
     ? 'Information sheet export'
@@ -129,6 +139,7 @@ function buildExportHistoryDescription(item: PayrollExportHistoryItem): string {
 
   const scopeParts = [
     item.departmentName,
+    item.regionalBranch ? formatRegionalBranch(item.regionalBranch) : null,
     item.status !== 'ALL' ? item.status : null,
     item.typeContrat ? formatContractType(item.typeContrat) : null,
     item.search ? `Search: ${item.search}` : null,
@@ -172,6 +183,7 @@ export function PayrollExportsPage() {
   const [departmentFilter, setDepartmentFilter] = useState(
     () => searchParams.get('department') ?? 'all',
   )
+  const [branchFilter, setBranchFilter] = useState(() => searchParams.get('branch') ?? 'all')
   const [statusFilter, setStatusFilter] = useState<PayrollEmployeeStatusFilter>(() => {
     const value = searchParams.get('status')
     return value === 'ACTIVE' || value === 'INACTIVE' || value === 'ALL' ? value : 'ALL'
@@ -193,6 +205,10 @@ export function PayrollExportsPage() {
       nextParams.set('department', departmentFilter)
     }
 
+    if (branchFilter !== 'all') {
+      nextParams.set('branch', branchFilter)
+    }
+
     if (statusFilter !== 'ALL') {
       nextParams.set('status', statusFilter)
     }
@@ -202,16 +218,17 @@ export function PayrollExportsPage() {
     }
 
     setSearchParams(nextParams, { replace: true })
-  }, [contractFilter, departmentFilter, searchInput, setSearchParams, statusFilter])
+  }, [branchFilter, contractFilter, departmentFilter, searchInput, setSearchParams, statusFilter])
 
   const filters = useMemo<PayrollEmployeeListFilters>(
     () => ({
       search: debouncedSearch.trim() || undefined,
       departementId: departmentFilter === 'all' ? undefined : departmentFilter,
+      regionalBranch: branchFilter === 'all' ? undefined : branchFilter,
       status: statusFilter,
       typeContrat: contractFilter === 'all' ? undefined : contractFilter,
     }),
-    [contractFilter, debouncedSearch, departmentFilter, statusFilter],
+    [branchFilter, contractFilter, debouncedSearch, departmentFilter, statusFilter],
   )
 
   const payrollEmployeesQuery = usePayrollEmployeesDirectoryQuery(filters)
@@ -260,12 +277,14 @@ export function PayrollExportsPage() {
   const hasActiveFilters =
     searchInput.trim().length > 0 ||
     departmentFilter !== 'all' ||
+    branchFilter !== 'all' ||
     statusFilter !== 'ALL' ||
     contractFilter !== 'all'
 
   const handleClearFilters = () => {
     setSearchInput('')
     setDepartmentFilter('all')
+    setBranchFilter('all')
     setStatusFilter('ALL')
     setContractFilter('all')
   }
@@ -276,6 +295,7 @@ export function PayrollExportsPage() {
         filters: {
           search: searchInput.trim() || undefined,
           departementId: departmentFilter === 'all' ? undefined : departmentFilter,
+          regionalBranch: branchFilter === 'all' ? undefined : branchFilter,
           status: statusFilter,
           typeContrat: contractFilter === 'all' ? undefined : contractFilter,
         },
@@ -314,7 +334,7 @@ export function PayrollExportsPage() {
           </Button>
         }
       >
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_220px_180px_220px_auto]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_220px_220px_180px_220px_auto]">
           <div className="relative xl:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
@@ -335,6 +355,20 @@ export function PayrollExportsPage() {
               {departmentOptions.map((department) => (
                 <SelectItem key={department.id} value={department.id}>
                   {department.nom}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={branchFilter} onValueChange={setBranchFilter}>
+            <SelectTrigger aria-label="Filter export scope by regional branch">
+              <SelectValue placeholder="Regional branch" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All regional branches</SelectItem>
+              {EMPLOYEE_REGIONAL_BRANCH_OPTIONS.map((branch) => (
+                <SelectItem key={branch} value={branch}>
+                  {EMPLOYEE_REGIONAL_BRANCH_LABELS[branch]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -491,6 +525,14 @@ export function PayrollExportsPage() {
                     <p className="text-xs uppercase tracking-wide text-slate-500">Department</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">
                       {selectedDepartmentName ?? 'All departments'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Regional branch</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {branchFilter === 'all'
+                        ? 'All regional branches'
+                        : formatRegionalBranch(branchFilter)}
                     </p>
                   </div>
                   <div>
@@ -688,6 +730,14 @@ export function PayrollExportsPage() {
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
                   <dt className="min-w-32 text-slate-500">Department</dt>
                   <dd>{selectedDepartmentName ?? 'All departments'}</dd>
+                </div>
+                <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
+                  <dt className="min-w-32 text-slate-500">Regional branch</dt>
+                  <dd>
+                    {branchFilter === 'all'
+                      ? 'All regional branches'
+                      : formatRegionalBranch(branchFilter)}
+                  </dd>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
                   <dt className="min-w-32 text-slate-500">Status</dt>

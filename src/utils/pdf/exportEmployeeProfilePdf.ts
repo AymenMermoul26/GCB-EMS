@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import * as QRCode from 'qrcode'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
+import { getEmployeePosteLabel } from '@/types/employee'
 
 interface ExportEmployeeProfilePdfPayload {
   appName: string
@@ -194,7 +195,13 @@ export async function exportEmployeeProfilePdf(
   doc.setFontSize(11)
   drawLabelValue(doc, 'Name', fullName || 'Not provided', 62, 51)
   drawLabelValue(doc, 'Employee ID', payload.employee.matricule, 62, 58)
-  drawLabelValue(doc, 'Job Title', valueOrFallback(payload.employee.poste), 62, 65)
+  drawLabelValue(
+    doc,
+    'Job Title',
+    valueOrFallback(getEmployeePosteLabel(payload.employee.poste)),
+    62,
+    65,
+  )
   drawLabelValue(doc, 'Department', payload.employee.departement, 62, 72)
 
   doc.setFont('helvetica', 'bold')

@@ -4,6 +4,9 @@ import gcbLogo from '@/assets/brand/gcb-logo.svg'
 import type { EmployeeInformationSheetDocumentEmployee } from '@/components/admin/employee-information-sheet-document'
 import {
   getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeNationaliteLabel,
+  getEmployeePosteLabel,
+  getEmployeeRegionalBranchLabel,
   getEmployeeSexeLabel,
   getEmployeeSituationFamilialeLabel,
   getEmployeeTypeContratLabel,
@@ -220,27 +223,40 @@ export async function exportEmployeeInformationSheetPdf(
   doc.text(fullName || 'Unnamed employee', 60, 48)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
-  doc.text(valueOrFallback(employee.poste), 60, 55)
+  doc.text(valueOrFallback(getEmployeePosteLabel(employee.poste)), 60, 55)
   drawLabelValue(doc, 'Employee ID', employee.matricule, 60, 63)
   drawLabelValue(doc, 'Department', departmentName, 60, 70)
-  drawLabelValue(doc, 'Status', employee.isActive ? 'Active' : 'Inactive', 60, 77)
+  drawLabelValue(
+    doc,
+    'Branch',
+    valueOrFallback(getEmployeeRegionalBranchLabel(employee.regionalBranch)),
+    60,
+    77,
+  )
+  drawLabelValue(doc, 'Status', employee.isActive ? 'Active' : 'Inactive', 60, 84)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
-  doc.text('Identity & Contact', leftMargin, 92)
+  doc.text('Identity & Contact', leftMargin, 99)
   doc.setFontSize(10)
-  drawLabelValue(doc, 'Sex', valueOrFallback(getEmployeeSexeLabel(employee.sexe)), leftMargin, 100)
-  drawLabelValue(doc, 'Birth date', formatDateValue(employee.dateNaissance), leftMargin, 107)
-  drawLabelValue(doc, 'Birth place', valueOrFallback(employee.lieuNaissance), leftMargin, 114)
-  drawLabelValue(doc, 'Nationality', valueOrFallback(employee.nationalite), leftMargin, 121)
-  drawLabelValue(doc, 'Email', valueOrFallback(employee.email), leftMargin, 128)
-  drawLabelValue(doc, 'Phone', valueOrFallback(employee.telephone), leftMargin, 135)
+  drawLabelValue(doc, 'Sex', valueOrFallback(getEmployeeSexeLabel(employee.sexe)), leftMargin, 107)
+  drawLabelValue(doc, 'Birth date', formatDateValue(employee.dateNaissance), leftMargin, 114)
+  drawLabelValue(doc, 'Birth place', valueOrFallback(employee.lieuNaissance), leftMargin, 121)
+  drawLabelValue(
+    doc,
+    'Nationality',
+    valueOrFallback(getEmployeeNationaliteLabel(employee.nationalite)),
+    leftMargin,
+    128,
+  )
+  drawLabelValue(doc, 'Email', valueOrFallback(employee.email), leftMargin, 135)
+  drawLabelValue(doc, 'Phone', valueOrFallback(employee.telephone), leftMargin, 142)
   const addressEndY = drawWrappedValue(
     doc,
     'Address',
     valueOrFallback(employee.adresse),
     leftMargin,
-    142,
+    149,
     contentWidth - 36,
   )
 
@@ -253,27 +269,40 @@ export async function exportEmployeeInformationSheetPdf(
   doc.text('Employment Information', leftMargin, employmentStartY)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  drawLabelValue(doc, 'Job title', valueOrFallback(employee.poste), leftMargin, employmentStartY + 8)
+  drawLabelValue(
+    doc,
+    'Job title',
+    valueOrFallback(getEmployeePosteLabel(employee.poste)),
+    leftMargin,
+    employmentStartY + 8,
+  )
+  drawLabelValue(
+    doc,
+    'Branch',
+    valueOrFallback(getEmployeeRegionalBranchLabel(employee.regionalBranch)),
+    leftMargin,
+    employmentStartY + 15,
+  )
   drawLabelValue(
     doc,
     'Category',
     valueOrFallback(getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle)),
     leftMargin,
-    employmentStartY + 15,
+    employmentStartY + 22,
   )
   drawLabelValue(
     doc,
     'Contract',
     valueOrFallback(getEmployeeTypeContratLabel(employee.typeContrat)),
     leftMargin,
-    employmentStartY + 22,
+    employmentStartY + 29,
   )
-  drawLabelValue(doc, 'Hire date', formatDateValue(employee.dateRecrutement), leftMargin, employmentStartY + 29)
+  drawLabelValue(doc, 'Hire date', formatDateValue(employee.dateRecrutement), leftMargin, employmentStartY + 36)
 
   doc.setDrawColor(220)
-  doc.line(leftMargin, employmentStartY + 36, pageWidth - rightMargin, employmentStartY + 36)
+  doc.line(leftMargin, employmentStartY + 43, pageWidth - rightMargin, employmentStartY + 43)
 
-  const adminStartY = employmentStartY + 46
+  const adminStartY = employmentStartY + 53
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.text('Administrative Information', leftMargin, adminStartY)

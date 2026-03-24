@@ -58,6 +58,7 @@ import { ROUTES } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import { getEmployeePosteLabel } from '@/types/employee'
 import {
   usePayrollCompensationProfilesQuery,
   useUpsertPayrollCompensationProfileMutation,
@@ -165,7 +166,7 @@ function CompensationTableRow({
       <TableCell>
         <div className="space-y-1 text-sm text-slate-600">
           <p>{profile.departementNom ?? '\u2014'}</p>
-          <p>{profile.poste ?? '\u2014'}</p>
+          <p>{getEmployeePosteLabel(profile.poste) ?? '\u2014'}</p>
         </div>
       </TableCell>
       <TableCell className="text-sm text-slate-700">
@@ -475,7 +476,7 @@ export function PayrollCompensationPage() {
                 <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
                   <span>{selectedProfile.matricule}</span>
                   <span>{selectedProfile.departementNom ?? '\u2014'}</span>
-                  <span>{selectedProfile.poste ?? '\u2014'}</span>
+                  <span>{getEmployeePosteLabel(selectedProfile.poste) ?? '\u2014'}</span>
                 </div>
               </div>
 

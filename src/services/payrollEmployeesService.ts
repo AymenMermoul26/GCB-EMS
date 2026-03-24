@@ -11,6 +11,7 @@ interface PayrollEmployeeListRow {
   id: string
   departement_id: string | null
   departement_nom: string | null
+  regional_branch: string | null
   matricule: string
   nom: string
   prenom: string
@@ -56,6 +57,7 @@ function mapPayrollEmployeeListItem(row: PayrollEmployeeListRow): PayrollEmploye
     id: row.id,
     departementId: row.departement_id,
     departementNom: row.departement_nom ?? null,
+    regionalBranch: row.regional_branch ?? null,
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
@@ -89,6 +91,7 @@ function normalizeFilters(filters: PayrollEmployeeListFilters = {}) {
   return {
     search: filters.search?.trim() || null,
     departementId: filters.departementId?.trim() || null,
+    regionalBranch: filters.regionalBranch?.trim() || null,
     status: filters.status ?? 'ALL',
     typeContrat: filters.typeContrat?.trim() || null,
   }
@@ -107,6 +110,7 @@ export async function getPayrollEmployees(
     .rpc('get_payroll_employees', {
       p_search: normalizedFilters.search,
       p_departement_id: normalizedFilters.departementId,
+      p_regional_branch: normalizedFilters.regionalBranch,
       p_status: normalizedFilters.status,
       p_type_contrat: normalizedFilters.typeContrat,
     })
@@ -162,6 +166,7 @@ export function usePayrollEmployeesDirectoryQuery(filters: PayrollEmployeeListFi
       'payrollEmployees',
       normalizedFilters.search ?? '',
       normalizedFilters.departementId ?? 'all',
+      normalizedFilters.regionalBranch ?? 'all',
       normalizedFilters.status,
       normalizedFilters.typeContrat ?? 'all',
     ],

@@ -110,12 +110,23 @@ import {
   employeeSchema,
   normalizeOptional,
   normalizeOptionalInteger,
+  normalizeOptionalEmail,
   normalizePhoneNumberInput,
   type EmployeeFormValues,
 } from '@/schemas/employeeSchema'
 import type { EmployeeVisibilityFieldKey } from '@/types/visibility'
 import {
   EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS,
+  EMPLOYEE_DIPLOME_LABELS,
+  EMPLOYEE_DIPLOME_OPTIONS,
+  EMPLOYEE_NATIONALITE_LABELS,
+  EMPLOYEE_NATIONALITE_OPTIONS,
+  EMPLOYEE_POSTE_LABELS,
+  EMPLOYEE_POSTE_OPTIONS,
+  EMPLOYEE_REGIONAL_BRANCH_LABELS,
+  EMPLOYEE_REGIONAL_BRANCH_OPTIONS,
+  EMPLOYEE_SPECIALITE_LABELS,
+  EMPLOYEE_SPECIALITE_OPTIONS,
   EMPLOYEE_SITUATION_FAMILIALE_OPTIONS,
   EMPLOYEE_SITUATION_FAMILIALE_LABELS,
   EMPLOYEE_SEXE_OPTIONS,
@@ -124,9 +135,17 @@ import {
   EMPLOYEE_TYPE_CONTRAT_OPTIONS,
   EMPLOYEE_TYPE_CONTRAT_LABELS,
   getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeDiplomeLabel,
+  getEmployeeNationaliteLabel,
+  getEmployeePosteLabel,
+  getEmployeeRegionalBranchLabel,
   getEmployeeSituationFamilialeLabel,
   getEmployeeSexeLabel,
+  getEmployeeSpecialiteLabel,
   getEmployeeTypeContratLabel,
+  getEmployeeUniversiteLabel,
+  EMPLOYEE_UNIVERSITE_LABELS,
+  EMPLOYEE_UNIVERSITE_OPTIONS,
 } from '@/types/employee'
 import { PUBLIC_QR_VISIBILITY_FIELDS } from '@/types/employee-governance'
 import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
@@ -267,6 +286,7 @@ export function AdminEmployeeDetailPage() {
       nom: '',
       prenom: '',
       departementId: undefined,
+      regionalBranch: '',
       sexe: '',
       dateNaissance: '',
       lieuNaissance: '',
@@ -277,6 +297,7 @@ export function AdminEmployeeDetailPage() {
       numeroSecuriteSociale: '',
       diplome: '',
       specialite: '',
+      universite: '',
       historiquePostes: '',
       observations: '',
       poste: '',
@@ -301,6 +322,7 @@ export function AdminEmployeeDetailPage() {
       nom: employeeQuery.data.nom,
       prenom: employeeQuery.data.prenom,
       departementId: employeeQuery.data.departementId,
+      regionalBranch: employeeQuery.data.regionalBranch ?? '',
       sexe: employeeQuery.data.sexe ?? '',
       dateNaissance: employeeQuery.data.dateNaissance ?? '',
       lieuNaissance: employeeQuery.data.lieuNaissance ?? '',
@@ -314,6 +336,7 @@ export function AdminEmployeeDetailPage() {
       numeroSecuriteSociale: employeeQuery.data.numeroSecuriteSociale ?? '',
       diplome: employeeQuery.data.diplome ?? '',
       specialite: employeeQuery.data.specialite ?? '',
+      universite: employeeQuery.data.universite ?? '',
       historiquePostes: employeeQuery.data.historiquePostes ?? '',
       observations: employeeQuery.data.observations ?? '',
       poste: employeeQuery.data.poste ?? '',
@@ -334,6 +357,7 @@ export function AdminEmployeeDetailPage() {
         nom: employee.nom,
         prenom: employee.prenom,
         departementId: employee.departementId,
+        regionalBranch: employee.regionalBranch ?? '',
         sexe: employee.sexe ?? '',
         dateNaissance: employee.dateNaissance ?? '',
         lieuNaissance: employee.lieuNaissance ?? '',
@@ -347,6 +371,7 @@ export function AdminEmployeeDetailPage() {
         numeroSecuriteSociale: employee.numeroSecuriteSociale ?? '',
         diplome: employee.diplome ?? '',
         specialite: employee.specialite ?? '',
+        universite: employee.universite ?? '',
         historiquePostes: employee.historiquePostes ?? '',
         observations: employee.observations ?? '',
         poste: employee.poste ?? '',
@@ -738,6 +763,7 @@ export function AdminEmployeeDetailPage() {
         nom: values.nom.trim(),
         prenom: values.prenom.trim(),
         departementId: values.departementId,
+        regionalBranch: normalizeOptional(values.regionalBranch),
         sexe: normalizeOptional(values.sexe),
         dateNaissance: normalizeOptional(values.dateNaissance),
         lieuNaissance: normalizeOptional(values.lieuNaissance),
@@ -748,14 +774,15 @@ export function AdminEmployeeDetailPage() {
         numeroSecuriteSociale: normalizeOptional(values.numeroSecuriteSociale),
         diplome: normalizeOptional(values.diplome),
         specialite: normalizeOptional(values.specialite),
+        universite: normalizeOptional(values.universite),
         historiquePostes: normalizeOptional(values.historiquePostes),
         observations: normalizeOptional(values.observations),
         poste: normalizeOptional(values.poste),
         categorieProfessionnelle: normalizeOptional(values.categorieProfessionnelle),
         typeContrat: normalizeOptional(values.typeContrat),
         dateRecrutement: normalizeOptional(values.dateRecrutement),
-        email: normalizeOptional(values.email),
-        telephone: normalizeOptional(values.telephone),
+      email: normalizeOptionalEmail(values.email),
+      telephone: normalizeOptional(values.telephone),
         photoUrl: normalizeOptional(values.photoUrl),
       },
     })
@@ -943,6 +970,7 @@ export function AdminEmployeeDetailPage() {
                 nom: employee.nom,
                 prenom: employee.prenom,
                 poste: employee.poste,
+                regionalBranch: employee.regionalBranch,
                 photoUrl: employee.photoUrl,
               }}
               departmentName={departmentName}
@@ -969,6 +997,7 @@ export function AdminEmployeeDetailPage() {
                 nombreEnfants: employee.nombreEnfants,
                 adresse: employee.adresse,
                 poste: employee.poste,
+                regionalBranch: employee.regionalBranch,
                 categorieProfessionnelle: employee.categorieProfessionnelle,
                 typeContrat: employee.typeContrat,
                 dateRecrutement: employee.dateRecrutement,
@@ -1119,10 +1148,22 @@ export function AdminEmployeeDetailPage() {
               <div className="space-y-2 text-sm">
                 <InfoLine label="Employee ID" value={employee.matricule} mono />
                 <InfoLine label="Department" value={departmentName} />
-                <InfoLine label="Job Title" value={formatOptionalValue(currentPoste || employee.poste)} />
+                <InfoLine
+                  label="Regional Branch"
+                  value={formatEmploymentValue(
+                    getEmployeeRegionalBranchLabel(employee.regionalBranch),
+                  )}
+                />
+                <InfoLine
+                  label="Job Title"
+                  value={formatOptionalValue(getEmployeePosteLabel(currentPoste || employee.poste))}
+                />
                 <InfoLine label="Sex" value={formatCivilValue(getEmployeeSexeLabel(employee.sexe))} />
                 <InfoLine label="Birth Date" value={formatCivilDate(employee.dateNaissance)} />
-                <InfoLine label="Nationality" value={formatCivilValue(employee.nationalite)} />
+                <InfoLine
+                  label="Nationality"
+                  value={formatCivilValue(getEmployeeNationaliteLabel(employee.nationalite))}
+                />
                 <InfoLine
                   label="Category"
                   value={formatEmploymentValue(
@@ -1236,11 +1277,20 @@ export function AdminEmployeeDetailPage() {
                     />
                     <InfoGrid
                       label="Nationality"
-                      value={formatCivilValue(employee.nationalite)}
+                      value={formatCivilValue(getEmployeeNationaliteLabel(employee.nationalite))}
                     />
                     <InfoGrid label="Employee ID" value={employee.matricule} mono />
-                    <InfoGrid label="Job Title" value={formatOptionalValue(employee.poste)} />
+                    <InfoGrid
+                      label="Job Title"
+                      value={formatOptionalValue(getEmployeePosteLabel(employee.poste))}
+                    />
                     <InfoGrid label="Department" value={departmentName} />
+                    <InfoGrid
+                      label="Regional Branch"
+                      value={formatEmploymentValue(
+                        getEmployeeRegionalBranchLabel(employee.regionalBranch),
+                      )}
+                    />
                     <InfoGrid
                       label="Professional Category"
                       value={formatEmploymentValue(
@@ -1300,9 +1350,19 @@ export function AdminEmployeeDetailPage() {
                   <CardTitle>Education & Career Background</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-3 text-sm sm:grid-cols-2">
-                    <InfoGrid label="Degree" value={formatCivilValue(employee.diplome)} />
-                    <InfoGrid label="Specialization" value={formatCivilValue(employee.specialite)} />
+                  <div className="grid gap-3 text-sm sm:grid-cols-3">
+                    <InfoGrid
+                      label="Degree"
+                      value={formatCivilValue(getEmployeeDiplomeLabel(employee.diplome))}
+                    />
+                    <InfoGrid
+                      label="Specialization"
+                      value={formatCivilValue(getEmployeeSpecialiteLabel(employee.specialite))}
+                    />
+                    <InfoGrid
+                      label="University"
+                      value={formatCivilValue(getEmployeeUniversiteLabel(employee.universite))}
+                    />
                   </div>
 
                   <div className="rounded-lg border bg-slate-50/50 p-3">
@@ -1393,9 +1453,38 @@ export function AdminEmployeeDetailPage() {
                             )}
                           />
                         )}
-                        {departmentsQuery.isError ? (
-                          <p className="text-xs text-destructive">{departmentsQuery.error.message}</p>
-                        ) : null}
+                      {departmentsQuery.isError ? (
+                        <p className="text-xs text-destructive">{departmentsQuery.error.message}</p>
+                      ) : null}
+                    </FieldError>
+
+                      <FieldError message={form.formState.errors.regionalBranch?.message}>
+                        <Label htmlFor="regionalBranch">Regional Branch</Label>
+                        <Controller
+                          control={form.control}
+                          name="regionalBranch"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="regionalBranch">
+                                <SelectValue placeholder="Select a regional branch" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_REGIONAL_BRANCH_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_REGIONAL_BRANCH_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
                       </FieldError>
                       <FieldError message={form.formState.errors.nom?.message}>
                         <Label htmlFor="nom">Last Name</Label>
@@ -1409,7 +1498,31 @@ export function AdminEmployeeDetailPage() {
 
                       <FieldError message={form.formState.errors.poste?.message}>
                         <Label htmlFor="poste">Job Title</Label>
-                        <Input id="poste" disabled={isFormDisabled} {...form.register('poste')} />
+                        <Controller
+                          control={form.control}
+                          name="poste"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="poste">
+                                <SelectValue placeholder="Select a job title" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_POSTE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_POSTE_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
                       </FieldError>
                     </div>
 
@@ -1473,10 +1586,30 @@ export function AdminEmployeeDetailPage() {
 
                       <FieldError message={form.formState.errors.nationalite?.message}>
                         <Label htmlFor="nationalite">Nationality</Label>
-                        <Input
-                          id="nationalite"
-                          disabled={isFormDisabled}
-                          {...form.register('nationalite')}
+                        <Controller
+                          control={form.control}
+                          name="nationalite"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="nationalite">
+                                <SelectValue placeholder="Select a nationality" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_NATIONALITE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_NATIONALITE_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         />
                       </FieldError>
                     </div>
@@ -1565,26 +1698,95 @@ export function AdminEmployeeDetailPage() {
                     <div className="space-y-1">
                       <h3 className="text-sm font-semibold text-slate-900">Education & Career Background</h3>
                       <p className="text-xs text-muted-foreground">
-                        Education level, specialization, and career background summarized for HR reference.
+                        Education level, specialization, university, and career background summarized for HR reference.
                       </p>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 md:grid-cols-3">
                       <FieldError message={form.formState.errors.diplome?.message}>
                         <Label htmlFor="diplome">Degree / Diploma</Label>
-                        <Input
-                          id="diplome"
-                          disabled={isFormDisabled}
-                          {...form.register('diplome')}
+                        <Controller
+                          control={form.control}
+                          name="diplome"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="diplome">
+                                <SelectValue placeholder="Select a degree" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_DIPLOME_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_DIPLOME_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         />
                       </FieldError>
 
                       <FieldError message={form.formState.errors.specialite?.message}>
                         <Label htmlFor="specialite">Specialization</Label>
-                        <Input
-                          id="specialite"
-                          disabled={isFormDisabled}
-                          {...form.register('specialite')}
+                        <Controller
+                          control={form.control}
+                          name="specialite"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="specialite">
+                                <SelectValue placeholder="Select a specialization" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_SPECIALITE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_SPECIALITE_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FieldError>
+
+                      <FieldError message={form.formState.errors.universite?.message}>
+                        <Label htmlFor="universite">University</Label>
+                        <Controller
+                          control={form.control}
+                          name="universite"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
+                              onValueChange={(value) =>
+                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
+                              }
+                              disabled={isFormDisabled}
+                            >
+                              <SelectTrigger id="universite">
+                                <SelectValue placeholder="Select a university" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                                {EMPLOYEE_UNIVERSITE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {EMPLOYEE_UNIVERSITE_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         />
                       </FieldError>
                     </div>

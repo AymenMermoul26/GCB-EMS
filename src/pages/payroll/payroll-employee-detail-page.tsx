@@ -24,6 +24,9 @@ import { PayrollLayout } from '@/layouts/payroll-layout'
 import { usePayrollEmployeeQuery } from '@/services/payrollEmployeesService'
 import {
   getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeNationaliteLabel,
+  getEmployeePosteLabel,
+  getEmployeeRegionalBranchLabel,
   getEmployeeSexeLabel,
   getEmployeeSituationFamilialeLabel,
   getEmployeeTypeContratLabel,
@@ -215,12 +218,19 @@ export function PayrollEmployeeDetailPage() {
                 )}
               </div>
               <h2 className="mt-4 text-xl font-semibold text-slate-950">{fullName}</h2>
-              <p className="text-sm text-slate-500">{formatTextValue(employee.poste)}</p>
+              <p className="text-sm text-slate-500">
+                {formatTextValue(getEmployeePosteLabel(employee.poste))}
+              </p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <StatusBadge tone="brand">
                   <Building2 className="mr-1.5 h-3.5 w-3.5" />
                   {formatTextValue(employee.departementNom)}
                 </StatusBadge>
+                {employee.regionalBranch ? (
+                  <StatusBadge tone="neutral" emphasis="outline">
+                    {getEmployeeRegionalBranchLabel(employee.regionalBranch)}
+                  </StatusBadge>
+                ) : null}
                 <StatusBadge tone="info" emphasis="outline">
                   <IdCard className="mr-1.5 h-3.5 w-3.5" />
                   {employee.matricule}
@@ -263,7 +273,10 @@ export function PayrollEmployeeDetailPage() {
             <DetailRow label="Sex" value={formatTextValue(getEmployeeSexeLabel(employee.sexe))} />
             <DetailRow label="Birth date" value={formatDateValue(employee.dateNaissance)} />
             <DetailRow label="Birth place" value={formatTextValue(employee.lieuNaissance)} />
-            <DetailRow label="Nationality" value={formatTextValue(employee.nationalite)} />
+            <DetailRow
+              label="Nationality"
+              value={formatTextValue(getEmployeeNationaliteLabel(employee.nationalite))}
+            />
             <DetailRow label="Email" value={formatTextValue(employee.email)} />
             <DetailRow label="Phone" value={formatTextValue(employee.telephone)} />
           </DetailSectionCard>
@@ -275,7 +288,14 @@ export function PayrollEmployeeDetailPage() {
           >
             <DetailRow label="Employee ID" value={employee.matricule} mono />
             <DetailRow label="Department" value={formatTextValue(employee.departementNom)} />
-            <DetailRow label="Job title" value={formatTextValue(employee.poste)} />
+            <DetailRow
+              label="Regional branch"
+              value={formatTextValue(getEmployeeRegionalBranchLabel(employee.regionalBranch))}
+            />
+            <DetailRow
+              label="Job title"
+              value={formatTextValue(getEmployeePosteLabel(employee.poste))}
+            />
             <DetailRow
               label="Professional category"
               value={formatTextValue(

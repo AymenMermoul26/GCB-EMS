@@ -52,6 +52,9 @@ import {
   usePayrollEmployeesQuery,
 } from '@/services/payrollEmployeesService'
 import {
+  EMPLOYEE_REGIONAL_BRANCH_LABELS,
+  EMPLOYEE_REGIONAL_BRANCH_OPTIONS,
+  getEmployeePosteLabel,
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
 import type {
@@ -64,8 +67,17 @@ function formatDepartmentName(employee: PayrollEmployeeListItem): string {
   return employee.departementNom?.trim() || 'Department not assigned'
 }
 
-function formatJobTitle(value: string | null | undefined): string {
+function formatRegionalBranch(value: string | null | undefined): string {
   const normalized = value?.trim()
+  if (!normalized) {
+    return 'Branch not assigned'
+  }
+
+  return normalized
+}
+
+function formatJobTitle(value: string | null | undefined): string {
+  const normalized = getEmployeePosteLabel(value)?.trim()
   return normalized && normalized.length > 0 ? normalized : 'Job title not set'
 }
 
@@ -111,6 +123,7 @@ export function PayrollEmployeesPage() {
   const { signOut, user } = useAuth()
   const [searchInput, setSearchInput] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('all')
+  const [branchFilter, setBranchFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<PayrollEmployeeStatusFilter>('ALL')
   const [contractFilter, setContractFilter] = useState('all')
   const debouncedSearch = useDebouncedValue(searchInput, 350)
@@ -119,10 +132,11 @@ export function PayrollEmployeesPage() {
     () => ({
       search: debouncedSearch.trim() || undefined,
       departementId: departmentFilter === 'all' ? undefined : departmentFilter,
+      regionalBranch: branchFilter === 'all' ? undefined : branchFilter,
       status: statusFilter,
       typeContrat: contractFilter === 'all' ? undefined : contractFilter,
     }),
-    [contractFilter, debouncedSearch, departmentFilter, statusFilter],
+    [branchFilter, contractFilter, debouncedSearch, departmentFilter, statusFilter],
   )
 
   const payrollEmployeesQuery = usePayrollEmployeesDirectoryQuery(filters)
@@ -166,6 +180,7 @@ export function PayrollEmployeesPage() {
   const hasActiveFilters =
     searchInput.trim().length > 0 ||
     departmentFilter !== 'all' ||
+    branchFilter !== 'all' ||
     statusFilter !== 'ALL' ||
     contractFilter !== 'all'
 
@@ -180,6 +195,10 @@ export function PayrollEmployeesPage() {
       params.set('department', departmentFilter)
     }
 
+    if (branchFilter !== 'all') {
+      params.set('branch', branchFilter)
+    }
+
     if (statusFilter !== 'ALL') {
       params.set('status', statusFilter)
     }
@@ -190,11 +209,12 @@ export function PayrollEmployeesPage() {
 
     const queryString = params.toString()
     return queryString ? `${ROUTES.PAYROLL_EXPORTS}?${queryString}` : ROUTES.PAYROLL_EXPORTS
-  }, [contractFilter, departmentFilter, searchInput, statusFilter])
+  }, [branchFilter, contractFilter, departmentFilter, searchInput, statusFilter])
 
   const handleClearFilters = () => {
     setSearchInput('')
     setDepartmentFilter('all')
+    setBranchFilter('all')
     setStatusFilter('ALL')
     setContractFilter('all')
   }
@@ -227,7 +247,7 @@ export function PayrollEmployeesPage() {
           </Button>
         }
       >
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_220px_180px_220px_auto]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_220px_220px_180px_220px_auto]">
           <div className="relative xl:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
@@ -248,6 +268,20 @@ export function PayrollEmployeesPage() {
               {departmentOptions.map((department) => (
                 <SelectItem key={department.id} value={department.id}>
                   {department.nom}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={branchFilter} onValueChange={setBranchFilter}>
+            <SelectTrigger aria-label="Filter by regional branch">
+              <SelectValue placeholder="Regional branch" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All regional branches</SelectItem>
+              {EMPLOYEE_REGIONAL_BRANCH_OPTIONS.map((branch) => (
+                <SelectItem key={branch} value={branch}>
+                  {EMPLOYEE_REGIONAL_BRANCH_LABELS[branch]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -403,7 +437,7 @@ export function PayrollEmployeesPage() {
                 <TableRow>
                   <TableHead>Employee</TableHead>
                   <TableHead>Employee ID</TableHead>
-                  <TableHead>Department</TableHead>
+                  <TableHead>Department / Branch</TableHead>
                   <TableHead>Job title</TableHead>
                   <TableHead>Contract type</TableHead>
                   <TableHead>Status</TableHead>
@@ -431,7 +465,14 @@ export function PayrollEmployeesPage() {
                     <TableCell className="font-mono text-sm text-slate-700">
                       {employee.matricule}
                     </TableCell>
-                    <TableCell>{formatDepartmentName(employee)}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p>{formatDepartmentName(employee)}</p>
+                        <p className="text-xs text-slate-500">
+                          {formatRegionalBranch(employee.regionalBranch)}
+                        </p>
+                      </div>
+                    </TableCell>
                     <TableCell>{formatJobTitle(employee.poste)}</TableCell>
                     <TableCell>{formatContractType(employee.typeContrat)}</TableCell>
                     <TableCell>
@@ -483,7 +524,12 @@ export function PayrollEmployeesPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-slate-400" />
-                      <span>{formatDepartmentName(employee)}</span>
+                      <div className="min-w-0">
+                        <p className="truncate">{formatDepartmentName(employee)}</p>
+                        <p className="truncate text-xs text-slate-500">
+                          {formatRegionalBranch(employee.regionalBranch)}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <BriefcaseBusiness className="h-4 w-4 text-slate-400" />

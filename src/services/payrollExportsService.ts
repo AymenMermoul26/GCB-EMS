@@ -7,6 +7,13 @@ import {
 
 import { auditService } from '@/services/auditService'
 import { supabase } from '@/lib/supabaseClient'
+import {
+  getEmployeeCategorieProfessionnelleLabel,
+  getEmployeePosteLabel,
+  getEmployeeRegionalBranchLabel,
+  getEmployeeSituationFamilialeLabel,
+  getEmployeeTypeContratLabel,
+} from '@/types/employee'
 import type { PayrollEmployeeDetail } from '@/types/payroll'
 import type {
   PayrollEmployeeExportRow,
@@ -23,6 +30,7 @@ interface PayrollEmployeeExportRowRecord {
   id: string
   departement_id: string | null
   departement_nom: string | null
+  regional_branch: string | null
   matricule: string
   nom: string
   prenom: string
@@ -52,6 +60,7 @@ interface PayrollExportCsvRow {
   nom: string
   prenom: string
   departement: string
+  regional_branch: string
   poste: string
   categorie_professionnelle: string
   type_contrat: string
@@ -79,6 +88,7 @@ const PAYROLL_EXPORT_CSV_COLUMNS: CsvColumn<PayrollExportCsvRow>[] = [
   { key: 'nom', header: 'nom' },
   { key: 'prenom', header: 'prenom' },
   { key: 'departement', header: 'departement' },
+  { key: 'regional_branch', header: 'regional_branch' },
   { key: 'poste', header: 'poste' },
   { key: 'categorie_professionnelle', header: 'categorie_professionnelle' },
   { key: 'type_contrat', header: 'type_contrat' },
@@ -95,6 +105,7 @@ function normalizeFilters(filters: PayrollEmployeeListFilters = {}) {
   return {
     search: filters.search?.trim() || null,
     departementId: filters.departementId?.trim() || null,
+    regionalBranch: filters.regionalBranch?.trim() || null,
     status: filters.status ?? 'ALL',
     typeContrat: filters.typeContrat?.trim() || null,
   }
@@ -165,6 +176,7 @@ function mapPayrollEmployeeExportRow(
     id: row.id,
     departementId: row.departement_id,
     departementNom: row.departement_nom ?? null,
+    regionalBranch: row.regional_branch ?? null,
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
@@ -187,15 +199,20 @@ function toPayrollCsvRow(row: PayrollEmployeeExportRow): PayrollExportCsvRow {
     nom: row.nom,
     prenom: row.prenom,
     departement: formatTextValue(row.departementNom),
-    poste: formatTextValue(row.poste),
-    categorie_professionnelle: formatTextValue(row.categorieProfessionnelle),
-    type_contrat: formatTextValue(row.typeContrat),
+    regional_branch: formatTextValue(getEmployeeRegionalBranchLabel(row.regionalBranch)),
+    poste: formatTextValue(getEmployeePosteLabel(row.poste)),
+    categorie_professionnelle: formatTextValue(
+      getEmployeeCategorieProfessionnelleLabel(row.categorieProfessionnelle),
+    ),
+    type_contrat: formatTextValue(getEmployeeTypeContratLabel(row.typeContrat)),
     date_recrutement: formatDateValue(row.dateRecrutement),
     is_active: row.isActive ? 'true' : 'false',
     email: formatTextValue(row.email),
     telephone: formatTextValue(row.telephone),
     adresse: formatTextValue(row.adresse),
-    situation_familiale: formatTextValue(row.situationFamiliale),
+    situation_familiale: formatTextValue(
+      getEmployeeSituationFamilialeLabel(row.situationFamiliale),
+    ),
     nombre_enfants: formatNumberValue(row.nombreEnfants),
   }
 }
@@ -239,6 +256,7 @@ function mapPayrollExportAuditRow(row: PayrollExportAuditRow): PayrollExportHist
     search: readText(detailsJson.search),
     departmentId: readText(detailsJson.department_id),
     departmentName: readText(detailsJson.department_name),
+    regionalBranch: readText(detailsJson.regional_branch),
     status,
     typeContrat: readText(detailsJson.type_contrat),
     createdAt: row.created_at,
@@ -263,6 +281,7 @@ export async function getPayrollEmployeeExportRows(
     .rpc('get_payroll_employee_export_rows', {
       p_search: normalizedFilters.search,
       p_departement_id: normalizedFilters.departementId,
+      p_regional_branch: normalizedFilters.regionalBranch,
       p_status: normalizedFilters.status,
       p_type_contrat: normalizedFilters.typeContrat,
     })
@@ -303,6 +322,7 @@ export async function generatePayrollEmployeesCsvExport({
       search: normalizedFilters.search,
       department_id: normalizedFilters.departementId,
       department_name: departmentName ?? null,
+      regional_branch: normalizedFilters.regionalBranch,
       status: normalizedFilters.status,
       type_contrat: normalizedFilters.typeContrat,
       columns: PAYROLL_EXPORT_CSV_COLUMNS.map((column) => column.header),

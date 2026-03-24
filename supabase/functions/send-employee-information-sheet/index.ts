@@ -8,6 +8,7 @@ interface SendEmployeeInformationSheetPayload {
 interface EmployeeDocumentRow {
   id: string
   departement_id: string | null
+  regional_branch: string | null
   matricule: string
   nom: string
   prenom: string
@@ -188,6 +189,7 @@ function renderEmployeeInformationSheetEmail(params: {
   const { employee, departmentName, generatedAt, logoUrl } = params
   const fullName = getEmployeeFullName(employee)
   const safeDepartment = formatDisplayValue(departmentName)
+  const safeRegionalBranch = formatDisplayValue(employee.regional_branch)
   const status = employee.is_active ? 'Active' : 'Inactive'
   const logoBlock = logoUrl
     ? `<img src="${escapeHtml(logoUrl)}" alt="GCB logo" style="height:64px;width:64px;object-fit:contain;" />`
@@ -227,6 +229,7 @@ function renderEmployeeInformationSheetEmail(params: {
               <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
                 ${renderField('Employee ID', escapeHtml(employee.matricule))}
                 ${renderField('Department', safeDepartment)}
+                ${renderField('Regional branch', safeRegionalBranch)}
                 ${renderField('Status', escapeHtml(status))}
                 ${renderField('Contract type', formatDisplayValue(getContractTypeLabel(employee.type_contrat)))}
               </div>
@@ -253,6 +256,7 @@ function renderEmployeeInformationSheetEmail(params: {
             <p style="margin:8px 0 0;font-size:14px;color:#64748b;">Operational employment details relevant to the employee record.</p>
             <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px;">
               ${renderField('Department', safeDepartment)}
+              ${renderField('Regional branch', safeRegionalBranch)}
               ${renderField('Job title', formatDisplayValue(employee.poste))}
               ${renderField('Professional category', formatDisplayValue(getProfessionalCategoryLabel(employee.categorie_professionnelle)))}
               ${renderField('Contract type', formatDisplayValue(getContractTypeLabel(employee.type_contrat)))}
@@ -407,7 +411,7 @@ Deno.serve(async (request) => {
   const { data: employeeRows, error: employeeError } = await adminClient
     .from('Employe')
     .select(
-      'id, departement_id, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active',
+      'id, departement_id, regional_branch, matricule, nom, prenom, sexe, date_naissance, lieu_naissance, nationalite, situation_familiale, nombre_enfants, adresse, poste, categorie_professionnelle, type_contrat, date_recrutement, email, telephone, photo_url, is_active',
     )
     .eq('id', employeId)
     .limit(1)
