@@ -13,6 +13,7 @@ export interface AuthState {
   role: AppRole | null
   employeId: string | null
   mustChangePassword: boolean
+  passwordRecoveryActive: boolean
   isLoading: boolean
   isAuthenticated: boolean
 }

@@ -107,6 +107,7 @@ import {
   type Employee,
   type EmployeesListParams,
 } from '@/types/employee'
+import { getDepartmentDisplayName } from '@/types/department'
 import { downloadCsv, toCsv, type CsvColumn } from '@/utils/csv'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
@@ -202,7 +203,7 @@ function formatDepartmentName(
   departmentMap: Map<string, string>,
   departmentId: string,
 ) {
-  return departmentMap.get(departmentId) ?? departmentId
+  return getDepartmentDisplayName(departmentMap.get(departmentId)) ?? departmentId
 }
 
 function toExportRows(
@@ -629,13 +630,13 @@ export function EmployeesListPage() {
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All departments</SelectItem>
-                          {(departmentsQuery.data ?? []).map((department) => (
-                            <SelectItem key={department.id} value={department.id}>
-                              {department.nom}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
+                        <SelectItem value="all">All departments</SelectItem>
+                        {(departmentsQuery.data ?? []).map((department) => (
+                          <SelectItem key={department.id} value={department.id}>
+                            {getDepartmentDisplayName(department.nom) ?? department.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                       </Select>
                     </div>
 

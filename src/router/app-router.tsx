@@ -19,7 +19,9 @@ import { AdminMonitoringPage } from '@/pages/admin/admin-monitoring-page'
 import { AdminRequestsPage } from '@/pages/admin/admin-requests-page'
 import { EmployeesListPage } from '@/pages/admin/EmployeesList'
 import { DepartmentsPage } from '@/pages/admin/DepartmentsPage'
+import { ForgotPasswordPage } from '@/pages/auth/forgot-password-page'
 import { LoginPage } from '@/pages/auth/login-page'
+import { ResetPasswordPage } from '@/pages/auth/reset-password-page'
 import { EmployeePayslipsPage } from '@/pages/employee/employee-payslips-page'
 import { EmployeeProfileManagePage } from '@/pages/employee/employee-profile-manage-page'
 import { EmployeeProfilePage } from '@/pages/employee/employee-profile-page'
@@ -76,6 +78,8 @@ export function AppRouter() {
         <Routes>
           <Route path={ROUTES.ROOT} element={<HomeRedirect />} />
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+          <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+          <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
           <Route path={ROUTES.FORBIDDEN} element={<ForbiddenPage />} />
           <Route path={ROUTES.SERVER_ERROR} element={<ServerErrorPage />} />
           <Route path={`${ROUTES.PUBLIC_PROFILE_BASE}/:token`} element={<PublicProfilePage />} />

@@ -35,6 +35,7 @@ import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useEmployeeQuery } from '@/services/employeesService'
 import { useMyActiveTokenQuery } from '@/services/qrService'
+import { getDepartmentDisplayName } from '@/types/department'
 import {
   getEmployeeCategorieProfessionnelleLabel,
   getEmployeeDiplomeLabel,
@@ -130,8 +131,10 @@ export function EmployeeProfilePage() {
     }
 
     return (
-      departmentsQuery.data.find((department) => department.id === employeeData.departementId)?.nom ??
-      null
+      getDepartmentDisplayName(
+        departmentsQuery.data.find((department) => department.id === employeeData.departementId)
+          ?.nom,
+      ) ?? null
     )
   }, [departmentsQuery.data, employeeQuery.data])
 

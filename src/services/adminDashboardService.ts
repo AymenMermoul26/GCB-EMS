@@ -6,6 +6,7 @@ import { auditLogService } from '@/services/auditLogService'
 import { departmentsService } from '@/services/departmentsService'
 import { QR_REFRESH_NOTIFICATION_TITLE } from '@/services/notificationsService'
 import { requestsService } from '@/services/requestsService'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   AdminDashboardData,
   DashboardAlertItem,
@@ -462,7 +463,7 @@ function buildPayrollActivitySummary(action: string, detailsJson: Record<string,
   switch (action) {
     case 'PAYROLL_EXPORT_GENERATED': {
       const rowCount = readText(detailsJson.row_count)
-      const departmentName = readText(detailsJson.department_name)
+      const departmentName = getDepartmentDisplayName(readText(detailsJson.department_name))
       const status = readText(detailsJson.status)
       const typeContrat = readText(detailsJson.type_contrat)
       const scopeParts = [
@@ -677,9 +678,9 @@ function buildDepartmentDistribution(
   const metricsByDepartment = new Map(
     departments.map((department) => [
       department.id,
-      {
+        {
         id: department.id,
-        name: department.nom,
+        name: getDepartmentDisplayName(department.nom) ?? department.nom,
         employeeCount: 0,
         activeCount: 0,
       },
@@ -713,7 +714,12 @@ function buildRecentEmployees(
   employees: DashboardEmployeeRow[],
   departments: Array<{ id: string; nom: string }>,
 ): DashboardRecentEmployee[] {
-  const departmentNames = new Map(departments.map((department) => [department.id, department.nom]))
+  const departmentNames = new Map(
+    departments.map((department) => [
+      department.id,
+      getDepartmentDisplayName(department.nom) ?? department.nom,
+    ]),
+  )
 
   return employees.slice(0, 5).map((employee) => ({
     id: employee.id,

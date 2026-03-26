@@ -69,6 +69,7 @@ import {
   EMPLOYEE_UNIVERSITE_LABELS,
   EMPLOYEE_UNIVERSITE_OPTIONS,
 } from '@/types/employee'
+import { getDepartmentDisplayName } from '@/types/department'
 import { mapEmployeeWriteError } from '@/utils/supabase-errors'
 
 function isMatriculeConflict(message: string): boolean {
@@ -352,7 +353,7 @@ export function AdminEmployeeCreatePage() {
                       <SelectContent>
                         {(departmentsQuery.data ?? []).map((department) => (
                           <SelectItem key={department.id} value={department.id}>
-                            {department.nom}
+                            {getDepartmentDisplayName(department.nom) ?? department.nom}
                           </SelectItem>
                         ))}
                       </SelectContent>

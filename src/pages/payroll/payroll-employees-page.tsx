@@ -57,6 +57,7 @@ import {
   getEmployeePosteLabel,
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   PayrollEmployeeListFilters,
   PayrollEmployeeListItem,
@@ -64,7 +65,7 @@ import type {
 } from '@/types/payroll'
 
 function formatDepartmentName(employee: PayrollEmployeeListItem): string {
-  return employee.departementNom?.trim() || 'Department not assigned'
+  return getDepartmentDisplayName(employee.departementNom)?.trim() || 'Department not assigned'
 }
 
 function formatRegionalBranch(value: string | null | undefined): string {
@@ -107,7 +108,7 @@ function buildDepartmentOptions(employees: PayrollEmployeeListItem[]) {
   })
 
   return [...new Map(departmentEntries).entries()]
-    .map(([id, nom]) => ({ id, nom }))
+    .map(([id, nom]) => ({ id, nom: getDepartmentDisplayName(nom) ?? nom }))
     .sort((left, right) => left.nom.localeCompare(right.nom))
 }
 

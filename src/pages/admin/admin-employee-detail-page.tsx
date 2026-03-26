@@ -65,7 +65,6 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { EmployeeBadgeDialog } from '@/components/admin/employee-badge-dialog'
@@ -103,8 +102,8 @@ import {
 } from '@/services/qrService'
 import { useAdminRequestsQuery } from '@/services/requestsService'
 import {
+  useAdminPublicProfileVisibilityRequestsQuery,
   useEmployeeVisibilityQuery,
-  useUpsertVisibilityMutation,
 } from '@/services/visibilityService'
 import {
   employeeSchema,
@@ -114,7 +113,12 @@ import {
   normalizePhoneNumberInput,
   type EmployeeFormValues,
 } from '@/schemas/employeeSchema'
-import type { EmployeeVisibilityFieldKey } from '@/types/visibility'
+import {
+  EMPLOYEE_VISIBILITY_FIELD_LABELS,
+  getPublicProfileVisibilityRequestStatusMeta,
+  type AdminPublicProfileVisibilityRequestItem,
+  type EmployeeVisibilityFieldKey,
+} from '@/types/visibility'
 import {
   EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS,
   EMPLOYEE_DIPLOME_LABELS,
@@ -147,6 +151,7 @@ import {
   EMPLOYEE_UNIVERSITE_LABELS,
   EMPLOYEE_UNIVERSITE_OPTIONS,
 } from '@/types/employee'
+import { getDepartmentDisplayName } from '@/types/department'
 import { PUBLIC_QR_VISIBILITY_FIELDS } from '@/types/employee-governance'
 import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
 import { copyTextToClipboard } from '@/utils/clipboard'
@@ -168,6 +173,24 @@ function formatDateTime(value: string | null): string {
   }
 
   return new Date(value).toLocaleString()
+}
+
+function formatVisibilityFieldList(fieldKeys: string[]): string {
+  if (fieldKeys.length === 0) {
+    return 'No public fields selected'
+  }
+
+  return fieldKeys
+    .map((fieldKey) => EMPLOYEE_VISIBILITY_FIELD_LABELS[fieldKey as EmployeeVisibilityFieldKey] ?? fieldKey)
+    .join(', ')
+}
+
+function findOpenVisibilityRequest(
+  requests: AdminPublicProfileVisibilityRequestItem[],
+): AdminPublicProfileVisibilityRequestItem | null {
+  return (
+    requests.find((request) => request.status === 'PENDING' || request.status === 'IN_REVIEW') ?? null
+  )
 }
 
 function formatOptionalValue(value: string | null | undefined): string {
@@ -273,6 +296,7 @@ export function AdminEmployeeDetailPage() {
   const employeeProfileQuery = useEmployeeProfileQuery(id)
   const departmentsQuery = useDepartmentsQuery()
   const visibilityQuery = useEmployeeVisibilityQuery(id)
+  const visibilityRequestsQuery = useAdminPublicProfileVisibilityRequestsQuery({ employeId: id })
   const employeeTokenQuery = useEmployeeCurrentTokenQuery(id)
   const employeeRequestsQuery = useAdminRequestsQuery({ employeId: id, page: 1, pageSize: 8 })
   const qrRefreshRequiredQuery = useHasUnreadQrRefreshForEmployeeQuery(id, user?.id)
@@ -445,8 +469,6 @@ export function AdminEmployeeDetailPage() {
     },
   })
 
-  const upsertVisibilityMutation = useUpsertVisibilityMutation()
-
   const generateTokenMutation = useGenerateOrRegenerateTokenMutation()
   const revokeTokenMutation = useRevokeActiveTokenMutation()
   const inviteAccountMutation = useInviteEmployeeAccountMutation({
@@ -509,8 +531,9 @@ export function AdminEmployeeDetailPage() {
     }
 
     return (
-      departmentsQuery.data?.find((department) => department.id === employee.departementId)?.nom ??
-      employee.departementId
+      getDepartmentDisplayName(
+        departmentsQuery.data?.find((department) => department.id === employee.departementId)?.nom,
+      ) ?? employee.departementId
     )
   }, [departmentsQuery.data, employee])
 
@@ -522,6 +545,14 @@ export function AdminEmployeeDetailPage() {
 
     return map
   }, [visibilityQuery.data])
+  const latestVisibilityRequest = useMemo(
+    () => visibilityRequestsQuery.data?.[0] ?? null,
+    [visibilityRequestsQuery.data],
+  )
+  const openVisibilityRequest = useMemo(
+    () => findOpenVisibilityRequest(visibilityRequestsQuery.data ?? []),
+    [visibilityRequestsQuery.data],
+  )
 
   const scrollToEditForm = useCallback(() => {
     const section = editSectionRef.current
@@ -588,20 +619,6 @@ export function AdminEmployeeDetailPage() {
       window.clearTimeout(timerId)
     }
   }, [location.hash, scrollToEditForm])
-
-  const onToggleVisibility = async (fieldKey: EmployeeVisibilityFieldKey, isPublic: boolean) => {
-    try {
-      await upsertVisibilityMutation.mutateAsync({
-        employeId: employeeId,
-        fieldKey,
-        isPublic,
-      })
-
-      toast.success(`Visibility updated for ${fieldKey}.`)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not update visibility')
-    }
-  }
 
   const onGenerateOrRegenerateToken = async () => {
     if (!employee) {
@@ -1443,12 +1460,12 @@ export function AdminEmployeeDetailPage() {
                                   />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {(departmentsQuery.data ?? []).map((department) => (
-                                    <SelectItem key={department.id} value={department.id}>
-                                      {department.nom}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
+                                    {(departmentsQuery.data ?? []).map((department) => (
+                                      <SelectItem key={department.id} value={department.id}>
+                                        {getDepartmentDisplayName(department.nom) ?? department.nom}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
                               </Select>
                             )}
                           />
@@ -2280,18 +2297,110 @@ export function AdminEmployeeDetailPage() {
                             className="flex items-center justify-between rounded-md border px-3 py-2"
                           >
                             <p className="text-sm">{field.label}</p>
-                            <Switch
-                              checked={visibilityMap.get(field.key) ?? false}
-                              disabled={upsertVisibilityMutation.isPending}
-                              onCheckedChange={(checked) => {
-                                void onToggleVisibility(field.key, checked)
-                              }}
-                            />
+                            <StatusBadge
+                              tone={visibilityMap.get(field.key) ? 'success' : 'neutral'}
+                              emphasis="outline"
+                            >
+                              {visibilityMap.get(field.key) ? 'Published' : 'Hidden'}
+                            </StatusBadge>
                           </div>
                         ))}
-                        <p className="text-xs text-muted-foreground">
-                          Only enabled fields appear in the public QR profile.
-                        </p>
+
+                        <Alert className="border-slate-200 bg-slate-50">
+                          <AlertTitle>Employee-owned visibility workflow</AlertTitle>
+                          <AlertDescription>
+                            Employees submit public visibility requests from their QR page. HR reviews those requests in the request center before any change reaches the live QR profile.
+                          </AlertDescription>
+                        </Alert>
+
+                        {visibilityRequestsQuery.isPending ? (
+                          <>
+                            <Skeleton className="h-20 w-full" />
+                            <Skeleton className="h-20 w-full" />
+                          </>
+                        ) : null}
+
+                        {visibilityRequestsQuery.isError ? (
+                          <Alert variant="destructive">
+                            <AlertTitle>Visibility request history unavailable</AlertTitle>
+                            <AlertDescription className="space-y-2">
+                              <p>{visibilityRequestsQuery.error.message}</p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void visibilityRequestsQuery.refetch()}
+                              >
+                                Retry
+                              </Button>
+                            </AlertDescription>
+                          </Alert>
+                        ) : null}
+
+                        {!visibilityRequestsQuery.isPending && !visibilityRequestsQuery.isError ? (
+                          openVisibilityRequest ? (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge
+                                  tone={getPublicProfileVisibilityRequestStatusMeta(openVisibilityRequest.status).tone}
+                                >
+                                  {getPublicProfileVisibilityRequestStatusMeta(openVisibilityRequest.status).label}
+                                </StatusBadge>
+                                <p className="text-xs text-amber-900/80">
+                                  Submitted {new Date(openVisibilityRequest.createdAt).toLocaleString()}
+                                </p>
+                              </div>
+                              <p className="mt-3 text-xs font-medium uppercase tracking-wide text-amber-900/70">
+                                Requested public visibility
+                              </p>
+                              <p className="mt-2 text-sm text-amber-950">
+                                {formatVisibilityFieldList(openVisibilityRequest.requestedFieldKeys)}
+                              </p>
+                              {openVisibilityRequest.requestNote ? (
+                                <p className="mt-3 text-sm text-amber-950">
+                                  <span className="font-medium">Employee note:</span> {openVisibilityRequest.requestNote}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : latestVisibilityRequest ? (
+                            <div className="rounded-xl border p-4">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge
+                                  tone={getPublicProfileVisibilityRequestStatusMeta(latestVisibilityRequest.status).tone}
+                                >
+                                  {getPublicProfileVisibilityRequestStatusMeta(latestVisibilityRequest.status).label}
+                                </StatusBadge>
+                                <p className="text-xs text-muted-foreground">
+                                  Reviewed {latestVisibilityRequest.reviewedAt ? new Date(latestVisibilityRequest.reviewedAt).toLocaleString() : 'Not reviewed'}
+                                </p>
+                              </div>
+                              <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Most recent requested visibility
+                              </p>
+                              <p className="mt-2 text-sm text-slate-700">
+                                {formatVisibilityFieldList(latestVisibilityRequest.requestedFieldKeys)}
+                              </p>
+                              {latestVisibilityRequest.reviewNote ? (
+                                <p className="mt-3 text-sm text-slate-700">
+                                  <span className="font-medium">HR review note:</span> {latestVisibilityRequest.reviewNote}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <EmptyState
+                              surface="plain"
+                              title="No visibility requests yet"
+                              description="This employee has not submitted a public profile visibility request yet."
+                            />
+                          )
+                        ) : null}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => navigate(ROUTES.ADMIN_REQUESTS)}
+                        >
+                          Open Request Center
+                        </Button>
                       </>
                     ) : null}
                   </CardContent>

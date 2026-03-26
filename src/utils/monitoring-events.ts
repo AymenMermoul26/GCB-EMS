@@ -174,6 +174,27 @@ const ACTION_META: Record<string, MonitoringActionMeta> = {
     categoryKey: 'visibility',
     tone: 'emerald',
   },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_SUBMITTED: {
+    label: 'Visibility Request Submitted',
+    categoryKey: 'visibility',
+    tone: 'amber',
+  },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_IN_REVIEW: {
+    label: 'Visibility Request In Review',
+    categoryKey: 'visibility',
+    tone: 'slate',
+  },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_APPROVED: {
+    label: 'Visibility Request Approved',
+    categoryKey: 'visibility',
+    tone: 'emerald',
+  },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_REJECTED: {
+    label: 'Visibility Request Rejected',
+    categoryKey: 'visibility',
+    tone: 'rose',
+    critical: true,
+  },
   PAYROLL_EXPORT_GENERATED: {
     label: 'Payroll Export Generated',
     categoryKey: 'payroll',

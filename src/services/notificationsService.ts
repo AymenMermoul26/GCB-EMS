@@ -5,6 +5,7 @@
   type UseMutationOptions,
 } from '@tanstack/react-query'
 
+import { ROUTES } from '@/constants/routes'
 import { supabase } from '@/lib/supabaseClient'
 import type {
   NotificationItem,
@@ -39,6 +40,9 @@ export interface ListMyNotificationsOptions {
 }
 
 export const QR_REFRESH_NOTIFICATION_TITLE = 'QR refresh required'
+export const EMPLOYEE_QR_NOTIFICATION_SCOPE = 'employee_qr_profile'
+export const EMPLOYEE_PUBLIC_PROFILE_NOTIFICATION_SCOPE =
+  'employee_public_profile_visibility_request'
 
 export interface NotifyAdminsQrRefreshPayload {
   employeId: string
@@ -49,6 +53,13 @@ export interface NotifyAdminsQrRefreshResponse {
   ok: boolean
   admins_notified: number
   deduped: number
+}
+
+export interface NotifyEmployeeQrLifecyclePayload {
+  userId: string
+  employeId: string
+  tokenId: string
+  event: 'generated' | 'updated'
 }
 
 function getQrRefreshNotificationLink(employeId: string) {
@@ -77,6 +88,66 @@ function mapNotification(row: NotificationRow): NotificationItem {
     updatedAt: row.updated_at,
     metadataJson: row.metadata_json ?? null,
   }
+}
+
+async function upsertUnreadScopedNotification(
+  payload: CreateNotificationPayload & {
+    scope: string
+    dedupeKey: string
+  },
+): Promise<NotificationItem> {
+  const metadataJson = {
+    ...(payload.metadataJson ?? {}),
+    scope: payload.scope,
+    dedupe_key: payload.dedupeKey,
+  } satisfies NotificationMetadata
+
+  const { data: existingRows, error: existingError } = await supabase
+    .from('notifications')
+    .select('id, user_id, title, body, link, is_read, created_at, updated_at, metadata_json')
+    .eq('user_id', payload.userId)
+    .eq('is_read', false)
+    .eq('metadata_json->>scope', payload.scope)
+    .eq('metadata_json->>dedupe_key', payload.dedupeKey)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .returns<NotificationRow[]>()
+
+  if (existingError) {
+    throw new Error(existingError.message)
+  }
+
+  const existing = existingRows?.[0]
+
+  if (!existing) {
+    return createNotification({
+      userId: payload.userId,
+      title: payload.title,
+      body: payload.body,
+      link: payload.link,
+      metadataJson,
+    })
+  }
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({
+      title: payload.title,
+      body: payload.body,
+      link: payload.link ?? null,
+      metadata_json: metadataJson,
+      is_read: false,
+    })
+    .eq('id', existing.id)
+    .eq('user_id', payload.userId)
+    .select('id, user_id, title, body, link, is_read, created_at, updated_at, metadata_json')
+    .single<NotificationRow>()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return mapNotification(data)
 }
 
 async function listMyNotificationsInternal(
@@ -204,6 +275,35 @@ export async function createNotifications(
   if (error) {
     throw new Error(error.message)
   }
+}
+
+export async function notifyEmployeeQrLifecycle(
+  payload: NotifyEmployeeQrLifecyclePayload,
+): Promise<NotificationItem> {
+  const notificationCopy =
+    payload.event === 'generated'
+      ? {
+          title: 'QR code generated',
+          body: 'Your QR code has been generated and is ready to use.',
+        }
+      : {
+          title: 'QR code updated',
+          body: 'Your QR code has been updated. Use the latest QR code for your public profile.',
+        }
+
+  return upsertUnreadScopedNotification({
+    userId: payload.userId,
+    title: notificationCopy.title,
+    body: notificationCopy.body,
+    link: ROUTES.EMPLOYEE_MY_QR,
+    scope: EMPLOYEE_QR_NOTIFICATION_SCOPE,
+    dedupeKey: payload.employeId,
+    metadataJson: {
+      event_key: payload.event === 'generated' ? 'QR_GENERATED' : 'QR_UPDATED',
+      employe_id: payload.employeId,
+      token_id: payload.tokenId,
+    },
+  })
 }
 
 export async function markNotificationRead(id: string): Promise<NotificationItem> {
@@ -423,10 +523,12 @@ export const notificationsService = {
   countUnreadMyNotifications,
   createNotification,
   createNotifications,
+  notifyEmployeeQrLifecycle,
   markNotificationRead,
   markAllMyNotificationsRead,
   notifyAdminsQrRefreshRequired,
   hasUnreadQrRefreshForEmployee,
   markUnreadQrRefreshForEmployeeRead,
 }
+
 

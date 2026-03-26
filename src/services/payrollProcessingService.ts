@@ -9,6 +9,7 @@ import {
 import { supabase } from '@/lib/supabaseClient'
 import { auditService } from '@/services/auditService'
 import { getPayrollEmployeeExportRows } from '@/services/payrollExportsService'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   CreatePayrollPeriodPayload,
   CreatePayrollRunPayload,
@@ -410,7 +411,7 @@ function mapPayrollRunEmployeeEntry(row: PayrollRunEmployeeEntryRow): PayrollRun
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
-    departementNom: normalizeText(row.departement_nom),
+    departementNom: getDepartmentDisplayName(normalizeText(row.departement_nom)),
     poste: normalizeText(row.poste),
     categorieProfessionnelle: normalizeText(row.categorie_professionnelle),
     typeContrat: normalizeText(row.type_contrat),
@@ -447,7 +448,7 @@ function mapPayrollCompensationProfile(
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
-    departementNom: normalizeText(row.departement_nom),
+    departementNom: getDepartmentDisplayName(normalizeText(row.departement_nom)),
     poste: normalizeText(row.poste),
     categorieProfessionnelle: normalizeText(row.categorie_professionnelle),
     typeContrat: normalizeText(row.type_contrat),

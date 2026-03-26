@@ -8,6 +8,7 @@ import {
 
 import { supabase } from '@/lib/supabaseClient'
 import { auditService } from '@/services/auditService'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   AvailablePayslipDocumentItem,
   CreatePayslipRequestPayload,
@@ -272,7 +273,7 @@ function mapPayrollPayslipRequest(row: PayrollPayslipRequestRow): PayrollPayslip
     employeNom: row.employe_nom,
     employePrenom: row.employe_prenom,
     employeEmail: normalizeText(row.employe_email),
-    departementNom: normalizeText(row.departement_nom),
+    departementNom: getDepartmentDisplayName(normalizeText(row.departement_nom)),
     payrollPeriodId: row.payroll_period_id,
     payrollPeriodCode: row.payroll_period_code,
     payrollPeriodLabel: row.payroll_period_label,

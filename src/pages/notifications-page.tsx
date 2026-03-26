@@ -51,6 +51,28 @@ interface NotificationGroup {
   items: NotificationItem[]
 }
 
+function getNotificationSurfaceClass(isUnread: boolean): string {
+  return isUnread
+    ? 'border-rose-300 bg-gradient-to-r from-rose-700 to-red-600 text-white shadow-[0_18px_35px_-25px_rgba(190,24,93,0.7)]'
+    : 'bg-background'
+}
+
+function getNotificationTitleClass(isUnread: boolean): string {
+  return isUnread ? 'font-semibold text-white' : 'font-medium text-slate-700'
+}
+
+function getNotificationBodyClass(isUnread: boolean): string {
+  return isUnread ? 'text-sm text-rose-50/95' : 'text-sm text-muted-foreground'
+}
+
+function getNotificationTimeClass(isUnread: boolean): string {
+  return isUnread ? 'text-xs text-rose-100/90' : 'text-xs text-muted-foreground'
+}
+
+function getNotificationIndicatorClass(isUnread: boolean): string {
+  return isUnread ? 'bg-white/90 shadow-sm' : 'bg-muted-foreground/40'
+}
+
 function getGroupLabel(createdAt: string): NotificationGroupLabel {
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -186,7 +208,7 @@ export function NotificationsPage() {
         badges={
           <>
             <StatusBadge tone="neutral">Total {totalCount}</StatusBadge>
-            <StatusBadge tone="warning">Unread {unreadCount}</StatusBadge>
+            <StatusBadge tone="danger" emphasis="solid">Unread {unreadCount}</StatusBadge>
           </>
         }
         actions={
@@ -304,10 +326,11 @@ export function NotificationsPage() {
                             tabIndex={notification.link ? 0 : -1}
                             className={cn(
                               'rounded-xl border p-4 transition-colors',
-                              notification.link && 'cursor-pointer hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring',
-                              isUnread
-                                ? 'bg-muted/40 border-l-4 border-l-[#ff6b35]'
-                                : 'bg-background',
+                              notification.link &&
+                                (isUnread
+                                  ? 'cursor-pointer hover:brightness-[1.03] focus:outline-none focus:ring-2 focus:ring-rose-300'
+                                  : 'cursor-pointer hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring'),
+                              getNotificationSurfaceClass(isUnread),
                             )}
                             onClick={() => navigateToNotificationLink(notification)}
                             onKeyDown={(event) => {
@@ -326,27 +349,23 @@ export function NotificationsPage() {
                                 <span
                                   className={cn(
                                     'mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full',
-                                    isUnread
-                                      ? 'bg-gradient-to-br from-[#ff6b35] to-[#ffc947]'
-                                      : 'bg-muted-foreground/40',
+                                    getNotificationIndicatorClass(isUnread),
                                   )}
                                 />
 
                                 <div className="min-w-0 flex-1 space-y-1">
-                                  <p
-                                    className={cn(
-                                      'text-sm',
-                                      isUnread
-                                        ? 'font-semibold text-slate-900'
-                                        : 'font-medium text-slate-700',
-                                    )}
-                                  >
+                                  <p className={cn('text-sm', getNotificationTitleClass(isUnread))}>
                                     {notification.title}
                                   </p>
-                                  <p className="text-sm text-muted-foreground [display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                                  <p
+                                    className={cn(
+                                      '[display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
+                                      getNotificationBodyClass(isUnread),
+                                    )}
+                                  >
                                     {notification.body}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className={getNotificationTimeClass(isUnread)}>
                                     {formatRelativeTime(notification.createdAt)}
                                   </p>
                                 </div>
@@ -357,8 +376,8 @@ export function NotificationsPage() {
                                 onClick={(event) => event.stopPropagation()}
                               >
                                 <StatusBadge
-                                  tone={isUnread ? 'brand' : 'neutral'}
-                                  emphasis={isUnread ? 'outline' : 'soft'}
+                                  tone={isUnread ? 'danger' : 'neutral'}
+                                  emphasis={isUnread ? 'solid' : 'soft'}
                                 >
                                   {isUnread ? 'Unread' : 'Read'}
                                 </StatusBadge>
@@ -369,7 +388,11 @@ export function NotificationsPage() {
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      className="w-full sm:w-auto"
+                                      className={cn(
+                                        'w-full sm:w-auto',
+                                        isUnread &&
+                                          'border-white/60 bg-white/10 text-white hover:bg-white/20 hover:text-white',
+                                      )}
                                       disabled={markReadMutation.isPending && isMarkingThis}
                                       onClick={() => {
                                         void handleMarkAsRead(notification.id)
@@ -387,6 +410,7 @@ export function NotificationsPage() {
                                     onOpen={() => navigateToNotificationLink(notification)}
                                     onMarkRead={() => void handleMarkAsRead(notification.id)}
                                     isMarking={markReadMutation.isPending && isMarkingThis}
+                                    isUnread={isUnread}
                                   />
                                 </div>
                               </div>
@@ -472,6 +496,7 @@ interface NotificationRowMenuProps {
   onOpen: () => void
   onMarkRead: () => void
   isMarking: boolean
+  isUnread: boolean
 }
 
 function NotificationRowMenu({
@@ -479,6 +504,7 @@ function NotificationRowMenu({
   onOpen,
   onMarkRead,
   isMarking,
+  isUnread,
 }: NotificationRowMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -506,6 +532,7 @@ function NotificationRowMenu({
         type="button"
         size="icon"
         variant="ghost"
+        className={cn(isUnread && 'text-white hover:bg-white/15 hover:text-white')}
         aria-label={`Actions for notification ${notification.id}`}
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}

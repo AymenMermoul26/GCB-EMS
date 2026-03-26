@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   MonitoringCategory,
   MonitoringDashboardData,
@@ -1015,7 +1016,7 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
         : 'Employee information sheet email failed.'
     case 'PAYROLL_EXPORT_GENERATED': {
       const rowCount = readText(detailsJson.row_count)
-      const departmentName = readText(detailsJson.department_name)
+      const departmentName = getDepartmentDisplayName(readText(detailsJson.department_name))
       const status = readText(detailsJson.status)
       const typeContrat = readText(detailsJson.type_contrat)
       const scopeParts = [
@@ -1196,6 +1197,24 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
         ? `Public QR profile loaded with ${publicFieldsCount} visible field${publicFieldsCount === 1 ? '' : 's'}.`
         : 'Public QR profile was viewed successfully.'
     }
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_SUBMITTED': {
+      const requestedFieldKeys = readStringArray(detailsJson.requested_field_keys)
+      return requestedFieldKeys.length > 0
+        ? `Submitted visibility request for ${requestedFieldKeys.map(formatFieldLabel).join(', ')}.`
+        : 'Submitted a public profile visibility request.'
+    }
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_IN_REVIEW':
+      return 'Public profile visibility request moved to in review.'
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_APPROVED': {
+      const requestedFieldKeys = readStringArray(detailsJson.requested_field_keys)
+      return requestedFieldKeys.length > 0
+        ? `Approved visibility request for ${requestedFieldKeys.map(formatFieldLabel).join(', ')}.`
+        : 'Approved a public profile visibility request.'
+    }
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_REJECTED':
+      return readText(detailsJson.review_note)
+        ? `Rejected public profile visibility request: ${readText(detailsJson.review_note)}`
+        : 'Rejected a public profile visibility request.'
     case 'VISIBILITY_UPDATED':
       return fieldKey
         ? `${formatFieldLabel(fieldKey)} visibility was updated.`
@@ -1263,6 +1282,10 @@ function formatTargetLabel(
 
   if (row.target_type === 'employee_visibility') {
     return 'Employee visibility settings'
+  }
+
+  if (row.target_type === 'PublicProfileVisibilityRequest') {
+    return 'Public profile visibility request'
   }
 
   if (row.target_type === 'payroll_export') {

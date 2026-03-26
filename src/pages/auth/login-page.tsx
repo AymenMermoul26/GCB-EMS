@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +29,10 @@ const COMPANY_NAME_FULL =
 interface LocationState {
   from?: {
     pathname?: string
+  }
+  authNotice?: {
+    type: 'success' | 'info'
+    message: string
   }
 }
 
@@ -165,6 +169,15 @@ export function LoginPage() {
           </CardHeader>
 
           <CardContent className="space-y-5">
+            {state?.authNotice ? (
+              <div
+                role="status"
+                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+              >
+                {state.authNotice.message}
+              </div>
+            ) : null}
+
             {signInMutation.error ? (
               <div
                 role="alert"
@@ -220,6 +233,17 @@ export function LoginPage() {
                     {form.formState.errors.password.message}
                   </p>
                 ) : null}
+
+                <div className="flex justify-end">
+                  <Button
+                    asChild
+                    type="button"
+                    variant="link"
+                    className="h-auto px-0 text-sm font-medium text-[#ff6b35]"
+                  >
+                    <Link to={ROUTES.FORGOT_PASSWORD}>Forgot password?</Link>
+                  </Button>
+                </div>
               </div>
 
               <Button

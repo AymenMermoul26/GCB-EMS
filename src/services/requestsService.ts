@@ -17,6 +17,7 @@ import type {
   RequestsListResponse,
   SubmitModificationRequestPayload,
 } from '@/types/modification-request'
+import { getDepartmentDisplayName } from '@/types/department'
 
 const REQUEST_SELECT =
   'id, employe_id, demandeur_user_id, champ_cible, ancienne_valeur, nouvelle_valeur, motif, statut_demande, traite_par_user_id, traite_at, commentaire_traitement, created_at, updated_at'
@@ -138,7 +139,10 @@ async function enrichRequestsWithEmployeeInfo(
     }
 
     for (const department of departmentRows ?? []) {
-      departmentMap.set(department.id, department.nom)
+      departmentMap.set(
+        department.id,
+        getDepartmentDisplayName(department.nom) ?? department.nom,
+      )
     }
   }
 

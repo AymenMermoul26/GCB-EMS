@@ -57,6 +57,7 @@ import { ROUTES } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useRole } from '@/hooks/use-role'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
+import { cn } from '@/lib/utils'
 import { useMyRequestsQuery } from '@/services/requestsService'
 import type { DemandeStatut, ModificationRequest } from '@/types/modification-request'
 import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
@@ -89,6 +90,18 @@ function getStatusMeta(status: DemandeStatut): {
     icon: Clock3,
     tone: 'warning',
   }
+}
+
+function getRequestSurfaceClass(status: DemandeStatut): string {
+  if (status === 'ACCEPTEE') {
+    return 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-50'
+  }
+
+  if (status === 'REJETEE') {
+    return 'border-rose-200 bg-rose-50/80 hover:bg-rose-50'
+  }
+
+  return 'border-amber-200 bg-amber-50/90 hover:bg-amber-100/80'
 }
 
 function formatDateTime(value: string | null): string {
@@ -172,7 +185,7 @@ export function EmployeeRequestsPage() {
             <StatusBadge tone="neutral" emphasis="outline">
               Total {requestsQuery.data?.total ?? requests.length}
             </StatusBadge>
-            <StatusBadge tone="warning" emphasis="outline">
+            <StatusBadge tone="warning" emphasis="solid">
               Pending {pendingCount}
             </StatusBadge>
           </>
@@ -304,17 +317,17 @@ export function EmployeeRequestsPage() {
                         return (
                           <TableRow
                             key={request.id}
-                            className="cursor-pointer"
+                            className={cn('cursor-pointer transition-colors', getRequestSurfaceClass(request.statutDemande))}
                             onClick={() => setSelectedRequest(request)}
                           >
                             <TableCell>{formatDateTime(request.createdAt)}</TableCell>
                             <TableCell className="max-w-[420px]">
-                              <p className="line-clamp-2 text-sm text-slate-700">
+                              <p className="line-clamp-2 text-sm text-slate-800">
                                 {buildRequestSummary(request)}
                               </p>
                             </TableCell>
                             <TableCell>
-                              <StatusBadge tone={statusMeta.tone} emphasis="outline">
+                              <StatusBadge tone={statusMeta.tone} emphasis="solid">
                                 <StatusIcon className="mr-1 h-3.5 w-3.5" />
                                 {statusMeta.label}
                               </StatusBadge>
@@ -348,18 +361,21 @@ export function EmployeeRequestsPage() {
                         key={request.id}
                         type="button"
                         onClick={() => setSelectedRequest(request)}
-                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))]"
+                        className={cn(
+                          'w-full rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))]',
+                          getRequestSurfaceClass(request.statutDemande),
+                        )}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-xs text-muted-foreground">
                               {formatDateTime(request.createdAt)}
                             </p>
-                            <p className="mt-1 line-clamp-2 text-sm text-slate-700">
+                            <p className="mt-1 line-clamp-2 text-sm text-slate-800">
                               {buildRequestSummary(request)}
                             </p>
                           </div>
-                          <StatusBadge tone={statusMeta.tone} emphasis="outline">
+                          <StatusBadge tone={statusMeta.tone} emphasis="solid">
                             <StatusIcon className="mr-1 h-3.5 w-3.5" />
                             {statusMeta.label}
                           </StatusBadge>
@@ -383,7 +399,7 @@ export function EmployeeRequestsPage() {
                   Request Details
                   <StatusBadge
                     tone={getStatusMeta(selectedRequest.statutDemande).tone}
-                    emphasis="outline"
+                    emphasis="solid"
                   >
                     {getStatusMeta(selectedRequest.statutDemande).label}
                   </StatusBadge>
@@ -448,7 +464,7 @@ export function EmployeeRequestsPage() {
                 ) : null}
 
                 {selectedRequest.statutDemande === 'REJETEE' ? (
-                  <Alert className="border-destructive/40 bg-destructive/5 text-destructive">
+                  <Alert className="border-rose-500 bg-rose-600 text-white">
                     <XCircle className="h-4 w-4" />
                     <AlertTitle>Rejected</AlertTitle>
                     <AlertDescription>

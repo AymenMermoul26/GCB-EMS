@@ -264,7 +264,7 @@ export const EMPLOYEE_FIELD_GOVERNANCE_RULES: EmployeeFieldGovernanceRule[] = [
       payroll_list: 'full',
       payroll_detail: 'full',
       payroll_export: 'full',
-      public_qr: 'hidden',
+      public_qr: 'partial',
     },
   },
   {
@@ -342,7 +342,7 @@ export const EMPLOYEE_FIELD_GOVERNANCE_RULES: EmployeeFieldGovernanceRule[] = [
       payroll_list: 'hidden',
       payroll_detail: 'hidden',
       payroll_export: 'hidden',
-      public_qr: 'hidden',
+      public_qr: 'partial',
     },
   },
   {
@@ -355,7 +355,7 @@ export const EMPLOYEE_FIELD_GOVERNANCE_RULES: EmployeeFieldGovernanceRule[] = [
       payroll_list: 'hidden',
       payroll_detail: 'hidden',
       payroll_export: 'hidden',
-      public_qr: 'hidden',
+      public_qr: 'partial',
     },
   },
   {
@@ -368,7 +368,7 @@ export const EMPLOYEE_FIELD_GOVERNANCE_RULES: EmployeeFieldGovernanceRule[] = [
       payroll_list: 'hidden',
       payroll_detail: 'hidden',
       payroll_export: 'hidden',
-      public_qr: 'hidden',
+      public_qr: 'partial',
     },
   },
   {
@@ -447,6 +447,10 @@ export const PUBLIC_QR_VISIBILITY_FIELDS = [
   { key: 'photo_url', label: 'Photo' },
   { key: 'departement', label: 'Department' },
   { key: 'matricule', label: 'Employee ID' },
+  { key: 'categorie_professionnelle', label: 'Professional Category' },
+  { key: 'diplome', label: 'Degree' },
+  { key: 'specialite', label: 'Specialization' },
+  { key: 'universite', label: 'University' },
 ] as const
 
 export type PublicQrVisibilityFieldKey =

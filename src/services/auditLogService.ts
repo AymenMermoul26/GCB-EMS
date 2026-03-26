@@ -1,11 +1,16 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   AuditLogItem,
   AuditLogListResponse,
   ListAuditLogsParams,
 } from '@/types/audit-log'
+import {
+  EMPLOYEE_VISIBILITY_FIELD_LABELS,
+  isEmployeeVisibilityFieldKey,
+} from '@/types/visibility'
 
 interface AuditLogRow {
   id: string
@@ -78,6 +83,10 @@ function readStringArray(value: unknown): string[] {
 }
 
 function formatFieldLabel(value: string): string {
+  if (isEmployeeVisibilityFieldKey(value)) {
+    return EMPLOYEE_VISIBILITY_FIELD_LABELS[value]
+  }
+
   return value
     .replaceAll('_', ' ')
     .replaceAll('-', ' ')
@@ -152,6 +161,7 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
         .filter((item): item is string => Boolean(item))
     : []
   const publicFields = readStringArray(detailsJson.public_fields)
+  const requestedFieldKeys = readStringArray(detailsJson.requested_field_keys)
 
   switch (action) {
     case 'EMPLOYEE_ACTIVATED':
@@ -273,12 +283,32 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
         ? `QR refresh required after updates to ${changedFields.map(formatFieldLabel).join(', ')}.`
         : 'Created a QR refresh alert.'
     case 'VISIBILITY_UPDATED':
+      if (
+        triggerSource === 'public_profile_visibility_request_approval' &&
+        publicFields.length > 0
+      ) {
+        return `Applied approved public profile visibility: ${publicFields.map(formatFieldLabel).join(', ')}.`
+      }
       return fieldKey
         ? `${formatFieldLabel(fieldKey)} visibility set to ${isPublic ? 'public' : 'private'}.`
         : 'Updated public profile visibility.'
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_SUBMITTED':
+      return requestedFieldKeys.length > 0
+        ? `Submitted public profile visibility request for ${requestedFieldKeys.map(formatFieldLabel).join(', ')}.`
+        : 'Submitted a public profile visibility request.'
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_IN_REVIEW':
+      return 'Marked a public profile visibility request as in review.'
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_APPROVED':
+      return requestedFieldKeys.length > 0
+        ? `Approved public profile visibility request for ${requestedFieldKeys.map(formatFieldLabel).join(', ')}.`
+        : 'Approved a public profile visibility request.'
+    case 'PUBLIC_PROFILE_VISIBILITY_REQUEST_REJECTED':
+      return readText(detailsJson.review_note)
+        ? `Rejected public profile visibility request: ${readText(detailsJson.review_note)}`
+        : 'Rejected a public profile visibility request.'
     case 'PAYROLL_EXPORT_GENERATED': {
       const rowCount = readText(detailsJson.row_count)
-      const departmentName = readText(detailsJson.department_name)
+      const departmentName = getDepartmentDisplayName(readText(detailsJson.department_name))
       const status = readText(detailsJson.status)
       const typeContrat = readText(detailsJson.type_contrat)
       const scopeParts = [
@@ -512,6 +542,10 @@ function formatTargetLabel(
     return 'Employee visibility settings'
   }
 
+  if (row.target_type === 'PublicProfileVisibilityRequest') {
+    return 'Public profile visibility request'
+  }
+
   if (row.target_type === 'payroll_export') {
     return 'Payroll export activity'
   }
@@ -591,10 +625,21 @@ export async function listLogs(
       throw new Error(requestRowsError.message)
     }
 
+    const { data: visibilityRequestRows, error: visibilityRequestRowsError } = await supabase
+      .from('PublicProfileVisibilityRequest')
+      .select('id')
+      .in('employe_id', scopedEmployeeIds)
+      .returns<ModificationRequestLookupRow[]>()
+
+    if (visibilityRequestRowsError) {
+      throw new Error(visibilityRequestRowsError.message)
+    }
+
     scopedTargetIds = [
       ...new Set([
         ...scopedEmployeeIds,
         ...(requestRows ?? []).map((request) => request.id),
+        ...(visibilityRequestRows ?? []).map((request) => request.id),
       ]),
     ]
   }

@@ -18,6 +18,12 @@ import {
 } from '@/services/notificationsService'
 import { formatRelativeTime } from '@/utils/date'
 
+function getMenuNotificationSurfaceClass(isUnread: boolean): string {
+  return isUnread
+    ? 'border-rose-300 bg-gradient-to-r from-rose-700 to-red-600 text-white shadow-[0_18px_35px_-25px_rgba(190,24,93,0.7)]'
+    : 'bg-white'
+}
+
 export function NotificationsMenu() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -104,7 +110,8 @@ export function NotificationsMenu() {
         <Bell className="h-5 w-5" />
         {unreadCount > 0 ? (
           <StatusBadge
-            tone="brand"
+            tone="danger"
+            emphasis="solid"
             className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-[10px] text-white"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -122,7 +129,7 @@ export function NotificationsMenu() {
               </div>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 ? (
-                  <StatusBadge tone="brand" className="rounded-full text-white">
+                  <StatusBadge tone="danger" emphasis="solid" className="rounded-full text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </StatusBadge>
                 ) : null}
@@ -201,7 +208,13 @@ export function NotificationsMenu() {
                     key={notification.id}
                     role={notification.link ? 'button' : undefined}
                     tabIndex={notification.link ? 0 : -1}
-                    className={cn('rounded-xl border p-3 transition-colors', !notification.isRead ? 'border-slate-300 bg-muted/40' : 'bg-white')}
+                    className={cn(
+                      'rounded-xl border p-3 transition-colors',
+                      !notification.isRead
+                        ? 'cursor-pointer hover:brightness-[1.03] focus:outline-none focus:ring-2 focus:ring-rose-300'
+                        : '',
+                      getMenuNotificationSurfaceClass(!notification.isRead),
+                    )}
                     onClick={() => void handleItemOpen(notification.id, notification.link)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -216,7 +229,7 @@ export function NotificationsMenu() {
                           className={cn(
                             'mt-1 inline-flex h-2.5 w-2.5 rounded-full',
                             !notification.isRead
-                              ? 'bg-gradient-to-br from-[#ff6b35] to-[#ffc947]'
+                              ? 'bg-white/90 shadow-sm'
                               : 'bg-muted-foreground/40',
                           )}
                         />
@@ -224,15 +237,25 @@ export function NotificationsMenu() {
                           <p
                             className={cn(
                               'truncate text-sm',
-                              !notification.isRead ? 'font-semibold text-slate-900' : 'font-medium text-slate-700',
+                              !notification.isRead ? 'font-semibold text-white' : 'font-medium text-slate-700',
                             )}
                           >
                             {notification.title}
                           </p>
-                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                          <p
+                            className={cn(
+                              'line-clamp-2 text-xs',
+                              !notification.isRead ? 'text-rose-50/95' : 'text-muted-foreground',
+                            )}
+                          >
                             {notification.body}
                           </p>
-                          <p className="text-[11px] text-muted-foreground">
+                          <p
+                            className={cn(
+                              'text-[11px]',
+                              !notification.isRead ? 'text-rose-100/90' : 'text-muted-foreground',
+                            )}
+                          >
                             {formatRelativeTime(notification.createdAt)}
                           </p>
                         </div>
@@ -240,8 +263,8 @@ export function NotificationsMenu() {
 
                       <div className="flex flex-col items-end gap-2">
                         <StatusBadge
-                          tone={notification.isRead ? 'neutral' : 'brand'}
-                          emphasis={notification.isRead ? 'soft' : 'outline'}
+                          tone={notification.isRead ? 'neutral' : 'danger'}
+                          emphasis={notification.isRead ? 'soft' : 'solid'}
                           className="text-[10px]"
                         >
                           {notification.isRead ? 'Read' : 'Unread'}
@@ -251,6 +274,10 @@ export function NotificationsMenu() {
                             type="button"
                             variant="outline"
                             size="sm"
+                            className={cn(
+                              !notification.isRead &&
+                                'border-white/60 bg-white/10 text-white hover:bg-white/20 hover:text-white',
+                            )}
                             disabled={markReadMutation.isPending && markingId === notification.id}
                             onClick={(event) => {
                               event.stopPropagation()

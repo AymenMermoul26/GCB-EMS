@@ -6,12 +6,14 @@ import {
 } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
+import { notificationsService } from '@/services/notificationsService'
 import {
   getQrLifecycleContext,
   logQrIssued,
   logQrRevoked,
   type QrLifecycleContext,
 } from '@/services/qrAuditService'
+import { roleService } from '@/services/role.service'
 import type { TokenQR } from '@/types/token'
 
 interface TokenQRRow {
@@ -51,6 +53,8 @@ export async function generateOrRegenerateToken(
     console.error('Failed to load QR lifecycle audit context before issuing a token', error)
   }
 
+  const hadActiveToken = qrLifecycleContext?.activeToken != null
+
   const { error: revokeError } = await supabase
     .from('TokenQR')
     .update({ statut_token: 'REVOQUE' })
@@ -85,6 +89,21 @@ export async function generateOrRegenerateToken(
     nextToken: data,
     triggerSource: 'admin_visibility_configuration',
   })
+
+  try {
+    const recipientUserId = await roleService.getUserIdByEmployeId(employeId)
+
+    if (recipientUserId) {
+      await notificationsService.notifyEmployeeQrLifecycle({
+        userId: recipientUserId,
+        employeId,
+        tokenId: data.id,
+        event: hadActiveToken ? 'updated' : 'generated',
+      })
+    }
+  } catch (notificationError) {
+    console.error('Failed to notify employee about QR lifecycle changes', notificationError)
+  }
 
   return mapToken(data)
 }

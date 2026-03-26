@@ -365,13 +365,13 @@ function PayrollSidebarContent({
                 {item.label}
               </span>
               {badgeCount > 0 && !compactMode ? (
-                <StatusBadge tone="brand" className="relative z-10 ml-2 text-white">
+                <StatusBadge tone="danger" emphasis="solid" className="relative z-10 ml-2 text-white">
                   {badgeCount}
                 </StatusBadge>
               ) : null}
               {badgeCount > 0 && compactMode ? (
                 <span
-                  className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[rgb(var(--brand-primary))]"
+                  className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-rose-500"
                   aria-hidden="true"
                 />
               ) : null}

@@ -32,6 +32,7 @@ import {
 import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/utils'
 import { usePendingRequestsCountQuery } from '@/services/requestsService'
+import { usePendingPublicProfileVisibilityRequestsCountQuery } from '@/services/visibilityService'
 
 const SIDEBAR_COLLAPSE_STORAGE_KEY = 'gcb.admin.sidebar.collapsed'
 const SIDEBAR_LAST_ACTIVE_INDEX_STORAGE_KEY = 'gcb.admin.sidebar.last-active-index'
@@ -164,7 +165,9 @@ function AdminSidebarContent({
     }
   })
   const pendingRequestsCountQuery = usePendingRequestsCountQuery(true)
-  const pendingRequestsCount = pendingRequestsCountQuery.data ?? 0
+  const pendingVisibilityRequestsCountQuery = usePendingPublicProfileVisibilityRequestsCountQuery(true)
+  const pendingRequestsCount =
+    (pendingRequestsCountQuery.data ?? 0) + (pendingVisibilityRequestsCountQuery.data ?? 0)
 
   useEffect(() => {
     if (isMobile) {

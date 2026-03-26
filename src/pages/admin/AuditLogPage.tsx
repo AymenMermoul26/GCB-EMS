@@ -172,6 +172,27 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     category: 'Public Profile',
     tone: 'slate',
   },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_SUBMITTED: {
+    label: 'Visibility Request Submitted',
+    category: 'Public Profile',
+    tone: 'amber',
+  },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_IN_REVIEW: {
+    label: 'Visibility Request In Review',
+    category: 'Public Profile',
+    tone: 'slate',
+  },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_APPROVED: {
+    label: 'Visibility Request Approved',
+    category: 'Public Profile',
+    tone: 'emerald',
+  },
+  PUBLIC_PROFILE_VISIBILITY_REQUEST_REJECTED: {
+    label: 'Visibility Request Rejected',
+    category: 'Public Profile',
+    tone: 'rose',
+    critical: true,
+  },
   PAYROLL_EXPORT_GENERATED: {
     label: 'Payroll Export Generated',
     category: 'Payroll',
@@ -283,6 +304,10 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'QR_REFRESH_COMPLETED', label: 'QR Refresh Completed' },
   { value: 'QR_REFRESH_REQUIRED_CREATED', label: 'QR Refresh Required' },
   { value: 'VISIBILITY_UPDATED', label: 'Visibility Updated' },
+  { value: 'PUBLIC_PROFILE_VISIBILITY_REQUEST_SUBMITTED', label: 'Visibility Request Submitted' },
+  { value: 'PUBLIC_PROFILE_VISIBILITY_REQUEST_IN_REVIEW', label: 'Visibility Request In Review' },
+  { value: 'PUBLIC_PROFILE_VISIBILITY_REQUEST_APPROVED', label: 'Visibility Request Approved' },
+  { value: 'PUBLIC_PROFILE_VISIBILITY_REQUEST_REJECTED', label: 'Visibility Request Rejected' },
   { value: 'PAYROLL_EXPORT_GENERATED', label: 'Payroll Export Generated' },
   { value: 'PAYROLL_EXPORT_PRINT_INITIATED', label: 'Payroll Sheet Print Initiated' },
   { value: 'PAYROLL_PERIOD_CREATED', label: 'Payroll Period Created' },
@@ -396,6 +421,10 @@ function getEntityLabel(targetType: string): string {
 
   if (targetType === 'employee_visibility') {
     return 'Visibility'
+  }
+
+  if (targetType === 'PublicProfileVisibilityRequest') {
+    return 'Visibility request'
   }
 
   if (targetType === 'payroll_export') {

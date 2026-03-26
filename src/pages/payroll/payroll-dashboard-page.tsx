@@ -36,6 +36,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import { cn } from '@/lib/utils'
 import { usePayrollEmployeesQuery } from '@/services/payrollEmployeesService'
 import {
   formatPayrollChangedFieldsPreview,
@@ -110,6 +111,12 @@ function formatDistributionShare(value: number, total: number): string {
   }
 
   return `${Math.round((value / total) * 100)}%`
+}
+
+function getUnreadPayrollSurfaceClass(isUnread: boolean): string {
+  return isUnread
+    ? 'border-rose-300 bg-gradient-to-r from-rose-700 to-red-600 text-white shadow-[0_18px_35px_-25px_rgba(190,24,93,0.7)]'
+    : 'border-slate-200/80 bg-slate-50/80'
 }
 
 function countDistinctValues(
@@ -455,27 +462,65 @@ function DashboardRecentChangesCard({
               return (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4"
+                  className={cn(
+                    'rounded-2xl border p-4',
+                    getUnreadPayrollSurfaceClass(!item.isRead),
+                  )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge tone={categoryMeta.tone}>{categoryMeta.label}</StatusBadge>
-                    {!item.isRead ? <StatusBadge tone="brand">Unread</StatusBadge> : null}
+                    {!item.isRead ? (
+                      <StatusBadge tone="danger" emphasis="solid">
+                        Unread
+                      </StatusBadge>
+                    ) : null}
                   </div>
-                  <p className="mt-3 text-sm font-semibold text-slate-950">
+                  <p
+                    className={cn(
+                      'mt-3 text-sm font-semibold',
+                      item.isRead ? 'text-slate-950' : 'text-white',
+                    )}
+                  >
                     {item.employeeName ?? 'Employee change'}
                   </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{item.summary}</p>
+                  <p
+                    className={cn(
+                      'mt-1 text-sm leading-6',
+                      item.isRead ? 'text-slate-600' : 'text-rose-50/95',
+                    )}
+                  >
+                    {item.summary}
+                  </p>
                   {changedFieldsPreview ? (
-                    <p className="mt-2 text-xs text-slate-500">
+                    <p
+                      className={cn(
+                        'mt-2 text-xs',
+                        item.isRead ? 'text-slate-500' : 'text-rose-100/90',
+                      )}
+                    >
                       Changed fields: {changedFieldsPreview}
                     </p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs text-slate-500" title={formatTimestamp(item.createdAt)}>
+                    <p
+                      className={cn(
+                        'text-xs',
+                        item.isRead ? 'text-slate-500' : 'text-rose-100/90',
+                      )}
+                      title={formatTimestamp(item.createdAt)}
+                    >
                       {formatRelativeDate(item.createdAt)}
                     </p>
                     {item.link ? (
-                      <Button asChild size="sm" variant="outline">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        className={cn(
+                          !item.isRead &&
+                            'border-white/60 bg-white/10 text-white hover:bg-white/20 hover:text-white',
+                        )}
+                      >
                         <Link to={item.link}>
                           Open employee
                           <ArrowRight className="ml-2 h-4 w-4" />
@@ -759,7 +804,10 @@ export function PayrollDashboardPage() {
             <StatusBadge tone="neutral" emphasis="outline">
               Controlled workflow
             </StatusBadge>
-            <StatusBadge tone="brand">
+            <StatusBadge
+              tone={(unreadPayrollChangesCount ?? 0) > 0 ? 'danger' : 'neutral'}
+              emphasis={(unreadPayrollChangesCount ?? 0) > 0 ? 'solid' : 'outline'}
+            >
               {unreadPayrollChangesCount === null
                 ? 'Unread changes'
                 : `${unreadPayrollChangesCount} unread changes`}

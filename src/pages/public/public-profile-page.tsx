@@ -23,7 +23,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ROUTES } from '@/constants/routes'
 import { usePublicProfile } from '@/hooks/use-public-profile'
-import { getEmployeePosteLabel } from '@/types/employee'
+import { getDepartmentDisplayName } from '@/types/department'
+import {
+  getEmployeeCategorieProfessionnelleLabel,
+  getEmployeeDiplomeLabel,
+  getEmployeePosteLabel,
+  getEmployeeSpecialiteLabel,
+  getEmployeeUniversiteLabel,
+} from '@/types/employee'
 import { PUBLIC_PROFILE_FIELD_KEYS, type PublicProfile } from '@/types/profile'
 import { copyTextToClipboard } from '@/utils/clipboard'
 
@@ -76,7 +83,7 @@ function getInitials(fullName: string): string {
 
 function buildSections(profile: PublicProfile): InfoSection[] {
   const professionalRows: InfoRow[] = []
-  const contactRows: InfoRow[] = []
+  const educationRows: InfoRow[] = []
   const identityRows: InfoRow[] = []
 
   if (hasText(profile.poste)) {
@@ -86,24 +93,40 @@ function buildSections(profile: PublicProfile): InfoSection[] {
     })
   }
 
+  if (hasText(profile.categorie_professionnelle)) {
+    professionalRows.push({
+      label: 'Professional Category',
+      value: formatValue(
+        getEmployeeCategorieProfessionnelleLabel(profile.categorie_professionnelle),
+      ),
+    })
+  }
+
   if (hasText(profile.departement)) {
     professionalRows.push({
       label: 'Department',
-      value: formatValue(profile.departement),
+      value: formatValue(getDepartmentDisplayName(profile.departement)),
     })
   }
 
-  if (hasText(profile.email)) {
-    contactRows.push({
-      label: 'Professional Email',
-      value: formatValue(profile.email),
+  if (hasText(profile.diplome)) {
+    educationRows.push({
+      label: 'Degree',
+      value: formatValue(getEmployeeDiplomeLabel(profile.diplome)),
     })
   }
 
-  if (hasText(profile.telephone)) {
-    contactRows.push({
-      label: 'Professional Phone',
-      value: formatValue(profile.telephone),
+  if (hasText(profile.specialite)) {
+    educationRows.push({
+      label: 'Specialization',
+      value: formatValue(getEmployeeSpecialiteLabel(profile.specialite)),
+    })
+  }
+
+  if (hasText(profile.universite)) {
+    educationRows.push({
+      label: 'University',
+      value: formatValue(getEmployeeUniversiteLabel(profile.universite)),
     })
   }
 
@@ -122,10 +145,10 @@ function buildSections(profile: PublicProfile): InfoSection[] {
       rows: professionalRows,
     },
     {
-      id: 'contact',
-      title: 'Contact Information',
-      description: 'Official contact details currently shared through EMS.',
-      rows: contactRows,
+      id: 'education',
+      title: 'Education & Career Background',
+      description: 'Academic and qualification details approved for public display.',
+      rows: educationRows,
     },
     {
       id: 'identity',
@@ -234,7 +257,10 @@ export function PublicProfilePage() {
   const profile = data?.profile ?? null
   const fullName = useMemo(() => buildFullName(profile), [profile])
   const position = formatValue(getEmployeePosteLabel(profile?.poste))
-  const department = formatValue(profile?.departement)
+  const professionalCategory = formatValue(
+    getEmployeeCategorieProfessionnelleLabel(profile?.categorie_professionnelle),
+  )
+  const department = formatValue(getDepartmentDisplayName(profile?.departement))
   const employeeId = formatValue(profile?.matricule)
   const email = formatValue(profile?.email)
   const telephone = formatValue(profile?.telephone)
@@ -357,7 +383,11 @@ export function PublicProfilePage() {
                     <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
                       {fullName}
                     </h2>
-                    {position ? <p className="mt-2 text-lg text-slate-600">{position}</p> : null}
+                    {position ? (
+                      <p className="mt-2 text-lg text-slate-600">{position}</p>
+                    ) : professionalCategory ? (
+                      <p className="mt-2 text-lg text-slate-600">{professionalCategory}</p>
+                    ) : null}
                     <p className="mt-1 text-sm font-medium text-slate-500">GCB</p>
                   </div>
                 </div>
@@ -373,6 +403,11 @@ export function PublicProfilePage() {
                     <Badge className="border-transparent bg-slate-100 text-slate-700">
                       <Building2 className="mr-1.5 h-3.5 w-3.5" />
                       {department}
+                    </Badge>
+                  ) : null}
+                  {professionalCategory ? (
+                    <Badge className="border-transparent bg-slate-100 text-slate-700">
+                      {professionalCategory}
                     </Badge>
                   ) : null}
                   {employeeId ? (

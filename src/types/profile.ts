@@ -23,6 +23,10 @@ export interface PublicProfile {
   nom?: string | null
   prenom?: string | null
   poste?: string | null
+  categorie_professionnelle?: string | null
+  diplome?: string | null
+  specialite?: string | null
+  universite?: string | null
   email?: string | null
   telephone?: string | null
   photo_url?: string | null

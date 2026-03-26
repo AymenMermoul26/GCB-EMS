@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import type { Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import {
   createContext,
   type PropsWithChildren,
@@ -27,6 +27,7 @@ interface AuthContextValue {
   role: AppRole | null
   employeId: string | null
   mustChangePassword: boolean
+  passwordRecoveryActive: boolean
   isLoading: boolean
   isAuthenticated: boolean
   signIn: (credentials: LoginInput) => Promise<RoleInfo>
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [role, setRole] = useState<AppRole | null>(null)
   const [employeId, setEmployeId] = useState<string | null>(null)
   const [mustChangePassword, setMustChangePassword] = useState(false)
+  const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const applyRole = useCallback((roleInfo: RoleInfo | null) => {
@@ -60,6 +62,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const nextUser = nextUserOverride ?? nextSession?.user ?? null
     setUser(nextUser)
     setMustChangePassword(readMustChangePassword(nextUser))
+  }, [])
+
+  const applyAuthEvent = useCallback((event: AuthChangeEvent, nextSession: Session | null) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      setPasswordRecoveryActive(true)
+      return
+    }
+
+    if (!nextSession || event === 'SIGNED_OUT') {
+      setPasswordRecoveryActive(false)
+    }
   }, [])
 
   const resolveAndCacheRole = useCallback(
@@ -84,6 +97,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const nextSession = await getSession()
     const nextUser = nextSession ? await getCurrentUser() : null
     applySession(nextSession, nextUser)
+    if (!nextSession) {
+      setPasswordRecoveryActive(false)
+    }
     await resolveAndCacheRole(nextUser?.id ?? nextSession?.user.id ?? null)
   }, [applySession, resolveAndCacheRole])
 
@@ -110,7 +126,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     void bootstrap()
 
-    const unsubscribe = subscribeToAuthChanges((_event, nextSession) => {
+    const unsubscribe = subscribeToAuthChanges((event, nextSession) => {
+      applyAuthEvent(event, nextSession)
       applySession(nextSession)
       void resolveAndCacheRole(nextSession?.user.id ?? null)
     })
@@ -119,13 +136,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       mounted = false
       unsubscribe()
     }
-  }, [applySession, resolveAndCacheRole])
+  }, [applyAuthEvent, applySession, resolveAndCacheRole])
 
   const signIn = useCallback(
     async (credentials: LoginInput) => {
       setIsLoading(true)
       try {
         const nextSession = await signInWithPassword(credentials)
+        setPasswordRecoveryActive(false)
         applySession(nextSession)
 
         const roleInfo = await resolveAndCacheRole(nextSession?.user.id ?? null)
@@ -146,6 +164,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setIsLoading(true)
     try {
       await signOutRequest()
+      setPasswordRecoveryActive(false)
       applySession(null)
       applyRole(null)
     } finally {
@@ -160,6 +179,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       role,
       employeId,
       mustChangePassword,
+      passwordRecoveryActive,
       isLoading,
       isAuthenticated: Boolean(session?.user),
       signIn,
@@ -173,6 +193,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       role,
       employeId,
       mustChangePassword,
+      passwordRecoveryActive,
       isLoading,
       signIn,
       signOut,

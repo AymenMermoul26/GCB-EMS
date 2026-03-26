@@ -1,5 +1,7 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 
+import { env } from '@/config/env'
+import { ROUTES } from '@/constants/routes'
 import { supabase } from '@/lib/supabaseClient'
 import type { LoginInput } from '@/schemas/auth/login.schema'
 import type {
@@ -69,6 +71,18 @@ export function subscribeToAuthChanges(
   }
 }
 
+function getPasswordResetRedirectUrl(): string {
+  const baseUrl =
+    env.VITE_PUBLIC_BASE_URL ??
+    (typeof window !== 'undefined' ? window.location.origin : null)
+
+  if (!baseUrl) {
+    throw new Error('Unable to determine the password reset redirect URL.')
+  }
+
+  return new URL(ROUTES.RESET_PASSWORD, baseUrl).toString()
+}
+
 async function clearMustChangePasswordFlag(): Promise<void> {
   const { data, error } = await supabase.functions.invoke<{
     ok: boolean
@@ -83,6 +97,16 @@ async function clearMustChangePasswordFlag(): Promise<void> {
 
   if (!data?.ok) {
     throw new Error('Unable to finalize password change.')
+  }
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: getPasswordResetRedirectUrl(),
+  })
+
+  if (error) {
+    throw new Error(error.message)
   }
 }
 
@@ -156,6 +180,35 @@ export async function setPasswordOnFirstLogin(
   }
 }
 
+export async function resetPasswordWithRecovery(
+  payload: Pick<FirstLoginSetPasswordFormValues, 'newPassword'>,
+): Promise<void> {
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: payload.newPassword,
+  })
+
+  if (updateError) {
+    const normalizedMessage = updateError.message.toLowerCase()
+
+    if (
+      normalizedMessage.includes('reauthentication') ||
+      normalizedMessage.includes('session')
+    ) {
+      throw new Error('Reset link is invalid or expired. Request a new password reset email.')
+    }
+
+    throw new Error(updateError.message)
+  }
+
+  await clearMustChangePasswordFlag()
+
+  const { error: refreshError } = await supabase.auth.refreshSession()
+
+  if (refreshError) {
+    throw new Error('Password updated, but session refresh failed. Please sign in again.')
+  }
+}
+
 export const authService = {
   signInWithPassword,
   signOut,
@@ -163,6 +216,8 @@ export const authService = {
   refreshSession,
   getCurrentUser,
   subscribeToAuthChanges,
+  requestPasswordReset,
   changePasswordWithReauth,
   setPasswordOnFirstLogin,
+  resetPasswordWithRecovery,
 }

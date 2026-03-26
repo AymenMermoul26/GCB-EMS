@@ -7,6 +7,7 @@ import {
 
 import { auditService } from '@/services/auditService'
 import { supabase } from '@/lib/supabaseClient'
+import { getDepartmentDisplayName } from '@/types/department'
 import {
   getEmployeeCategorieProfessionnelleLabel,
   getEmployeePosteLabel,
@@ -175,7 +176,7 @@ function mapPayrollEmployeeExportRow(
   return {
     id: row.id,
     departementId: row.departement_id,
-    departementNom: row.departement_nom ?? null,
+    departementNom: getDepartmentDisplayName(row.departement_nom) ?? null,
     regionalBranch: row.regional_branch ?? null,
     matricule: row.matricule,
     nom: row.nom,
@@ -255,7 +256,7 @@ function mapPayrollExportAuditRow(row: PayrollExportAuditRow): PayrollExportHist
     format: readText(detailsJson.format),
     search: readText(detailsJson.search),
     departmentId: readText(detailsJson.department_id),
-    departmentName: readText(detailsJson.department_name),
+    departmentName: getDepartmentDisplayName(readText(detailsJson.department_name)),
     regionalBranch: readText(detailsJson.regional_branch),
     status,
     typeContrat: readText(detailsJson.type_contrat),

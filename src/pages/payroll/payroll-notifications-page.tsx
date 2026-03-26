@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import { cn } from '@/lib/utils'
 import {
   formatPayrollChangedFieldsPreview,
   getPayrollNotificationCategoryMeta,
@@ -48,6 +49,24 @@ import type { PayrollNotificationItem } from '@/types/payroll'
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString()
+}
+
+function getPayrollNotificationSurfaceClass(isUnread: boolean): string {
+  return isUnread
+    ? 'border-rose-300 bg-gradient-to-r from-rose-700 to-red-600 text-white shadow-[0_18px_35px_-25px_rgba(190,24,93,0.7)]'
+    : SURFACE_CARD_CLASS_NAME
+}
+
+function getPayrollNotificationTitleClass(isUnread: boolean): string {
+  return isUnread ? 'text-white' : 'text-slate-950'
+}
+
+function getPayrollNotificationBodyClass(isUnread: boolean): string {
+  return isUnread ? 'text-rose-50/95' : 'text-slate-600'
+}
+
+function getPayrollNotificationMetaClass(isUnread: boolean): string {
+  return isUnread ? 'text-rose-100/90' : 'text-slate-500'
 }
 
 export function PayrollNotificationsPage() {
@@ -112,7 +131,10 @@ export function PayrollNotificationsPage() {
             <StatusBadge tone="neutral" emphasis="outline">
               Read-only feed
             </StatusBadge>
-            <StatusBadge tone="brand">
+            <StatusBadge
+              tone={(unreadCountQuery.data ?? 0) > 0 ? 'danger' : 'neutral'}
+              emphasis={(unreadCountQuery.data ?? 0) > 0 ? 'solid' : 'outline'}
+            >
               {unreadCountQuery.data ?? 0} unread
             </StatusBadge>
           </>
@@ -196,7 +218,7 @@ export function PayrollNotificationsPage() {
             return (
               <Card
                 key={notification.id}
-                className={`${SURFACE_CARD_CLASS_NAME} ${notification.isRead ? '' : 'border-[rgb(var(--brand-primary))]/25 bg-[rgb(var(--brand-primary))]/[0.03]'}`}
+                className={getPayrollNotificationSurfaceClass(!notification.isRead)}
               >
                 <CardContent className="p-5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -204,7 +226,9 @@ export function PayrollNotificationsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusBadge tone={categoryMeta.tone}>{categoryMeta.label}</StatusBadge>
                         {!notification.isRead ? (
-                          <StatusBadge tone="brand">Unread</StatusBadge>
+                          <StatusBadge tone="danger" emphasis="solid">
+                            Unread
+                          </StatusBadge>
                         ) : (
                           <StatusBadge tone="neutral" emphasis="outline">
                             Read
@@ -213,13 +237,30 @@ export function PayrollNotificationsPage() {
                       </div>
 
                       <div className="mt-3 space-y-1">
-                        <p className="text-base font-semibold text-slate-950">
+                        <p
+                          className={cn(
+                            'text-base font-semibold',
+                            getPayrollNotificationTitleClass(!notification.isRead),
+                          )}
+                        >
                           {notification.employeeName ?? notification.title}
                         </p>
-                        <p className="text-sm leading-6 text-slate-600">{notification.summary}</p>
+                        <p
+                          className={cn(
+                            'text-sm leading-6',
+                            getPayrollNotificationBodyClass(!notification.isRead),
+                          )}
+                        >
+                          {notification.summary}
+                        </p>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+                      <div
+                        className={cn(
+                          'mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs',
+                          getPayrollNotificationMetaClass(!notification.isRead),
+                        )}
+                      >
                         <span>{formatTimestamp(notification.createdAt)}</span>
                         {notification.matricule ? (
                           <span className="font-mono">{notification.matricule}</span>
@@ -234,7 +275,11 @@ export function PayrollNotificationsPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="w-full sm:w-auto"
+                        className={cn(
+                          'w-full sm:w-auto',
+                          !notification.isRead &&
+                            'border-white/60 bg-white/10 text-white hover:bg-white/20 hover:text-white',
+                        )}
                         onClick={() => void handleInspectNotification(notification)}
                         disabled={markReadMutation.isPending}
                       >
@@ -280,7 +325,9 @@ export function PayrollNotificationsPage() {
                     {getPayrollNotificationCategoryMeta(selectedNotification.category).label}
                   </StatusBadge>
                   {!selectedNotification.isRead ? (
-                    <StatusBadge tone="brand">Unread</StatusBadge>
+                    <StatusBadge tone="danger" emphasis="solid">
+                      Unread
+                    </StatusBadge>
                   ) : (
                     <StatusBadge tone="neutral" emphasis="outline">
                       Read

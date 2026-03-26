@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   PayrollEmployeeDetail,
   PayrollEmployeeListFilters,
@@ -56,7 +57,7 @@ function mapPayrollEmployeeListItem(row: PayrollEmployeeListRow): PayrollEmploye
   return {
     id: row.id,
     departementId: row.departement_id,
-    departementNom: row.departement_nom ?? null,
+    departementNom: getDepartmentDisplayName(row.departement_nom) ?? null,
     regionalBranch: row.regional_branch ?? null,
     matricule: row.matricule,
     nom: row.nom,

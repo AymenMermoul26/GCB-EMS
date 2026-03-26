@@ -60,6 +60,7 @@ import {
   getEmployeeRegionalBranchLabel,
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
+import { getDepartmentDisplayName } from '@/types/department'
 import type {
   PayrollEmployeeListFilters,
   PayrollEmployeeListItem,
@@ -96,7 +97,7 @@ function buildDepartmentOptions(employees: PayrollEmployeeListItem[]) {
   })
 
   return [...new Map(departmentEntries).entries()]
-    .map(([id, nom]) => ({ id, nom }))
+    .map(([id, nom]) => ({ id, nom: getDepartmentDisplayName(nom) ?? nom }))
     .sort((left, right) => left.nom.localeCompare(right.nom))
 }
 

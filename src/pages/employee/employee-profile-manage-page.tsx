@@ -80,6 +80,7 @@ import { useDepartmentsQuery } from '@/services/departmentsService'
 import { useEmployeeQuery, useUpdateEmployeeMutation } from '@/services/employeesService'
 import { notificationsService } from '@/services/notificationsService'
 import { useMyRequestsQuery, useSubmitModificationRequestMutation } from '@/services/requestsService'
+import { getDepartmentDisplayName } from '@/types/department'
 import {
   EMPLOYEE_POSTE_LABELS,
   EMPLOYEE_POSTE_OPTIONS,
@@ -248,9 +249,11 @@ export function EmployeeProfileManagePage() {
     }
 
     return (
-      departmentsQuery.data.find(
-        (department) => department.id === employeeQuery.data?.departementId,
-      )?.nom ?? null
+      getDepartmentDisplayName(
+        departmentsQuery.data.find(
+          (department) => department.id === employeeQuery.data?.departementId,
+        )?.nom,
+      ) ?? null
     )
   }, [departmentsQuery.data, employeeQuery.data])
 
