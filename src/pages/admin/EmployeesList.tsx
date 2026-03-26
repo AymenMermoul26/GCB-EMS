@@ -73,7 +73,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ROUTES, getAdminEmployeeRoute } from '@/constants/routes'
+import {
+  ROUTES,
+  getAdminEmployeeEditRoute,
+  getAdminEmployeeRoute,
+} from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
@@ -547,7 +551,7 @@ export function EmployeesListPage() {
   }
 
   const handleOpenEmployeeEdit = (employeeId: string) => {
-    navigate(`${getAdminEmployeeRoute(employeeId)}#edit`)
+    navigate(getAdminEmployeeEditRoute(employeeId))
   }
 
   const handleConfirmStatusChange = async () => {

@@ -1,5 +1,3 @@
-
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -12,7 +10,6 @@ import {
   Phone,
   QrCode,
   RefreshCcw,
-  Save,
   Send,
   ShieldCheck,
   UserCheck,
@@ -20,8 +17,7 @@ import {
   UserX,
 } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Controller, useForm, useWatch } from 'react-hook-form'
+import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -56,21 +52,17 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
 import { EmployeeBadgeDialog } from '@/components/admin/employee-badge-dialog'
 import { EmployeeInformationSheetDialog } from '@/components/admin/employee-information-sheet-dialog'
 import { env } from '@/config/env'
-import { ROUTES, getPublicProfileRoute } from '@/constants/routes'
+import {
+  ROUTES,
+  getAdminEmployeeEditRoute,
+  getPublicProfileRoute,
+} from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
@@ -85,16 +77,12 @@ import {
   useActivateEmployeeMutation,
   useAdminEmployeeQuery,
   useDeactivateEmployeeMutation,
-  useUpdateAdminEmployeeMutation,
 } from '@/services/employeesService'
 import {
   notificationsService,
   useHasUnreadQrRefreshForEmployeeQuery,
 } from '@/services/notificationsService'
-import {
-  notifyPayrollUsersOfEmployeeStatusChange,
-  notifyPayrollUsersOfEmployeeUpdate,
-} from '@/services/payrollNotificationsService'
+import { notifyPayrollUsersOfEmployeeStatusChange } from '@/services/payrollNotificationsService'
 import {
   useEmployeeCurrentTokenQuery,
   useGenerateOrRegenerateTokenMutation,
@@ -106,38 +94,12 @@ import {
   useEmployeeVisibilityQuery,
 } from '@/services/visibilityService'
 import {
-  employeeSchema,
-  normalizeOptional,
-  normalizeOptionalInteger,
-  normalizeOptionalEmail,
-  normalizePhoneNumberInput,
-  type EmployeeFormValues,
-} from '@/schemas/employeeSchema'
-import {
   EMPLOYEE_VISIBILITY_FIELD_LABELS,
   getPublicProfileVisibilityRequestStatusMeta,
   type AdminPublicProfileVisibilityRequestItem,
   type EmployeeVisibilityFieldKey,
 } from '@/types/visibility'
 import {
-  EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS,
-  EMPLOYEE_DIPLOME_LABELS,
-  EMPLOYEE_DIPLOME_OPTIONS,
-  EMPLOYEE_NATIONALITE_LABELS,
-  EMPLOYEE_NATIONALITE_OPTIONS,
-  EMPLOYEE_POSTE_LABELS,
-  EMPLOYEE_POSTE_OPTIONS,
-  EMPLOYEE_REGIONAL_BRANCH_LABELS,
-  EMPLOYEE_REGIONAL_BRANCH_OPTIONS,
-  EMPLOYEE_SPECIALITE_LABELS,
-  EMPLOYEE_SPECIALITE_OPTIONS,
-  EMPLOYEE_SITUATION_FAMILIALE_OPTIONS,
-  EMPLOYEE_SITUATION_FAMILIALE_LABELS,
-  EMPLOYEE_SEXE_OPTIONS,
-  EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS,
-  EMPLOYEE_SEXE_LABELS,
-  EMPLOYEE_TYPE_CONTRAT_OPTIONS,
-  EMPLOYEE_TYPE_CONTRAT_LABELS,
   getEmployeeCategorieProfessionnelleLabel,
   getEmployeeDiplomeLabel,
   getEmployeeNationaliteLabel,
@@ -148,24 +110,18 @@ import {
   getEmployeeSpecialiteLabel,
   getEmployeeTypeContratLabel,
   getEmployeeUniversiteLabel,
-  EMPLOYEE_UNIVERSITE_LABELS,
-  EMPLOYEE_UNIVERSITE_OPTIONS,
 } from '@/types/employee'
 import { getDepartmentDisplayName } from '@/types/department'
 import { PUBLIC_QR_VISIBILITY_FIELDS } from '@/types/employee-governance'
 import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { downloadCanvasAsPng } from '@/utils/qr'
-import { mapEmployeeWriteError } from '@/utils/supabase-errors'
 
 function getInitials(prenom: string, nom: string) {
   const initials = `${prenom.trim().charAt(0)}${nom.trim().charAt(0)}`.toUpperCase()
   return initials || 'NA'
 }
 
-function isMatriculeConflict(message: string): boolean {
-  return message.toLowerCase().includes('matricule')
-}
 
 function formatDateTime(value: string | null): string {
   if (!value) {
@@ -203,12 +159,12 @@ function formatOptionalValue(value: string | null | undefined): string {
 
 function formatEmploymentValue(value: string | null | undefined): string {
   const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : '—'
+  return normalized && normalized.length > 0 ? normalized : 'Not provided'
 }
 
 function formatEmploymentDate(value: string | null | undefined): string {
   if (!value) {
-    return '—'
+    return 'Not provided'
   }
 
   return new Date(`${value}T00:00:00`).toLocaleDateString()
@@ -216,19 +172,19 @@ function formatEmploymentDate(value: string | null | undefined): string {
 
 function formatCivilValue(value: string | null | undefined): string {
   const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : '—'
+  return normalized && normalized.length > 0 ? normalized : 'Not provided'
 }
 
 function formatCivilDate(value: string | null | undefined): string {
   if (!value) {
-    return '—'
+    return 'Not provided'
   }
 
   return new Date(`${value}T00:00:00`).toLocaleDateString()
 }
 
 function formatAdministrativeNumber(value: number | null | undefined): string {
-  return value === null || value === undefined ? '—' : String(value)
+  return value === null || value === undefined ? 'Not provided' : String(value)
 }
 
 function isValidEmail(value: string): boolean {
@@ -265,7 +221,6 @@ function requestStatusBadgeClass(status: string): string {
   return ''
 }
 
-const EMPTY_SELECT_VALUE = '__none__'
 
 type DetailTab = 'overview' | 'qr-visibility' | 'requests'
 
@@ -286,11 +241,9 @@ export function AdminEmployeeDetailPage() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<DetailTab>(() => getInitialTab(location.hash))
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [employeeStatusAction, setEmployeeStatusAction] = useState<'activate' | 'deactivate' | null>(null)
   const [accountEmailInput, setAccountEmailInput] = useState<string | null>(null)
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false)
-  const editSectionRef = useRef<HTMLDivElement | null>(null)
 
   const employeeQuery = useAdminEmployeeQuery(id)
   const employeeProfileQuery = useEmployeeProfileQuery(id)
@@ -300,121 +253,6 @@ export function AdminEmployeeDetailPage() {
   const employeeTokenQuery = useEmployeeCurrentTokenQuery(id)
   const employeeRequestsQuery = useAdminRequestsQuery({ employeId: id, page: 1, pageSize: 8 })
   const qrRefreshRequiredQuery = useHasUnreadQrRefreshForEmployeeQuery(id, user?.id)
-
-  const form = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeSchema),
-    mode: 'onChange',
-    reValidateMode: 'onChange',
-    defaultValues: {
-      matricule: '',
-      nom: '',
-      prenom: '',
-      departementId: undefined,
-      regionalBranch: '',
-      sexe: '',
-      dateNaissance: '',
-      lieuNaissance: '',
-      nationalite: '',
-      situationFamiliale: '',
-      nombreEnfants: '',
-      adresse: '',
-      numeroSecuriteSociale: '',
-      diplome: '',
-      specialite: '',
-      universite: '',
-      historiquePostes: '',
-      observations: '',
-      poste: '',
-      categorieProfessionnelle: '',
-      typeContrat: '',
-      dateRecrutement: '',
-      email: '',
-      telephone: '',
-      photoUrl: '',
-    },
-  })
-
-  const telephoneRegister = form.register('telephone')
-
-  useEffect(() => {
-    if (!employeeQuery.data) {
-      return
-    }
-
-    form.reset({
-      matricule: employeeQuery.data.matricule,
-      nom: employeeQuery.data.nom,
-      prenom: employeeQuery.data.prenom,
-      departementId: employeeQuery.data.departementId,
-      regionalBranch: employeeQuery.data.regionalBranch ?? '',
-      sexe: employeeQuery.data.sexe ?? '',
-      dateNaissance: employeeQuery.data.dateNaissance ?? '',
-      lieuNaissance: employeeQuery.data.lieuNaissance ?? '',
-      nationalite: employeeQuery.data.nationalite ?? '',
-      situationFamiliale: employeeQuery.data.situationFamiliale ?? '',
-      nombreEnfants:
-        employeeQuery.data.nombreEnfants !== null && employeeQuery.data.nombreEnfants !== undefined
-          ? String(employeeQuery.data.nombreEnfants)
-          : '',
-      adresse: employeeQuery.data.adresse ?? '',
-      numeroSecuriteSociale: employeeQuery.data.numeroSecuriteSociale ?? '',
-      diplome: employeeQuery.data.diplome ?? '',
-      specialite: employeeQuery.data.specialite ?? '',
-      universite: employeeQuery.data.universite ?? '',
-      historiquePostes: employeeQuery.data.historiquePostes ?? '',
-      observations: employeeQuery.data.observations ?? '',
-      poste: employeeQuery.data.poste ?? '',
-      categorieProfessionnelle: employeeQuery.data.categorieProfessionnelle ?? '',
-      typeContrat: employeeQuery.data.typeContrat ?? '',
-      dateRecrutement: employeeQuery.data.dateRecrutement ?? '',
-      email: employeeQuery.data.email ?? '',
-      telephone: employeeQuery.data.telephone ?? '',
-      photoUrl: employeeQuery.data.photoUrl ?? '',
-    })
-  }, [employeeQuery.data, form])
-  const updateMutation = useUpdateAdminEmployeeMutation({
-    onSuccess: (employee) => {
-      setSubmitError(null)
-      toast.success('Employee updated successfully.')
-      form.reset({
-        matricule: employee.matricule,
-        nom: employee.nom,
-        prenom: employee.prenom,
-        departementId: employee.departementId,
-        regionalBranch: employee.regionalBranch ?? '',
-        sexe: employee.sexe ?? '',
-        dateNaissance: employee.dateNaissance ?? '',
-        lieuNaissance: employee.lieuNaissance ?? '',
-        nationalite: employee.nationalite ?? '',
-        situationFamiliale: employee.situationFamiliale ?? '',
-        nombreEnfants:
-          employee.nombreEnfants !== null && employee.nombreEnfants !== undefined
-            ? String(employee.nombreEnfants)
-            : '',
-        adresse: employee.adresse ?? '',
-        numeroSecuriteSociale: employee.numeroSecuriteSociale ?? '',
-        diplome: employee.diplome ?? '',
-        specialite: employee.specialite ?? '',
-        universite: employee.universite ?? '',
-        historiquePostes: employee.historiquePostes ?? '',
-        observations: employee.observations ?? '',
-        poste: employee.poste ?? '',
-        categorieProfessionnelle: employee.categorieProfessionnelle ?? '',
-        typeContrat: employee.typeContrat ?? '',
-        dateRecrutement: employee.dateRecrutement ?? '',
-        email: employee.email ?? '',
-        telephone: employee.telephone ?? '',
-        photoUrl: employee.photoUrl ?? '',
-      })
-    },
-    onError: (error) => {
-      const friendlyMessage = mapEmployeeWriteError(error)
-      setSubmitError(friendlyMessage)
-      if (isMatriculeConflict(friendlyMessage)) {
-        form.setError('matricule', { type: 'server', message: friendlyMessage })
-      }
-    },
-  })
 
   const activateMutation = useActivateEmployeeMutation({
     onSuccess: async (employee) => {
@@ -513,7 +351,6 @@ export function AdminEmployeeDetailPage() {
   const employee = employeeQuery.data
   const isInactive = Boolean(employee && !employee.isActive)
   const isStatusMutationPending = activateMutation.isPending || deactivateMutation.isPending
-  const isFormDisabled = isInactive || updateMutation.isPending || employeeQuery.isPending
   const token = employeeTokenQuery.data
   const employeeProfile = employeeProfileQuery.data
   const publicBaseUrl = (env.VITE_PUBLIC_BASE_URL ?? window.location.origin).replace(/\/+$/, '')
@@ -554,30 +391,6 @@ export function AdminEmployeeDetailPage() {
     [visibilityRequestsQuery.data],
   )
 
-  const scrollToEditForm = useCallback(() => {
-    const section = editSectionRef.current
-    if (!section) {
-      return
-    }
-
-    const stickyHeaderOffset = 120
-    const targetY = section.getBoundingClientRect().top + window.scrollY - stickyHeaderOffset
-    window.scrollTo({
-      top: Math.max(targetY, 0),
-      behavior: 'smooth',
-    })
-  }, [])
-
-  const goToEditSection = () => {
-    if (activeTab !== 'overview') {
-      setActiveTab('overview')
-      window.setTimeout(scrollToEditForm, 140)
-      return
-    }
-
-    scrollToEditForm()
-  }
-
   const onConfirmEmployeeStatusChange = async () => {
     if (!employee) {
       return
@@ -605,20 +418,6 @@ export function AdminEmployeeDetailPage() {
       },
     )
   }
-
-  useEffect(() => {
-    if (location.hash !== '#edit') {
-      return
-    }
-
-    const timerId = window.setTimeout(() => {
-      scrollToEditForm()
-    }, 140)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [location.hash, scrollToEditForm])
 
   const onGenerateOrRegenerateToken = async () => {
     if (!employee) {
@@ -768,60 +567,9 @@ export function AdminEmployeeDetailPage() {
     })
   }
 
-  const onSubmit = form.handleSubmit(async (values) => {
-    setSubmitError(null)
-
-    const previousEmployee = employee
-
-    const updatedEmployee = await updateMutation.mutateAsync({
-      id: employeeId,
-      payload: {
-        matricule: values.matricule.trim(),
-        nom: values.nom.trim(),
-        prenom: values.prenom.trim(),
-        departementId: values.departementId,
-        regionalBranch: normalizeOptional(values.regionalBranch),
-        sexe: normalizeOptional(values.sexe),
-        dateNaissance: normalizeOptional(values.dateNaissance),
-        lieuNaissance: normalizeOptional(values.lieuNaissance),
-        nationalite: normalizeOptional(values.nationalite),
-        situationFamiliale: normalizeOptional(values.situationFamiliale),
-        nombreEnfants: normalizeOptionalInteger(values.nombreEnfants),
-        adresse: normalizeOptional(values.adresse),
-        numeroSecuriteSociale: normalizeOptional(values.numeroSecuriteSociale),
-        diplome: normalizeOptional(values.diplome),
-        specialite: normalizeOptional(values.specialite),
-        universite: normalizeOptional(values.universite),
-        historiquePostes: normalizeOptional(values.historiquePostes),
-        observations: normalizeOptional(values.observations),
-        poste: normalizeOptional(values.poste),
-        categorieProfessionnelle: normalizeOptional(values.categorieProfessionnelle),
-        typeContrat: normalizeOptional(values.typeContrat),
-        dateRecrutement: normalizeOptional(values.dateRecrutement),
-      email: normalizeOptionalEmail(values.email),
-      telephone: normalizeOptional(values.telephone),
-        photoUrl: normalizeOptional(values.photoUrl),
-      },
-    })
-
-    if (!previousEmployee) {
-      return
-    }
-
-    void notifyPayrollUsersOfEmployeeUpdate(previousEmployee, updatedEmployee).catch((error) => {
-      console.error('Failed to notify payroll users about employee update', error)
-    })
-  })
-
-  const currentPhotoUrl = useWatch({ control: form.control, name: 'photoUrl' })
-  const currentPrenom = useWatch({ control: form.control, name: 'prenom' })
-  const currentNom = useWatch({ control: form.control, name: 'nom' })
-  const currentEmail = useWatch({ control: form.control, name: 'email' })
-  const currentTelephone = useWatch({ control: form.control, name: 'telephone' })
-  const currentPoste = useWatch({ control: form.control, name: 'poste' })
-  const accountEmailSource = accountEmailInput ?? currentEmail ?? employee?.email ?? ''
+  const accountEmailSource = accountEmailInput ?? employee?.email ?? ''
   const normalizedAccountEmail = accountEmailSource.trim().toLowerCase()
-  const fallbackProfileEmail = currentEmail?.trim().toLowerCase() ?? ''
+  const fallbackProfileEmail = employee?.email?.trim().toLowerCase() ?? ''
   const effectiveInviteEmail = normalizedAccountEmail || fallbackProfileEmail
   const displayAccountEmail = normalizedAccountEmail || fallbackProfileEmail || 'Not available'
   const canTriggerInvite =
@@ -933,7 +681,7 @@ export function AdminEmployeeDetailPage() {
               <Button
                 type="button"
                 className={BRAND_BUTTON_CLASS_NAME}
-                onClick={goToEditSection}
+                onClick={() => navigate(getAdminEmployeeEditRoute(employee.id))}
               >
                 <UserPen className="mr-2 h-4 w-4" />
                 Edit Employee
@@ -1125,10 +873,10 @@ export function AdminEmployeeDetailPage() {
             />
             <CardContent className="space-y-4 p-5">
               <div className="flex flex-col items-center gap-3 text-center">
-                {currentPhotoUrl && currentPhotoUrl.trim().length > 0 ? (
+                {employee.photoUrl && employee.photoUrl.trim().length > 0 ? (
                   <img
-                    src={currentPhotoUrl}
-                    alt={`${currentPrenom || employee.prenom} ${currentNom || employee.nom}`}
+                    src={employee.photoUrl}
+                    alt={`${employee.prenom} ${employee.nom}`}
                     className={cn(
                       'h-24 w-24 rounded-full border object-cover',
                       isInactive && 'grayscale',
@@ -1143,7 +891,7 @@ export function AdminEmployeeDetailPage() {
                         : 'bg-slate-100 text-slate-600',
                     )}
                   >
-                    {getInitials(currentPrenom || employee.prenom, currentNom || employee.nom)}
+                    {getInitials(employee.prenom, employee.nom)}
                   </div>
                 )}
 
@@ -1154,7 +902,7 @@ export function AdminEmployeeDetailPage() {
                       employee.isActive ? 'text-slate-900' : 'text-slate-700',
                     )}
                   >
-                    {currentPrenom || employee.prenom} {currentNom || employee.nom}
+                    {employee.prenom} {employee.nom}
                   </p>
                   <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
                     {employee.isActive ? 'Active' : 'Inactive'}
@@ -1173,7 +921,7 @@ export function AdminEmployeeDetailPage() {
                 />
                 <InfoLine
                   label="Job Title"
-                  value={formatOptionalValue(getEmployeePosteLabel(currentPoste || employee.poste))}
+                  value={formatOptionalValue(getEmployeePosteLabel(employee.poste))}
                 />
                 <InfoLine label="Sex" value={formatCivilValue(getEmployeeSexeLabel(employee.sexe))} />
                 <InfoLine label="Birth Date" value={formatCivilDate(employee.dateNaissance)} />
@@ -1204,11 +952,11 @@ export function AdminEmployeeDetailPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Mail className="h-4 w-4" />
-                  <span className="truncate">{formatOptionalValue(currentEmail || employee.email)}</span>
+                  <span className="truncate">{formatOptionalValue(employee.email)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-4 w-4" />
-                  <span className="truncate">{formatOptionalValue(currentTelephone || employee.telephone)}</span>
+                  <span className="truncate">{formatOptionalValue(employee.telephone)}</span>
                 </div>
               </div>
 
@@ -1270,7 +1018,6 @@ export function AdminEmployeeDetailPage() {
 
               <Card
                 id="employee-info-section"
-                ref={editSectionRef}
                 className="scroll-mt-32 rounded-2xl border border-slate-200/80 shadow-sm"
               >
                 <CardHeader>
@@ -1412,580 +1159,28 @@ export function AdminEmployeeDetailPage() {
                   </div>
                 </CardContent>
               </Card>
-
               <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
-                <CardHeader>
-                  <CardTitle>Employee Information</CardTitle>
+                <CardHeader className="space-y-2">
+                  <CardTitle>Edit Employee</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <form className="space-y-4" onSubmit={onSubmit}>
-                    {submitError ? (
-                      <Alert variant="destructive">
-                        <AlertTitle>Update failed</AlertTitle>
-                        <AlertDescription>{submitError}</AlertDescription>
-                      </Alert>
-                    ) : null}
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <FieldError message={form.formState.errors.matricule?.message}>
-                        <Label htmlFor="matricule">Employee ID</Label>
-                        <Input
-                          id="matricule"
-                          disabled={isFormDisabled}
-                          {...form.register('matricule')}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.departementId?.message}>
-                        <Label htmlFor="departementId">Department</Label>
-                        {departmentsQuery.isPending ? (
-                          <Skeleton className="h-10 w-full" />
-                        ) : (
-                          <Controller
-                            control={form.control}
-                            name="departementId"
-                            render={({ field }) => (
-                              <Select
-                                value={field.value}
-                                onValueChange={field.onChange}
-                                disabled={isFormDisabled || departmentsQuery.isError}
-                              >
-                                <SelectTrigger id="departementId">
-                                  <SelectValue
-                                    placeholder={
-                                      departmentsQuery.isError
-                                        ? 'Departments unavailable'
-                                        : 'Select department'
-                                    }
-                                  />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {(departmentsQuery.data ?? []).map((department) => (
-                                      <SelectItem key={department.id} value={department.id}>
-                                        {getDepartmentDisplayName(department.nom) ?? department.nom}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                              </Select>
-                            )}
-                          />
-                        )}
-                      {departmentsQuery.isError ? (
-                        <p className="text-xs text-destructive">{departmentsQuery.error.message}</p>
-                      ) : null}
-                    </FieldError>
-
-                      <FieldError message={form.formState.errors.regionalBranch?.message}>
-                        <Label htmlFor="regionalBranch">Regional Branch</Label>
-                        <Controller
-                          control={form.control}
-                          name="regionalBranch"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="regionalBranch">
-                                <SelectValue placeholder="Select a regional branch" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_REGIONAL_BRANCH_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_REGIONAL_BRANCH_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-                      <FieldError message={form.formState.errors.nom?.message}>
-                        <Label htmlFor="nom">Last Name</Label>
-                        <Input id="nom" disabled={isFormDisabled} {...form.register('nom')} />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.prenom?.message}>
-                        <Label htmlFor="prenom">First Name</Label>
-                        <Input id="prenom" disabled={isFormDisabled} {...form.register('prenom')} />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.poste?.message}>
-                        <Label htmlFor="poste">Job Title</Label>
-                        <Controller
-                          control={form.control}
-                          name="poste"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="poste">
-                                <SelectValue placeholder="Select a job title" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_POSTE_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_POSTE_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
+                <CardContent className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
+                    Edit this employee from the dedicated update page. The form loads the current record so HR can update only the fields that changed.
+                  </div>
+                  {employee.isActive ? (
+                    <Button
+                      type="button"
+                      className={BRAND_BUTTON_CLASS_NAME}
+                      onClick={() => navigate(getAdminEmployeeEditRoute(employee.id))}
+                    >
+                      <UserPen className="mr-2 h-4 w-4" />
+                      Open edit page
+                    </Button>
+                  ) : (
+                    <div className="rounded-xl border border-slate-300 bg-slate-100/90 px-4 py-3 text-sm text-slate-700">
+                      Reactivate this employee before editing the record.
                     </div>
-
-                    <Separator />
-
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-slate-900">Personal Information</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Sensitive civil details stored only in the internal HR record.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <FieldError message={form.formState.errors.sexe?.message}>
-                        <Label htmlFor="sexe">Sex</Label>
-                        <Controller
-                          control={form.control}
-                          name="sexe"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="sexe">
-                                <SelectValue placeholder="Select sex" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_SEXE_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_SEXE_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.dateNaissance?.message}>
-                        <Label htmlFor="dateNaissance">Birth Date</Label>
-                        <Input
-                          id="dateNaissance"
-                          type="date"
-                          disabled={isFormDisabled}
-                          {...form.register('dateNaissance')}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.lieuNaissance?.message}>
-                        <Label htmlFor="lieuNaissance">Birth Place</Label>
-                        <Input
-                          id="lieuNaissance"
-                          disabled={isFormDisabled}
-                          {...form.register('lieuNaissance')}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.nationalite?.message}>
-                        <Label htmlFor="nationalite">Nationality</Label>
-                        <Controller
-                          control={form.control}
-                          name="nationalite"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="nationalite">
-                                <SelectValue placeholder="Select a nationality" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_NATIONALITE_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_NATIONALITE_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-slate-900">Employment Information</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Employment data managed by HR for payroll-ready employee records.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <FieldError message={form.formState.errors.categorieProfessionnelle?.message}>
-                        <Label htmlFor="categorieProfessionnelle">Professional Category</Label>
-                        <Controller
-                          control={form.control}
-                          name="categorieProfessionnelle"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="categorieProfessionnelle">
-                                <SelectValue placeholder="Select a category" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.typeContrat?.message}>
-                        <Label htmlFor="typeContrat">Contract Type</Label>
-                        <Controller
-                          control={form.control}
-                          name="typeContrat"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="typeContrat">
-                                <SelectValue placeholder="Select a contract type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_TYPE_CONTRAT_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_TYPE_CONTRAT_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.dateRecrutement?.message}>
-                        <Label htmlFor="dateRecrutement">Hire Date</Label>
-                        <Input
-                          id="dateRecrutement"
-                          type="date"
-                          disabled={isFormDisabled}
-                          {...form.register('dateRecrutement')}
-                        />
-                      </FieldError>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-slate-900">Education & Career Background</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Education level, specialization, university, and career background summarized for HR reference.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <FieldError message={form.formState.errors.diplome?.message}>
-                        <Label htmlFor="diplome">Degree / Diploma</Label>
-                        <Controller
-                          control={form.control}
-                          name="diplome"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="diplome">
-                                <SelectValue placeholder="Select a degree" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_DIPLOME_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_DIPLOME_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.specialite?.message}>
-                        <Label htmlFor="specialite">Specialization</Label>
-                        <Controller
-                          control={form.control}
-                          name="specialite"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="specialite">
-                                <SelectValue placeholder="Select a specialization" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_SPECIALITE_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_SPECIALITE_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.universite?.message}>
-                        <Label htmlFor="universite">University</Label>
-                        <Controller
-                          control={form.control}
-                          name="universite"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="universite">
-                                <SelectValue placeholder="Select a university" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_UNIVERSITE_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_UNIVERSITE_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-                    </div>
-
-                    <FieldError message={form.formState.errors.historiquePostes?.message}>
-                      <Label htmlFor="historiquePostes">Career History</Label>
-                      <Textarea
-                        id="historiquePostes"
-                        rows={5}
-                        disabled={isFormDisabled}
-                        {...form.register('historiquePostes')}
-                      />
-                    </FieldError>
-
-                    <Separator />
-
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-slate-900">Administrative Information</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Sensitive data used for HR administration and future payroll workflows.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      This section contains sensitive administrative data. Limit access to HR administrators.
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <FieldError message={form.formState.errors.situationFamiliale?.message}>
-                        <Label htmlFor="situationFamiliale">Marital Status</Label>
-                        <Controller
-                          control={form.control}
-                          name="situationFamiliale"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value && field.value.length > 0 ? field.value : EMPTY_SELECT_VALUE}
-                              onValueChange={(value) =>
-                                field.onChange(value === EMPTY_SELECT_VALUE ? '' : value)
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <SelectTrigger id="situationFamiliale">
-                                <SelectValue placeholder="Select marital status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
-                                {EMPLOYEE_SITUATION_FAMILIALE_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {EMPLOYEE_SITUATION_FAMILIALE_LABELS[option]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.nombreEnfants?.message}>
-                        <Label htmlFor="nombreEnfants">Number of Children</Label>
-                        <Input
-                          id="nombreEnfants"
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          disabled={isFormDisabled}
-                          {...form.register('nombreEnfants')}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.numeroSecuriteSociale?.message}>
-                        <Label htmlFor="numeroSecuriteSociale">Social Security Number</Label>
-                        <Input
-                          id="numeroSecuriteSociale"
-                          disabled={isFormDisabled}
-                          {...form.register('numeroSecuriteSociale')}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Sensitive administrative identifier.
-                        </p>
-                      </FieldError>
-                    </div>
-
-                    <FieldError message={form.formState.errors.adresse?.message}>
-                      <Label htmlFor="adresse">Address</Label>
-                      <Textarea
-                        id="adresse"
-                        rows={3}
-                        disabled={isFormDisabled}
-                        {...form.register('adresse')}
-                      />
-                    </FieldError>
-
-                    <Separator />
-
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-slate-900">HR Internal Notes</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Internal comments visible only to HR administrators.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      This note field is restricted to administration and should not contain content intended for employees.
-                    </div>
-
-                    <FieldError message={form.formState.errors.observations?.message}>
-                      <Label htmlFor="observations">Internal Notes</Label>
-                      <Textarea
-                        id="observations"
-                        rows={5}
-                        disabled={isFormDisabled}
-                        {...form.register('observations')}
-                      />
-                    </FieldError>
-
-                    <Separator />
-
-                    <div className="grid gap-4 md:grid-cols-2">
-
-                      <FieldError message={form.formState.errors.email?.message}>
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          disabled={isFormDisabled}
-                          {...form.register('email')}
-                        />
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.telephone?.message}>
-                        <Label htmlFor="telephone">Phone</Label>
-                        <Input
-                          id="telephone"
-                          type="tel"
-                          inputMode="tel"
-                          autoComplete="tel"
-                          placeholder="+213612345678"
-                          disabled={isFormDisabled}
-                          {...telephoneRegister}
-                          onBlur={(event) => {
-                            telephoneRegister.onBlur(event)
-                            const normalized = normalizePhoneNumberInput(event.target.value)
-                            form.setValue('telephone', normalized ?? '', {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                              shouldTouch: true,
-                            })
-                          }}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Format : +213 suivi de 5, 6 ou 7 puis de 8 chiffres.
-                        </p>
-                      </FieldError>
-
-                      <FieldError message={form.formState.errors.photoUrl?.message}>
-                        <Label htmlFor="photoUrl">Photo URL</Label>
-                        <Input
-                          id="photoUrl"
-                          disabled={isFormDisabled}
-                          {...form.register('photoUrl')}
-                        />
-                      </FieldError>
-                    </div>
-
-                    <Separator />
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="submit"
-                        disabled={isFormDisabled || !form.formState.isValid}
-                        className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95"
-                      >
-                        {updateMutation.isPending ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="mr-2 h-4 w-4" />
-                        )}
-                        {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-                      </Button>
-                    </div>
-                  </form>
+                  )}
                 </CardContent>
               </Card>
 
@@ -2521,20 +1716,6 @@ export function AdminEmployeeDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
     </DashboardLayout>
-  )
-}
-
-interface FieldErrorProps {
-  children: ReactNode
-  message?: string
-}
-
-function FieldError({ children, message }: FieldErrorProps) {
-  return (
-    <div className="space-y-2">
-      {children}
-      {message ? <p className="text-xs text-destructive">{message}</p> : null}
-    </div>
   )
 }
 
