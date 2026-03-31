@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
+import gcbLogo from '@/assets/brand/gcb-logo.svg'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -16,15 +18,23 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { cn } from '@/lib/utils'
 import { loginSchema, type LoginInput } from '@/schemas/auth/login.schema'
-import gcbLogo from '@/assets/brand/gcb-logo.svg'
-import loginHeroImage from '@/assets/brand/login-hero.png'
+
+import {
+  DEFAULT_LOGIN_ROLE_ID,
+  getLoginRoleConfig,
+  LOGIN_ROLE_CONFIGS,
+  LOGIN_TRUST_MARKERS,
+  type LoginExperienceRoleId,
+} from './login-role-config'
 
 const COMPANY_NAME_FULL =
-  'LA SOCI\u00C9T\u00C9 NATIONALE DE G\u00C9NIE-CIVIL & B\u00C2TIMENT'
+  'National Civil Engineering & Building Company'
 
 interface LocationState {
   from?: {
@@ -36,13 +46,52 @@ interface LocationState {
   }
 }
 
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('matchMedia' in window)) {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updatePreference = (matches: boolean) => {
+      setPrefersReducedMotion(matches)
+    }
+
+    updatePreference(mediaQuery.matches)
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      updatePreference(event.matches)
+    }
+
+    mediaQuery.addEventListener('change', handleChange)
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [])
+
+  return prefersReducedMotion
+}
+
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const state = location.state as LocationState | null
   const { user, role, signIn } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
-  const [isHeroImageVisible, setIsHeroImageVisible] = useState(true)
+  const [selectedRoleId, setSelectedRoleId] =
+    useState<LoginExperienceRoleId>(DEFAULT_LOGIN_ROLE_ID)
+  const [displayedRoleId, setDisplayedRoleId] =
+    useState<LoginExperienceRoleId>(DEFAULT_LOGIN_ROLE_ID)
+  const prefersReducedMotion = usePrefersReducedMotion()
+
+  const selectedRole = getLoginRoleConfig(selectedRoleId)
+  const displayedRole = getLoginRoleConfig(
+    prefersReducedMotion ? selectedRoleId : displayedRoleId,
+  )
+  const isRoleTransitioning = !prefersReducedMotion && selectedRoleId !== displayedRoleId
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -69,6 +118,43 @@ export function LoginPage() {
 
     navigate(ROUTES.EMPLOYEE_PROFILE, { replace: true })
   }, [navigate, role, user])
+
+  useEffect(() => {
+    if (selectedRoleId === displayedRoleId || prefersReducedMotion) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setDisplayedRoleId(selectedRoleId)
+    }, 160)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [displayedRoleId, prefersReducedMotion, selectedRoleId])
+
+  useEffect(() => {
+    const normalizedCurrentEmail = form.getValues('email').trim().toLowerCase()
+    const presetEmails = LOGIN_ROLE_CONFIGS.map((roleConfig) =>
+      roleConfig.defaultEmail?.toLowerCase(),
+    ).filter((email): email is string => Boolean(email))
+
+    if (selectedRole.defaultEmail) {
+      const normalizedPresetEmail = selectedRole.defaultEmail.toLowerCase()
+
+      if (normalizedCurrentEmail !== normalizedPresetEmail) {
+        form.setValue('email', selectedRole.defaultEmail, { shouldDirty: true })
+        form.clearErrors('email')
+      }
+
+      return
+    }
+
+    if (presetEmails.includes(normalizedCurrentEmail)) {
+      form.setValue('email', '', { shouldDirty: true })
+      form.clearErrors('email')
+    }
+  }, [form, selectedRole])
 
   const signInMutation = useMutation({
     mutationFn: signIn,
@@ -98,178 +184,494 @@ export function LoginPage() {
     await signInMutation.mutateAsync(values)
   })
 
+  const ShowcaseIcon = displayedRole.heroIcon
+  const SelectedRoleIcon = selectedRole.roleIcon
+
   return (
-    <main className="grid min-h-screen lg:grid-cols-2">
-      <section className="relative min-h-[260px] overflow-hidden lg:min-h-screen">
-        {isHeroImageVisible ? (
-          <img
-            src={loginHeroImage}
-            alt="GCB EMS Hero"
-            className="absolute inset-0 h-full w-full object-cover"
-            onError={() => setIsHeroImageVisible(false)}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1f2937] to-[#111827]">
-            {/* TODO: replace src/assets/brand/login-hero.png with final branded hero image */}
-          </div>
-        )}
-
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="absolute inset-0 bg-gradient-to-br from-[rgba(255,107,53,0.55)] via-[rgba(255,107,53,0.22)] to-[rgba(255,201,71,0.42)]" />
-
-        <div className="relative z-10 flex h-full flex-col justify-between p-6 text-white lg:p-10">
-          <div className="inline-flex max-w-[460px] items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
-            <img src={gcbLogo} alt="GCB logo" className="h-8 w-8 rounded-md object-cover" />
-            <p className="text-xs font-semibold leading-tight tracking-[0.04em]">
-              {COMPANY_NAME_FULL}
-            </p>
-          </div>
-
-          <div className="max-w-md space-y-5">
-            <h1 className="text-2xl font-semibold leading-tight md:text-3xl lg:text-4xl">
-              Manage People. Control Access. Scan & Share.
-            </h1>
-            <p className="text-sm text-white/85 md:text-base">{COMPANY_NAME_FULL}</p>
-            <p className="text-sm text-white/80 md:text-base">
-              Secure access for employees and HR administration.
-            </p>
-
-            <ul className="space-y-2 text-sm text-white/90">
-              <li className="flex items-start gap-2">
-                <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-[#ffc947]" />
-                <span>Manage employee profiles & departments</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-[#ffc947]" />
-                <span>QR public profile with visibility control</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-[#ffc947]" />
-                <span>Requests workflow + notifications</span>
-              </li>
-            </ul>
-          </div>
-
-          <p className="text-xs text-white/75">{'\u00A9'} {COMPANY_NAME_FULL}</p>
-        </div>
-      </section>
-
-      <section className="flex items-center justify-center bg-slate-50 px-4 py-8 lg:px-8">
-        <Card className="w-full max-w-md rounded-2xl border border-slate-200/90 shadow-[0_20px_65px_-28px_rgba(2,6,23,0.45)]">
-          <CardHeader className="space-y-3 pb-2">
-            <div className="inline-flex items-center gap-3">
-              <img src={gcbLogo} alt="GCB logo" className="h-10 w-10 rounded-lg object-cover" />
-              <div>
-                <CardTitle className="text-xl">Welcome back</CardTitle>
-                <CardDescription className="mt-1 text-sm">
-                  Sign in to continue.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-5">
-            {state?.authNotice ? (
+    <main className="relative min-h-[100dvh] overflow-hidden bg-slate-950">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_100%)]" />
+      <div className="relative mx-auto flex min-h-[100dvh] max-w-[92rem] box-border items-center px-4 py-4 sm:px-6 lg:px-8 [@media(min-width:1024px)_and_(max-height:860px)]:py-3 [@media(min-width:1024px)_and_(max-height:760px)]:py-2">
+        <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,500px)_minmax(0,1fr)] lg:items-center [@media(min-width:1024px)_and_(max-height:860px)]:gap-3 [@media(min-width:1024px)_and_(max-height:760px)]:gap-2.5">
+          <section className="order-1 lg:order-1">
+            <div className="relative lg:w-full">
               <div
-                role="status"
-                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-              >
-                {state.authNotice.message}
-              </div>
-            ) : null}
-
-            {signInMutation.error ? (
-              <div
-                role="alert"
-                className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                {signInMutation.error.message}
-              </div>
-            ) : null}
-
-            <form className="space-y-4" onSubmit={onSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@company.com"
-                  className="rounded-xl border-slate-200 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0"
-                  {...form.register('email')}
-                />
-                {form.formState.errors.email ? (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.email.message}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    placeholder="********"
-                    className="rounded-xl border-slate-200 pr-11 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0"
-                    {...form.register('password')}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1 h-8 w-8 text-slate-500 hover:bg-transparent hover:text-slate-800"
-                    onClick={() => setShowPassword((previous) => !previous)}
-                    tabIndex={-1}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-                {form.formState.errors.password ? (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.password.message}
-                  </p>
-                ) : null}
-
-                <div className="flex justify-end">
-                  <Button
-                    asChild
-                    type="button"
-                    variant="link"
-                    className="h-auto px-0 text-sm font-medium text-[#ff6b35]"
-                  >
-                    <Link to={ROUTES.FORGOT_PASSWORD}>Forgot password?</Link>
-                  </Button>
-                </div>
-              </div>
-
-              <Button
-                className="h-11 w-full rounded-xl bg-gradient-to-r from-[#ff6b35] to-[#ffc947] font-semibold text-slate-900 shadow-md shadow-orange-300/40 hover:opacity-95 focus-visible:ring-[rgb(var(--brand-primary))/0.45] focus-visible:ring-offset-0"
-                type="submit"
-                disabled={signInMutation.isPending}
-              >
-                {signInMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign in'
+                className={cn(
+                  'absolute inset-0 rounded-[28px] blur-2xl transition-all duration-500 motion-reduce:transition-none',
+                  selectedRole.theme.formHaloClass,
                 )}
-              </Button>
-            </form>
+              />
+              <Card className="relative border-white/70 bg-white/92 shadow-[0_30px_90px_-46px_rgba(15,23,42,0.75)] backdrop-blur-xl [@media(min-width:1024px)_and_(max-height:860px)]:rounded-[26px]">
+                <CardHeader className="space-y-3 pb-2 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:p-5 [@media(min-width:1024px)_and_(max-height:860px)]:pb-2 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-2 [@media(min-width:1024px)_and_(max-height:760px)]:p-4 [@media(min-width:1024px)_and_(max-height:760px)]:pb-1.5">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={gcbLogo}
+                      alt="GCB logo"
+                      className="h-10 w-10 rounded-xl object-cover [@media(min-width:1024px)_and_(max-height:760px)]:h-9 [@media(min-width:1024px)_and_(max-height:760px)]:w-9"
+                    />
+                    <div className="space-y-1">
+                      <Badge
+                        variant="secondary"
+                        className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700 [@media(min-width:1024px)_and_(max-height:760px)]:px-2 [@media(min-width:1024px)_and_(max-height:760px)]:py-0.5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[10px]"
+                      >
+                        Secure access
+                      </Badge>
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 [@media(min-width:1024px)_and_(max-height:760px)]:text-[11px]">
+                        GCB Employee Management System
+                      </p>
+                    </div>
+                  </div>
 
-            <Separator />
+                  <div className="space-y-2">
+                    <CardTitle className="text-[1.82rem] tracking-tight text-slate-950 sm:text-[2rem] [@media(min-width:1024px)_and_(max-height:860px)]:text-[1.7rem] [@media(min-width:1024px)_and_(max-height:760px)]:text-[1.55rem]">
+                      Sign in to GCB EMS
+                    </CardTitle>
+                    <CardDescription className="text-sm leading-6 text-slate-600 [@media(min-width:1024px)_and_(max-height:860px)]:leading-5.5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-5">
+                      Access your workspace with the credentials assigned to your account.
+                    </CardDescription>
+                  </div>
 
-            <p className="text-center text-xs text-muted-foreground">
-              Roles supported: Admin RH, Payroll Agent, and Employee.
-            </p>
-          </CardContent>
-        </Card>
-      </section>
+                  <div className="space-y-3 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Workspace preview
+                      </Label>
+                      <span className="text-xs text-slate-500">Role-aware experience</span>
+                    </div>
+
+                    <Tabs
+                      value={selectedRoleId}
+                      onValueChange={(value) => setSelectedRoleId(value as LoginExperienceRoleId)}
+                    >
+                      <TabsList className="grid h-auto w-full grid-cols-3 rounded-2xl border border-slate-200/90 bg-slate-100/95 p-1 [@media(min-width:1024px)_and_(max-height:760px)]:rounded-xl">
+                        {LOGIN_ROLE_CONFIGS.map((roleConfig) => {
+                          const RoleIcon = roleConfig.roleIcon
+
+                          return (
+                            <TabsTrigger
+                              key={roleConfig.id}
+                              value={roleConfig.id}
+                              className={cn(
+                                'h-auto flex-col items-start gap-1 rounded-xl border border-transparent px-3 py-2 text-left text-slate-600 transition-all duration-300 [@media(min-width:1024px)_and_(max-height:860px)]:px-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:py-1.5 [@media(min-width:1024px)_and_(max-height:760px)]:gap-0.5',
+                                'motion-reduce:transition-none',
+                                selectedRole.theme.selectorActiveClass,
+                              )}
+                            >
+                              <span className="flex items-center gap-2 text-xs font-semibold sm:text-sm">
+                                <RoleIcon className="h-4 w-4" />
+                                {roleConfig.label}
+                              </span>
+                            </TabsTrigger>
+                          )
+                        })}
+                      </TabsList>
+                    </Tabs>
+
+                    <div
+                      className={cn(
+                        'rounded-2xl border px-4 py-3 transition-colors duration-300 motion-reduce:transition-none [@media(min-width:1024px)_and_(max-height:860px)]:px-3.5 [@media(min-width:1024px)_and_(max-height:860px)]:py-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:rounded-xl [@media(min-width:1024px)_and_(max-height:760px)]:px-3 [@media(min-width:1024px)_and_(max-height:760px)]:py-2',
+                        selectedRole.theme.selectorBorderClass,
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge
+                              className={cn(
+                                'rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]',
+                                selectedRole.theme.selectorBadgeClass,
+                              )}
+                            >
+                              {selectedRole.label}
+                            </Badge>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {selectedRole.badge}
+                            </p>
+                          </div>
+                          <p className="text-sm leading-6 text-slate-600 [@media(min-width:1024px)_and_(max-height:860px)]:leading-5.5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-5">
+                            {selectedRole.helper}
+                          </p>
+                        </div>
+
+                        <div
+                          className={cn(
+                            'hidden rounded-2xl border p-2.5 sm:block',
+                            selectedRole.theme.formHighlightClass,
+                          )}
+                        >
+                          <SelectedRoleIcon className="h-4 w-4 text-slate-900" />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 hidden 2xl:flex 2xl:flex-wrap 2xl:gap-2 [@media(min-width:1024px)_and_(max-height:860px)]:hidden">
+                        {selectedRole.featureHighlights.map((feature) => (
+                          <span
+                            key={`${selectedRole.id}-${feature.label}-selector`}
+                            className="rounded-full border border-slate-200 bg-white/80 px-2.5 py-1 text-xs font-medium text-slate-600"
+                          >
+                            {feature.label}
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="mt-3 text-xs leading-5 text-slate-500 [@media(min-width:1024px)_and_(max-height:860px)]:mt-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:leading-4.5 [@media(min-width:1024px)_and_(max-height:760px)]:hidden">
+                        This selector changes the login presentation only. Access still follows the
+                        role assigned to your account.
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-3.5 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-3 [@media(min-width:1024px)_and_(max-height:860px)]:px-5 [@media(min-width:1024px)_and_(max-height:860px)]:pb-5 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:px-4 [@media(min-width:1024px)_and_(max-height:760px)]:pb-4">
+                  {state?.authNotice ? (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                    >
+                      {state.authNotice.message}
+                    </div>
+                  ) : null}
+
+                  {signInMutation.error ? (
+                    <div
+                      role="alert"
+                      aria-live="assertive"
+                      className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                    >
+                      {signInMutation.error.message}
+                    </div>
+                  ) : null}
+
+                  <form className="space-y-3.5 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-3 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-2.5" onSubmit={onSubmit}>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        autoComplete="email"
+                        placeholder="Enter your work email"
+                        className="h-11 rounded-xl border-slate-200 bg-white/90 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0 [@media(min-width:1024px)_and_(max-height:860px)]:h-10 [@media(min-width:1024px)_and_(max-height:760px)]:h-9"
+                        {...form.register('email')}
+                      />
+                      {form.formState.errors.email ? (
+                        <p className="text-sm text-destructive">
+                          {form.formState.errors.email.message}
+                        </p>
+                      ) : null}
+                      {selectedRole.defaultEmail ? (
+                        <p className="text-xs text-slate-500 [@media(min-width:1024px)_and_(max-height:760px)]:hidden">
+                          Email prefilled for the selected role: {selectedRole.defaultEmail}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          placeholder="Enter your password"
+                          className="h-11 rounded-xl border-slate-200 bg-white/90 pr-11 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0 [@media(min-width:1024px)_and_(max-height:860px)]:h-10 [@media(min-width:1024px)_and_(max-height:760px)]:h-9"
+                          {...form.register('password')}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1 h-9 w-9 text-slate-500 hover:bg-transparent hover:text-slate-800 [@media(min-width:1024px)_and_(max-height:860px)]:h-8 [@media(min-width:1024px)_and_(max-height:860px)]:w-8 [@media(min-width:1024px)_and_(max-height:760px)]:top-0.5 [@media(min-width:1024px)_and_(max-height:760px)]:h-8 [@media(min-width:1024px)_and_(max-height:760px)]:w-8"
+                          onClick={() => setShowPassword((previous) => !previous)}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      {form.formState.errors.password ? (
+                        <p className="text-sm text-destructive">
+                          {form.formState.errors.password.message}
+                        </p>
+                      ) : null}
+
+                      <div className="flex justify-end">
+                        <Button
+                          asChild
+                          type="button"
+                          variant="link"
+                          className="h-auto px-0 text-sm font-medium text-[#ff6b35]"
+                        >
+                          <Link to={ROUTES.FORGOT_PASSWORD}>Forgot password?</Link>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <Button
+                      className="h-11 w-full rounded-xl bg-gradient-to-r from-[#f97316] via-[#ea580c] to-[#d97706] font-semibold text-white shadow-lg shadow-orange-400/35 hover:opacity-95 focus-visible:ring-[rgb(var(--brand-primary))/0.45] focus-visible:ring-offset-0 [@media(min-width:1024px)_and_(max-height:860px)]:h-10 [@media(min-width:1024px)_and_(max-height:760px)]:h-9"
+                      type="submit"
+                      disabled={signInMutation.isPending}
+                    >
+                      {signInMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Signing in...
+                        </>
+                      ) : (
+                        'Sign in'
+                      )}
+                    </Button>
+                  </form>
+
+                  <Separator />
+
+                  <div className="space-y-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-2 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-1.5">
+                    <p className="text-center text-xs leading-5 text-muted-foreground [@media(min-width:1024px)_and_(max-height:760px)]:leading-4">
+                      Roles supported: HR-Admin, Payroll-Agent, and Employee.
+                    </p>
+
+                    <div className="hidden 2xl:flex 2xl:flex-wrap 2xl:justify-center 2xl:gap-2 [@media(min-width:1024px)_and_(max-height:860px)]:hidden">
+                      {LOGIN_TRUST_MARKERS.map((marker) => {
+                        const MarkerIcon = marker.icon
+
+                        return (
+                          <div
+                            key={marker.label}
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600"
+                          >
+                            <MarkerIcon className="h-3.5 w-3.5" />
+                            <span>{marker.label}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+
+          <section className="order-2 lg:order-2">
+            <article className="relative min-h-[320px] overflow-hidden rounded-[32px] border border-white/10 shadow-[0_36px_120px_-54px_rgba(15,23,42,0.95)] [@media(min-width:1024px)_and_(max-height:860px)]:min-h-[300px] [@media(min-width:1024px)_and_(max-height:760px)]:min-h-[280px]">
+              <div
+                className={cn(
+                  'absolute inset-0 transition-all duration-500 motion-reduce:transition-none',
+                  selectedRole.theme.heroGradientClass,
+                )}
+              />
+              <div
+                className={cn(
+                  'absolute inset-0 opacity-100 transition-all duration-500 motion-reduce:transition-none',
+                  selectedRole.theme.glowClass,
+                )}
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(255,255,255,0.08),transparent_30%,rgba(255,255,255,0.03))]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_20%)]" />
+
+              <div className="relative z-10 flex h-full flex-col gap-5 p-5 text-white sm:p-6 xl:p-7 [@media(min-width:1024px)_and_(max-height:860px)]:gap-4 [@media(min-width:1024px)_and_(max-height:860px)]:p-4 [@media(min-width:1024px)_and_(max-height:760px)]:gap-3 [@media(min-width:1024px)_and_(max-height:760px)]:p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="inline-flex max-w-[440px] items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-md">
+                    <img src={gcbLogo} alt="GCB logo" className="h-10 w-10 rounded-xl object-cover" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/60">
+                        GCB EMS
+                      </p>
+                      <p className="text-sm font-medium leading-5 text-white/92">
+                        {COMPANY_NAME_FULL}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Badge
+                    className={cn(
+                      'rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em]',
+                      displayedRole.theme.heroBadgeClass,
+                    )}
+                  >
+                    {displayedRole.badge}
+                  </Badge>
+                </div>
+
+                <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.98fr)] lg:items-center [@media(min-width:1024px)_and_(max-height:860px)]:gap-3 [@media(min-width:1024px)_and_(max-height:760px)]:gap-2.5">
+                  <div
+                    className={cn(
+                      'space-y-5 transition-all duration-200 motion-reduce:transition-none',
+                      isRoleTransitioning ? 'translate-y-3 opacity-0' : 'translate-y-0 opacity-100',
+                    )}
+                  >
+                    <div className="space-y-4">
+                      <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/62">
+                        Role-aware sign in
+                      </p>
+                      <h1 className="max-w-2xl text-[1.95rem] font-semibold leading-tight sm:text-[2.2rem] xl:text-[2.6rem] xl:leading-[1.06] [@media(min-width:1024px)_and_(max-height:860px)]:text-[1.75rem] [@media(min-width:1024px)_and_(max-height:860px)]:leading-tight [@media(min-width:1024px)_and_(max-height:760px)]:text-[1.55rem]">
+                        {displayedRole.title}
+                      </h1>
+                      <p className="max-w-xl text-sm leading-7 text-white/78 sm:text-base [@media(min-width:1024px)_and_(max-height:860px)]:leading-6 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-5">
+                        {displayedRole.description}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-1 [@media(min-width:1024px)_and_(max-height:860px)]:gap-1.5 [@media(min-width:1024px)_and_(max-height:760px)]:gap-1.5">
+                      {displayedRole.featureHighlights.map((feature) => {
+                        const FeatureIcon = feature.icon
+
+                        return (
+                          <div
+                            key={feature.label}
+                            className={cn(
+                              'rounded-2xl border px-4 py-3 backdrop-blur-md transition-all duration-300 [@media(min-width:1024px)_and_(max-height:860px)]:px-3 [@media(min-width:1024px)_and_(max-height:860px)]:py-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:rounded-xl [@media(min-width:1024px)_and_(max-height:760px)]:px-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:py-2',
+                              displayedRole.theme.previewCardClass,
+                            )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={cn(
+                                  'rounded-2xl border p-2.5 backdrop-blur-md',
+                                  displayedRole.theme.iconSurfaceClass,
+                                )}
+                              >
+                                <FeatureIcon className="h-4 w-4" />
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-sm font-semibold text-white">{feature.label}</p>
+                                <p className="text-sm leading-6 text-white/70 [@media(min-width:1024px)_and_(max-height:860px)]:leading-5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-4.5">
+                                  {feature.description}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div
+                    className={cn(
+                      'transition-all duration-200 motion-reduce:transition-none',
+                      isRoleTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'rounded-[28px] border p-4 transition-all duration-500 backdrop-blur-xl [@media(min-width:1024px)_and_(max-height:860px)]:p-3.5 [@media(min-width:1024px)_and_(max-height:760px)]:rounded-[24px] [@media(min-width:1024px)_and_(max-height:760px)]:p-3',
+                        displayedRole.theme.previewCardClass,
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/60">
+                            Workspace preview
+                          </p>
+                          <h2 className="text-2xl font-semibold text-white [@media(min-width:1024px)_and_(max-height:860px)]:text-xl [@media(min-width:1024px)_and_(max-height:760px)]:text-lg">
+                            {displayedRole.visualTitle}
+                          </h2>
+                          <p className="text-sm leading-6 text-white/72 [@media(min-width:1024px)_and_(max-height:860px)]:leading-5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-4.5">
+                            {displayedRole.visualDescription}
+                          </p>
+                        </div>
+
+                        <div
+                          className={cn(
+                            'rounded-[22px] border p-3 backdrop-blur-md',
+                            displayedRole.theme.iconSurfaceClass,
+                          )}
+                        >
+                          <ShowcaseIcon className="h-7 w-7" />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 lg:grid-cols-3 2xl:grid-cols-1 [@media(min-width:1024px)_and_(max-height:860px)]:mt-3 [@media(min-width:1024px)_and_(max-height:860px)]:gap-1.5 [@media(min-width:1024px)_and_(max-height:760px)]:mt-2.5">
+                        {displayedRole.previewPanels.map((panel, index) => {
+                          const PanelIcon = panel.icon
+
+                          return (
+                            <div
+                              key={`${displayedRole.id}-${panel.label}`}
+                              className={cn(
+                                'rounded-2xl border p-3 backdrop-blur-md transition-all duration-500 [@media(min-width:1024px)_and_(max-height:860px)]:rounded-xl [@media(min-width:1024px)_and_(max-height:860px)]:p-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:p-2',
+                                index === 0
+                                  ? displayedRole.theme.previewPanelStrongClass
+                                  : displayedRole.theme.previewPanelSoftClass,
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div
+                                  className={cn(
+                                    'rounded-2xl border p-2.5 backdrop-blur-md',
+                                    displayedRole.theme.iconSurfaceClass,
+                                  )}
+                                >
+                                  <PanelIcon className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/58">
+                                      {panel.label}
+                                    </p>
+                                    <p className="text-sm font-semibold text-white">
+                                      {panel.value}
+                                    </p>
+                                  </div>
+                                  <p className="text-sm font-semibold text-white">{panel.title}</p>
+                                  <p className="text-sm leading-5 text-white/70 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-4.5">
+                                    {panel.detail}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <div className="mt-2.5 grid gap-2 sm:grid-cols-3 [@media(min-width:1024px)_and_(max-height:860px)]:mt-2 [@media(min-width:1024px)_and_(max-height:860px)]:gap-1.5 [@media(min-width:1024px)_and_(max-height:760px)]:hidden">
+                        {displayedRole.metrics.map((metric) => (
+                          <div
+                            key={metric.label}
+                            className={cn(
+                              'rounded-2xl border px-4 py-3.5 backdrop-blur-md transition-all duration-500',
+                              displayedRole.theme.metricSurfaceClass,
+                            )}
+                          >
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
+                              {metric.label}
+                            </p>
+                            <p className="mt-3 text-lg font-semibold text-white">{metric.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 hidden xl:flex xl:flex-wrap xl:gap-2 [@media(min-width:1024px)_and_(max-height:860px)]:mt-2 [@media(min-width:1024px)_and_(max-height:860px)]:gap-1.5 [@media(min-width:1024px)_and_(max-height:760px)]:hidden">
+                      {displayedRole.featureHighlights.map((feature) => (
+                        <div
+                          key={`${displayedRole.id}-${feature.label}-chip`}
+                          className={cn(
+                            'rounded-full border px-3 py-1.5 text-xs font-medium backdrop-blur-md transition-colors duration-500',
+                            displayedRole.theme.featureChipClass,
+                          )}
+                        >
+                          {feature.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="hidden xl:flex xl:flex-wrap xl:gap-2 xl:text-xs xl:text-white/70 [@media(min-width:1024px)_and_(max-height:860px)]:hidden">
+                  <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 backdrop-blur-md">
+                    Unified authentication with role-based routing
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 backdrop-blur-md">
+                    Secure sign-in for HR, payroll, and employee workflows
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </div>
     </main>
   )
 }

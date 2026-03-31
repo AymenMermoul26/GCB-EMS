@@ -8,13 +8,6 @@ import { toast } from 'sonner'
 import { AuthLayout } from '@/layouts/auth-layout'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ROUTES } from '@/constants/routes'
@@ -210,135 +203,154 @@ export function ResetPasswordPage() {
 
   if (recoveryStatus === 'checking') {
     return (
-      <AuthLayout>
-        <Card className="rounded-2xl border border-slate-200/90 shadow-[0_20px_65px_-28px_rgba(2,6,23,0.25)]">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-xl">Reset Password</CardTitle>
-            <CardDescription>Validating your password reset link.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-700">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Checking your reset session...
-            </div>
-          </CardContent>
-        </Card>
+      <AuthLayout
+        badge="Validating link"
+        title="Reset Password"
+        description="Validating your password reset link."
+        heroBadge="Reset session"
+        heroTitle="We are verifying your reset session securely."
+        heroDescription="Use the latest reset link from your email. Once the recovery session is confirmed, you can set a new password."
+        heroHighlights={[
+          'Recovery links are checked before password updates are allowed.',
+          'Only the latest valid reset session should be used.',
+          'You will return to sign-in after the password is updated.',
+        ]}
+        heroIcon={KeyRound}
+        theme="reset"
+      >
+        <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-700">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking your reset session...
+        </div>
       </AuthLayout>
     )
   }
 
   if (recoveryStatus === 'invalid') {
     return (
-      <AuthLayout>
-        <Card className="rounded-2xl border border-slate-200/90 shadow-[0_20px_65px_-28px_rgba(2,6,23,0.25)]">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-xl">Reset Password</CardTitle>
-            <CardDescription>
-              This password reset link is invalid, expired, or no longer active.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Invalid reset session</AlertTitle>
-              <AlertDescription>
-                Request a new password reset email and use the latest link from your inbox.
-              </AlertDescription>
-            </Alert>
+      <AuthLayout
+        badge="Recovery expired"
+        title="Reset Password"
+        description="This password reset link is invalid, expired, or no longer active."
+        heroBadge="Reset unavailable"
+        heroTitle="Request a new password reset email and use the latest link."
+        heroDescription="Expired or reused links should not be trusted. Start a new recovery request and continue with the newest email you receive."
+        heroHighlights={[
+          'Use only the most recent reset email in your inbox.',
+          'Expired or invalid links cannot update your password.',
+          'You can request a fresh recovery link at any time.',
+        ]}
+        heroIcon={AlertTriangle}
+        theme="reset"
+      >
+        <Alert variant="destructive" className="rounded-2xl">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Invalid reset session</AlertTitle>
+          <AlertDescription>
+            Request a new password reset email and use the latest link from your inbox.
+          </AlertDescription>
+        </Alert>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild className="flex-1">
-                <Link to={ROUTES.FORGOT_PASSWORD}>Request a new reset link</Link>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={goBack}
-              >
-                {primaryActionLabel}
-              </Button>
-            </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button
+            asChild
+            className="h-11 flex-1 rounded-xl bg-gradient-to-r from-[#f97316] via-[#ea580c] to-[#d97706] font-semibold text-white shadow-lg shadow-orange-400/35 hover:opacity-95"
+          >
+            <Link to={ROUTES.FORGOT_PASSWORD}>Request a new reset link</Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 flex-1 rounded-xl"
+            onClick={goBack}
+          >
+            {primaryActionLabel}
+          </Button>
+        </div>
 
-            <Button asChild variant="ghost" className="w-full">
-              <Link to={recoveryRoute}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <Button asChild variant="ghost" className="h-11 w-full rounded-xl">
+          <Link to={recoveryRoute}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Link>
+        </Button>
       </AuthLayout>
     )
   }
 
   return (
-    <AuthLayout>
-      <Card className="rounded-2xl border border-slate-200/90 shadow-[0_20px_65px_-28px_rgba(2,6,23,0.25)]">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-xl">Set a New Password</CardTitle>
-          <CardDescription>
-            Choose a strong password with at least 8 characters.
-          </CardDescription>
-        </CardHeader>
+    <AuthLayout
+      badge="Create new password"
+      title="Set a New Password"
+      description="Choose a strong password with at least 8 characters."
+      heroBadge="Secure reset"
+      heroTitle="Set a new password and return to your secure sign-in flow."
+      heroDescription="Once the recovery session is valid, choose a strong password and continue with the updated credentials on the login page."
+      heroHighlights={[
+        'Use a strong password with at least eight characters.',
+        'Confirm the new password before the update is applied.',
+        'After the reset, sign in again with the new credentials.',
+      ]}
+      heroIcon={KeyRound}
+      theme="reset"
+    >
+      {submitFeedback ? (
+        <Alert
+          variant={submitFeedback.type === 'error' ? 'destructive' : 'default'}
+          className="rounded-2xl"
+        >
+          <AlertTitle>
+            {submitFeedback.type === 'success' ? 'Success' : 'Unable to reset password'}
+          </AlertTitle>
+          <AlertDescription>{submitFeedback.message}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        <CardContent className="space-y-5">
-          {submitFeedback ? (
-            <Alert variant={submitFeedback.type === 'error' ? 'destructive' : 'default'}>
-              <AlertTitle>
-                {submitFeedback.type === 'success' ? 'Success' : 'Unable to reset password'}
-              </AlertTitle>
-              <AlertDescription>{submitFeedback.message}</AlertDescription>
-            </Alert>
-          ) : null}
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <PasswordField
+          id="newPassword"
+          label="New password"
+          error={form.formState.errors.newPassword?.message}
+          inputType={showPassword.newPassword ? 'text' : 'password'}
+          isSubmitting={form.formState.isSubmitting}
+          isVisible={showPassword.newPassword}
+          onToggleVisibility={() => toggleVisibility('newPassword')}
+          registration={form.register('newPassword')}
+        />
 
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <PasswordField
-              id="newPassword"
-              label="New password"
-              error={form.formState.errors.newPassword?.message}
-              inputType={showPassword.newPassword ? 'text' : 'password'}
-              isSubmitting={form.formState.isSubmitting}
-              isVisible={showPassword.newPassword}
-              onToggleVisibility={() => toggleVisibility('newPassword')}
-              registration={form.register('newPassword')}
-            />
+        <PasswordField
+          id="confirmNewPassword"
+          label="Confirm new password"
+          error={form.formState.errors.confirmNewPassword?.message}
+          inputType={showPassword.confirmNewPassword ? 'text' : 'password'}
+          isSubmitting={form.formState.isSubmitting}
+          isVisible={showPassword.confirmNewPassword}
+          onToggleVisibility={() => toggleVisibility('confirmNewPassword')}
+          registration={form.register('confirmNewPassword')}
+        />
 
-            <PasswordField
-              id="confirmNewPassword"
-              label="Confirm new password"
-              error={form.formState.errors.confirmNewPassword?.message}
-              inputType={showPassword.confirmNewPassword ? 'text' : 'password'}
-              isSubmitting={form.formState.isSubmitting}
-              isVisible={showPassword.confirmNewPassword}
-              onToggleVisibility={() => toggleVisibility('confirmNewPassword')}
-              registration={form.register('confirmNewPassword')}
-            />
+        <p className="text-xs text-slate-600">
+          After resetting your password, you will be returned to the login screen.
+        </p>
 
-            <p className="text-xs text-slate-600">
-              After resetting your password, you will be returned to the login screen.
-            </p>
-
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={form.formState.isSubmitting || !isValidAndDirty}
-            >
-              {form.formState.isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating password...
-                </>
-              ) : (
-                <>
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Reset password
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+        <Button
+          type="submit"
+          className="h-11 w-full rounded-xl bg-gradient-to-r from-[#f97316] via-[#ea580c] to-[#d97706] font-semibold text-white shadow-lg shadow-orange-400/35 hover:opacity-95"
+          disabled={form.formState.isSubmitting || !isValidAndDirty}
+        >
+          {form.formState.isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Updating password...
+            </>
+          ) : (
+            <>
+              <KeyRound className="mr-2 h-4 w-4" />
+              Reset password
+            </>
+          )}
+        </Button>
+      </form>
     </AuthLayout>
   )
 }
@@ -368,12 +380,18 @@ function PasswordField({
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       <div className="relative">
-        <Input id={id} type={inputType} disabled={isSubmitting} {...registration} />
+        <Input
+          id={id}
+          type={inputType}
+          disabled={isSubmitting}
+          className="h-11 rounded-xl border-slate-200 bg-white/90 pr-11 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0"
+          {...registration}
+        />
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-1 top-1 h-8 w-8"
+          className="absolute right-1 top-1 h-9 w-9 text-slate-500 hover:bg-transparent hover:text-slate-800"
           disabled={isSubmitting}
           onClick={onToggleVisibility}
           aria-label={isVisible ? 'Hide password' : 'Show password'}

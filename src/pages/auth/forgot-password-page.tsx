@@ -8,13 +8,6 @@ import { Link } from 'react-router-dom'
 import { AuthLayout } from '@/layouts/auth-layout'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ROUTES } from '@/constants/routes'
@@ -62,85 +55,89 @@ export function ForgotPasswordPage() {
   })
 
   return (
-    <AuthLayout>
-      <Card className="rounded-2xl border border-slate-200/90 shadow-[0_20px_65px_-28px_rgba(2,6,23,0.25)]">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-xl">Forgot Password</CardTitle>
-          <CardDescription>
-            Enter the email address linked to your account to request a password reset.
-          </CardDescription>
-        </CardHeader>
+    <AuthLayout
+      badge="Account recovery"
+      title="Forgot Password"
+      description="Enter the email address linked to your account to request a password reset."
+      heroBadge="Recovery flow"
+      heroTitle="Request a secure reset link without exposing account details."
+      heroDescription="If the email is registered, the reset link will be sent shortly. The flow stays generic for security and clear for real users."
+      heroHighlights={[
+        'Security-safe messaging without account enumeration.',
+        'A reset link is sent to the registered email address.',
+        'Users are guided to check spam or junk folders if needed.',
+      ]}
+      heroIcon={MailCheck}
+      theme="recovery"
+    >
+      {requestResetMutation.error ? (
+        <Alert variant="destructive" className="rounded-2xl">
+          <AlertTitle>Unable to send reset email</AlertTitle>
+          <AlertDescription>
+            {getForgotPasswordErrorMessage(requestResetMutation.error)}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-        <CardContent className="space-y-5">
-          {requestResetMutation.error ? (
-            <Alert variant="destructive">
-              <AlertTitle>Unable to send reset email</AlertTitle>
-              <AlertDescription>
-                {getForgotPasswordErrorMessage(requestResetMutation.error)}
-              </AlertDescription>
-            </Alert>
+      {hasSubmitted ? (
+        <Alert className="rounded-2xl border-emerald-200 bg-emerald-50 text-emerald-900">
+          <MailCheck className="h-4 w-4" />
+          <AlertTitle>Reset request received</AlertTitle>
+          <AlertDescription>
+            If this email is registered, you will receive a password reset link shortly.
+            Please check your spam or junk folder if you do not see the email.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="Enter your email address"
+            disabled={requestResetMutation.isPending}
+            className="h-11 rounded-xl border-slate-200 bg-white/90 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0"
+            {...form.register('email')}
+          />
+          {form.formState.errors.email ? (
+            <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
           ) : null}
+          <p className="text-xs text-slate-500">
+            Use the same email address you normally use to sign in.
+          </p>
+        </div>
 
-          {hasSubmitted ? (
-            <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
-              <MailCheck className="h-4 w-4" />
-              <AlertTitle>Reset request received</AlertTitle>
-              <AlertDescription>
-                If this email is registered, you will receive a password reset link shortly.
-                Please check your spam or junk folder if you do not see the email.
-              </AlertDescription>
-            </Alert>
-          ) : null}
+        <p className="text-sm leading-6 text-slate-600">
+          If your email is registered, you will receive a password reset link.
+        </p>
 
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="Enter your email address"
-                disabled={requestResetMutation.isPending}
-                {...form.register('email')}
-              />
-              {form.formState.errors.email ? (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.email.message}
-                </p>
-              ) : null}
-              <p className="text-xs text-slate-500">
-                Use the same email address you normally use to sign in.
-              </p>
-            </div>
+        <Button
+          type="submit"
+          className="h-11 w-full rounded-xl bg-gradient-to-r from-[#f97316] via-[#ea580c] to-[#d97706] font-semibold text-white shadow-lg shadow-orange-400/35 hover:opacity-95"
+          disabled={requestResetMutation.isPending}
+        >
+          {requestResetMutation.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Sending reset link...
+            </>
+          ) : hasSubmitted ? (
+            'Send another reset link'
+          ) : (
+            'Send reset link'
+          )}
+        </Button>
+      </form>
 
-            <p className="text-sm text-slate-600">
-              If your email is registered, you will receive a password reset link.
-            </p>
-
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={requestResetMutation.isPending}
-            >
-              {requestResetMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending reset link...
-                </>
-              ) : (
-                hasSubmitted ? 'Send another reset link' : 'Send reset link'
-              )}
-            </Button>
-          </form>
-
-          <Button asChild variant="outline" className="w-full">
-            <Link to={ROUTES.LOGIN}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to login
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <Button asChild variant="outline" className="h-11 w-full rounded-xl">
+        <Link to={ROUTES.LOGIN}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to login
+        </Link>
+      </Button>
     </AuthLayout>
   )
 }
