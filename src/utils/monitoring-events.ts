@@ -195,6 +195,11 @@ const ACTION_META: Record<string, MonitoringActionMeta> = {
     tone: 'rose',
     critical: true,
   },
+  PAYROLL_EXPORT_REQUESTED: {
+    label: 'Payroll Export Requested',
+    categoryKey: 'payroll',
+    tone: 'amber',
+  },
   PAYROLL_EXPORT_GENERATED: {
     label: 'Payroll Export Generated',
     categoryKey: 'payroll',

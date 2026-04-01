@@ -30,6 +30,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { PayslipWorkflowTimeline } from '@/components/payroll/payslip-workflow-timeline'
 import {
   Dialog,
   DialogContent,
@@ -142,6 +143,18 @@ function RequestRow({ request }: { request: EmployeePayslipRequestItem }) {
             <span>Submitted {formatTimestamp(request.createdAt)}</span>
             <span>Reviewed {formatTimestamp(request.reviewedAt)}</span>
             <span>Fulfilled {formatTimestamp(request.fulfilledAt)}</span>
+          </div>
+
+          <div className="mt-4">
+            <PayslipWorkflowTimeline
+              request={{
+                status: request.status,
+                createdAt: request.createdAt,
+                reviewedAt: request.reviewedAt,
+                documentPublishedAt: request.documentPublishedAt,
+                fulfilledAt: request.fulfilledAt,
+              }}
+            />
           </div>
 
           {request.requestNote ? (

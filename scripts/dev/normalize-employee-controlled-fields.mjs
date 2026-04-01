@@ -9,25 +9,26 @@ const DEFAULT_ADMIN_PASSWORD = 'hradmingcb2026'
 
 const REGIONAL_BRANCH_CANONICAL_VALUES = new Set([
   'Alger (El Harrach, Oued Smar)',
-  'Boumerdès',
+  'Boumerd\u00e8s',
   'Arzew',
   'Hassi Messaoud',
-  'Hassi R’Mel',
+  'Hassi R\u2019Mel',
   'In Salah',
   'Adrar',
   'In Amenas',
 ])
 
 const SITUATION_FAMILIALE_CANONICAL_VALUES = new Set([
-  'Célibataire',
-  'Marié(e)',
-  'Divorcé(e)',
+  'C\u00e9libataire',
+  'Mari\u00e9(e)',
+  'Divorc\u00e9(e)',
   'Veuf(ve)',
 ])
 
 const SEXE_CANONICAL_VALUES = new Set(['M', 'F'])
 const CATEGORIE_CANONICAL_VALUES = new Set(['Cadre', 'Agent'])
 const TYPE_CONTRAT_CANONICAL_VALUES = new Set(['CDI', 'CDD'])
+const DISPLAY_ONLY_PLACEHOLDER_KEYS = new Set(['not provided', 'not set', 'not available', 'not assigned', 'not reviewed', 'non renseigné', 'non défini', 'non disponible', 'non attribué', 'non examiné', 'غير مذكور', 'غير محدد', 'غير متاح', 'غير معيّن', 'لم تتم مراجعته'])
 
 function loadDotEnvFile() {
   const envPath = path.resolve(process.cwd(), '.env')
@@ -72,16 +73,29 @@ function normalizeLookupKey(value) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ')
-    .replace(/[’`´]/g, "'")
+    .replace(/[â€™`Â´]/g, "'")
 }
 
-function normalizeRegionalBranch(value) {
+function normalizeDisplayOnlyPlaceholder(value) {
   if (value === null || value === undefined) {
     return null
   }
 
   const trimmed = String(value).trim()
   if (trimmed.length === 0) {
+    return null
+  }
+
+  if (DISPLAY_ONLY_PLACEHOLDER_KEYS.has(normalizeLookupKey(trimmed))) {
+    return null
+  }
+
+  return trimmed
+}
+
+function normalizeRegionalBranch(value) {
+  const trimmed = normalizeDisplayOnlyPlaceholder(value)
+  if (trimmed === null) {
     return null
   }
 
@@ -93,8 +107,8 @@ function normalizeRegionalBranch(value) {
   if (normalized === 'alger' || normalized.includes('el harrach') || normalized.includes('oued smar')) {
     return 'Alger (El Harrach, Oued Smar)'
   }
-  if (normalized === 'boumerdes' || normalized === 'boumerdès' || normalized === 'boumerdã¨s') {
-    return 'Boumerdès'
+  if (normalized === 'boumerdes' || normalized === 'boumerdÃ¨s' || normalized === 'boumerdÃ£Â¨s') {
+    return 'Boumerd\u00e8s'
   }
   if (normalized === 'arzew') {
     return 'Arzew'
@@ -104,10 +118,10 @@ function normalizeRegionalBranch(value) {
   }
   if (
     normalized === "hassi r'mel" ||
-    normalized === 'hassi r’mel' ||
-    normalized === 'hassi râ€™mel'
+    normalized === 'hassi râ€™mel' ||
+    normalized === 'hassi rÃ¢â‚¬â„¢mel'
   ) {
-    return 'Hassi R’Mel'
+    return 'Hassi R\u2019Mel'
   }
   if (normalized === 'in salah') {
     return 'In Salah'
@@ -123,12 +137,8 @@ function normalizeRegionalBranch(value) {
 }
 
 function normalizeSituationFamiliale(value) {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const trimmed = String(value).trim()
-  if (trimmed.length === 0) {
+  const trimmed = normalizeDisplayOnlyPlaceholder(value)
+  if (trimmed === null) {
     return null
   }
 
@@ -137,14 +147,14 @@ function normalizeSituationFamiliale(value) {
   }
 
   const normalized = normalizeLookupKey(trimmed)
-  if (normalized === 'célibataire' || normalized === 'celibataire' || normalized === 'cã©libataire') {
-    return 'Célibataire'
+  if (normalized === 'cÃ©libataire' || normalized === 'celibataire' || normalized === 'cÃ£Â©libataire') {
+    return 'C\u00e9libataire'
   }
-  if (normalized === 'marié(e)' || normalized === 'marie(e)' || normalized === 'mariã©(e)') {
-    return 'Marié(e)'
+  if (normalized === 'mariÃ©(e)' || normalized === 'marie(e)' || normalized === 'mariÃ£Â©(e)') {
+    return 'Mari\u00e9(e)'
   }
-  if (normalized === 'divorcé(e)' || normalized === 'divorce(e)' || normalized === 'divorcã©(e)') {
-    return 'Divorcé(e)'
+  if (normalized === 'divorcÃ©(e)' || normalized === 'divorce(e)' || normalized === 'divorcÃ£Â©(e)') {
+    return 'Divorc\u00e9(e)'
   }
   if (normalized === 'veuf(ve)' || normalized === 'veuf' || normalized === 'veuve' || normalized === 'widowed') {
     return 'Veuf(ve)'
@@ -154,12 +164,8 @@ function normalizeSituationFamiliale(value) {
 }
 
 function normalizeSexe(value) {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const trimmed = String(value).trim()
-  if (trimmed.length === 0) {
+  const trimmed = normalizeDisplayOnlyPlaceholder(value)
+  if (trimmed === null) {
     return null
   }
 
@@ -171,7 +177,7 @@ function normalizeSexe(value) {
   if (normalized === 'm' || normalized === 'male' || normalized === 'masculin' || normalized === 'homme') {
     return 'M'
   }
-  if (normalized === 'f' || normalized === 'female' || normalized === 'feminin' || normalized === 'féminin' || normalized === 'femme') {
+  if (normalized === 'f' || normalized === 'female' || normalized === 'feminin' || normalized === 'fÃ©minin' || normalized === 'femme') {
     return 'F'
   }
 
@@ -179,12 +185,8 @@ function normalizeSexe(value) {
 }
 
 function normalizeCategorieProfessionnelle(value) {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const trimmed = String(value).trim()
-  if (trimmed.length === 0) {
+  const trimmed = normalizeDisplayOnlyPlaceholder(value)
+  if (trimmed === null) {
     return null
   }
 
@@ -204,12 +206,8 @@ function normalizeCategorieProfessionnelle(value) {
 }
 
 function normalizeTypeContrat(value) {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const trimmed = String(value).trim()
-  if (trimmed.length === 0) {
+  const trimmed = normalizeDisplayOnlyPlaceholder(value)
+  if (trimmed === null) {
     return null
   }
 
@@ -229,20 +227,17 @@ function normalizeTypeContrat(value) {
 }
 
 function normalizeEmail(value) {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const trimmed = String(value).trim()
-  return trimmed.length > 0 ? trimmed.toLowerCase() : null
+  const trimmed = normalizeDisplayOnlyPlaceholder(value)
+  return trimmed ? trimmed.toLowerCase() : null
 }
 
 function normalizeTelephone(value) {
-  if (value === null || value === undefined) {
+  const trimmed = normalizeDisplayOnlyPlaceholder(value)
+  if (trimmed === null) {
     return null
   }
 
-  const normalized = String(value).trim().replace(/\s+/g, '')
+  const normalized = trimmed.replace(/\s+/g, '')
   return normalized.length > 0 ? normalized : null
 }
 
@@ -307,9 +302,20 @@ async function main() {
         'telephone',
         'regional_branch',
         'sexe',
+        'lieu_naissance',
+        'nationalite',
         'situation_familiale',
+        'adresse',
+        'numero_securite_sociale',
+        'diplome',
+        'specialite',
+        'universite',
+        'historique_postes',
+        'observations',
+        'poste',
         'categorie_professionnelle',
         'type_contrat',
+        'photo_url',
       ].join(', '),
     )
     .order('created_at', { ascending: true })
@@ -334,9 +340,59 @@ async function main() {
       patch.sexe = nextSexe
     }
 
+    const nextLieuNaissance = normalizeDisplayOnlyPlaceholder(row.lieu_naissance)
+    if (nextLieuNaissance !== row.lieu_naissance) {
+      patch.lieu_naissance = nextLieuNaissance
+    }
+
+    const nextNationalite = normalizeDisplayOnlyPlaceholder(row.nationalite)
+    if (nextNationalite !== row.nationalite) {
+      patch.nationalite = nextNationalite
+    }
+
     const nextSituationFamiliale = normalizeSituationFamiliale(row.situation_familiale)
     if (nextSituationFamiliale !== row.situation_familiale) {
       patch.situation_familiale = nextSituationFamiliale
+    }
+
+    const nextAdresse = normalizeDisplayOnlyPlaceholder(row.adresse)
+    if (nextAdresse !== row.adresse) {
+      patch.adresse = nextAdresse
+    }
+
+    const nextNumeroSecuriteSociale = normalizeDisplayOnlyPlaceholder(row.numero_securite_sociale)
+    if (nextNumeroSecuriteSociale !== row.numero_securite_sociale) {
+      patch.numero_securite_sociale = nextNumeroSecuriteSociale
+    }
+
+    const nextDiplome = normalizeDisplayOnlyPlaceholder(row.diplome)
+    if (nextDiplome !== row.diplome) {
+      patch.diplome = nextDiplome
+    }
+
+    const nextSpecialite = normalizeDisplayOnlyPlaceholder(row.specialite)
+    if (nextSpecialite !== row.specialite) {
+      patch.specialite = nextSpecialite
+    }
+
+    const nextUniversite = normalizeDisplayOnlyPlaceholder(row.universite)
+    if (nextUniversite !== row.universite) {
+      patch.universite = nextUniversite
+    }
+
+    const nextHistoriquePostes = normalizeDisplayOnlyPlaceholder(row.historique_postes)
+    if (nextHistoriquePostes !== row.historique_postes) {
+      patch.historique_postes = nextHistoriquePostes
+    }
+
+    const nextObservations = normalizeDisplayOnlyPlaceholder(row.observations)
+    if (nextObservations !== row.observations) {
+      patch.observations = nextObservations
+    }
+
+    const nextPoste = normalizeDisplayOnlyPlaceholder(row.poste)
+    if (nextPoste !== row.poste) {
+      patch.poste = nextPoste
     }
 
     const nextCategorie = normalizeCategorieProfessionnelle(row.categorie_professionnelle)
@@ -357,6 +413,11 @@ async function main() {
     const nextTelephone = normalizeTelephone(row.telephone)
     if (nextTelephone !== row.telephone) {
       patch.telephone = nextTelephone
+    }
+
+    const nextPhotoUrl = normalizeDisplayOnlyPlaceholder(row.photo_url)
+    if (nextPhotoUrl !== row.photo_url) {
+      patch.photo_url = nextPhotoUrl
     }
 
     const patchKeys = Object.keys(patch)
@@ -386,3 +447,4 @@ main().catch((error) => {
   console.error(error instanceof Error ? error.message : error)
   process.exitCode = 1
 })
+

@@ -44,7 +44,9 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -100,9 +102,15 @@ import {
 import {
   MODIFICATION_REQUEST_FIELD_OPTIONS,
   type ModificationRequestField,
+  type ModificationRequestFieldGroup,
+  type ModificationRequestFieldOption,
 } from '@/types/modification-request'
 import {
+  formatModificationRequestFieldValue,
+  getModificationRequestFieldOption,
+  getModificationRequestFieldSelectOptions,
   getRequestFieldLabel,
+  getRequestFieldGroupLabel,
   getEmployeeFieldValue,
 } from '@/utils/modification-requests'
 
@@ -183,11 +191,6 @@ function formatRequestStatus(
   return status
 }
 
-function formatFieldValue(value: string | null, emptyValue: string): string {
-  const normalized = (value ?? '').trim()
-  return normalized.length > 0 ? normalized : emptyValue
-}
-
 function formatProfileValue(
   value: string | null | undefined,
   emptyValue: string,
@@ -241,6 +244,22 @@ function ReadOnlyRow({ label, value }: ReadOnlyRowProps) {
       <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
     </div>
   )
+}
+
+function getRequestValueInputType(field: ModificationRequestField): 'text' | 'email' | 'tel' | 'url' | 'date' | 'number' {
+  const fieldOption = getModificationRequestFieldOption(field)
+
+  if (
+    fieldOption.inputType === 'email' ||
+    fieldOption.inputType === 'tel' ||
+    fieldOption.inputType === 'url' ||
+    fieldOption.inputType === 'date' ||
+    fieldOption.inputType === 'number'
+  ) {
+    return fieldOption.inputType
+  }
+
+  return 'text'
 }
 
 export function EmployeeProfileManagePage() {
@@ -439,7 +458,7 @@ export function EmployeeProfileManagePage() {
       employeId,
       champCible: values.champCible,
       ancienneValeur: (values.ancienneValeur ?? '').trim() || null,
-      nouvelleValeur: values.nouvelleValeur.trim(),
+      nouvelleValeur: (values.nouvelleValeur ?? '').trim(),
       motif: values.motif?.trim() || null,
     })
   })
@@ -482,6 +501,33 @@ export function EmployeeProfileManagePage() {
 
   const selectedRequestFieldLabel =
     getRequestFieldLabel(selectedRequestField as ModificationRequestField, t)
+  const selectedRequestFieldOption = getModificationRequestFieldOption(
+    selectedRequestField as ModificationRequestField,
+  )
+  const selectedRequestFieldOptions = useMemo(
+    () => getModificationRequestFieldSelectOptions(selectedRequestField as ModificationRequestField),
+    [selectedRequestField],
+  )
+  const groupedRequestFieldOptions = useMemo(() => {
+    const grouped = new Map<ModificationRequestFieldGroup, ModificationRequestFieldOption[]>()
+
+    for (const option of MODIFICATION_REQUEST_FIELD_OPTIONS) {
+      const currentGroup = grouped.get(option.group) ?? []
+      grouped.set(option.group, [...currentGroup, option])
+    }
+
+    return grouped
+  }, [])
+  const currentRequestFieldDisplayValue = formatModificationRequestFieldValue(
+    selectedRequestField as ModificationRequestField,
+    watchedAncienneValeur ?? null,
+    { emptyValue: t('common.notProvided'), locale },
+  )
+  const requestedRequestFieldDisplayValue = formatModificationRequestFieldValue(
+    selectedRequestField as ModificationRequestField,
+    watchedNouvelleValeur ?? null,
+    { emptyValue: t('common.notProvided'), locale },
+  )
 
   const canSubmitApproval =
     requestForm.formState.isDirty &&
@@ -828,11 +874,20 @@ export function EmployeeProfileManagePage() {
                             <SelectValue placeholder={t('employee.manage.field')} />
                           </SelectTrigger>
                           <SelectContent>
-                            {MODIFICATION_REQUEST_FIELD_OPTIONS.map((option) => (
-                              <SelectItem key={option.key} value={option.key}>
-                                {getRequestFieldLabel(option.key, t)}
-                              </SelectItem>
-                            ))}
+                            {Array.from(groupedRequestFieldOptions.entries()).map(
+                              ([group, options]) => (
+                                <SelectGroup key={group}>
+                                  <SelectLabel>
+                                    {getRequestFieldGroupLabel(group, t)}
+                                  </SelectLabel>
+                                  {options.map((option) => (
+                                    <SelectItem key={option.key} value={option.key}>
+                                      {getRequestFieldLabel(option.key, t)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              ),
+                            )}
                           </SelectContent>
                         </Select>
                       )}
@@ -840,7 +895,15 @@ export function EmployeeProfileManagePage() {
                   </FormField>
 
                   <FormField label={t('employee.manage.currentValue')}>
-                    <Input value={requestForm.getValues('ancienneValeur') ?? ''} disabled />
+                    {selectedRequestFieldOption.inputType === 'textarea' ? (
+                      <Textarea
+                        rows={4}
+                        value={currentRequestFieldDisplayValue}
+                        disabled
+                      />
+                    ) : (
+                      <Input value={currentRequestFieldDisplayValue} disabled />
+                    )}
                   </FormField>
                 </div>
 
@@ -848,7 +911,36 @@ export function EmployeeProfileManagePage() {
                   label={t('employee.manage.requestedNewValue')}
                   error={requestForm.formState.errors.nouvelleValeur?.message}
                 >
-                  <Input {...requestForm.register('nouvelleValeur')} />
+                  {selectedRequestFieldOption.inputType === 'select' ? (
+                    <Controller
+                      control={requestForm.control}
+                      name="nouvelleValeur"
+                      render={({ field }) => (
+                        <Select
+                          value={field.value && field.value.length > 0 ? field.value : undefined}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('employee.manage.requestedNewValue')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedRequestFieldOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  ) : selectedRequestFieldOption.inputType === 'textarea' ? (
+                    <Textarea rows={4} {...requestForm.register('nouvelleValeur')} />
+                  ) : (
+                    <Input
+                      type={getRequestValueInputType(selectedRequestField as ModificationRequestField)}
+                      {...requestForm.register('nouvelleValeur')}
+                    />
+                  )}
                 </FormField>
 
                 <FormField label={t('employee.manage.additionalNote')}>
@@ -906,11 +998,11 @@ export function EmployeeProfileManagePage() {
                 <ReadOnlyRow label={t('employee.manage.selectedField')} value={selectedRequestFieldLabel} />
                 <ReadOnlyRow
                   label={t('employee.manage.currentValue')}
-                  value={formatFieldValue(watchedAncienneValeur ?? null, t('common.notProvided'))}
+                  value={currentRequestFieldDisplayValue}
                 />
                 <ReadOnlyRow
                   label={t('employee.manage.requestedValue')}
-                  value={formatFieldValue(watchedNouvelleValeur ?? null, t('common.notProvided'))}
+                  value={requestedRequestFieldDisplayValue}
                 />
               </div>
 

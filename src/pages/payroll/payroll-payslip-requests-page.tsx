@@ -29,6 +29,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { PayslipWorkflowTimeline } from '@/components/payroll/payslip-workflow-timeline'
 import {
   Dialog,
   DialogContent,
@@ -509,7 +510,26 @@ export function PayrollPayslipRequestsPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-950">Workflow timeline</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Timeline state is derived from the request status and recorded workflow
+                    timestamps.
+                  </p>
+                  <PayslipWorkflowTimeline
+                    className="mt-4"
+                    request={{
+                      status: selectedRequest.status,
+                      createdAt: selectedRequest.createdAt,
+                      reviewedAt: selectedRequest.reviewedAt,
+                      documentPublishedAt: selectedRequest.documentPublishedAt,
+                      fulfilledAt: selectedRequest.fulfilledAt,
+                    }}
+                  />
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
                     <div className="flex flex-wrap items-center gap-2">
@@ -645,6 +665,7 @@ export function PayrollPayslipRequestsPage() {
                       from the employee account, but the workflow state can no longer change.
                     </div>
                   ) : null}
+                </div>
                 </div>
               </div>
 

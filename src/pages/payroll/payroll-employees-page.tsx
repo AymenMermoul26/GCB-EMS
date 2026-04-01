@@ -54,6 +54,7 @@ import {
 import {
   EMPLOYEE_REGIONAL_BRANCH_LABELS,
   EMPLOYEE_REGIONAL_BRANCH_OPTIONS,
+  getEmployeeRegionalBranchLabel,
   getEmployeePosteLabel,
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
@@ -69,7 +70,7 @@ function formatDepartmentName(employee: PayrollEmployeeListItem): string {
 }
 
 function formatRegionalBranch(value: string | null | undefined): string {
-  const normalized = value?.trim()
+  const normalized = getEmployeeRegionalBranchLabel(value)?.trim()
   if (!normalized) {
     return 'Branch not assigned'
   }

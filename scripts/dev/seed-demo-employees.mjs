@@ -97,6 +97,8 @@ const DEMO_EMPLOYEES = [
     universite: "Universite d'Alger 3",
     historiquePostes:
       'HR Generalist -> HR Business Partner -> HR Operations Manager',
+    observations:
+      'Leads core HR operations and headcount reviews for central HR governance.',
     categorieProfessionnelle: 'Cadre',
     typeContrat: 'CDI',
     dateRecrutement: '2012-09-17',
@@ -122,6 +124,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Statistiques / Data',
     universite: 'Universite Mhamed Bougara de Boumerdes',
     historiquePostes: 'HR Reporting Assistant -> Workforce Planning Analyst',
+    observations:
+      'Supports workforce planning dashboards and staffing analysis for reporting cycles.',
     categorieProfessionnelle: 'Agent',
     typeContrat: 'CDI',
     dateRecrutement: '2017-02-06',
@@ -147,6 +151,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Informatique',
     universite: "Universite des Sciences et de la Technologie d'Oran Mohamed Boudiaf",
     historiquePostes: 'IT Helpdesk Technician -> IT Support Engineer',
+    observations:
+      'Handles user support coordination and workstation readiness for field teams.',
     categorieProfessionnelle: 'Agent',
     typeContrat: 'CDI',
     dateRecrutement: '2018-03-12',
@@ -172,6 +178,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Finance / Comptabilite',
     universite: 'Universite Freres Mentouri Constantine 1',
     historiquePostes: 'Accountant -> Senior Accountant -> Financial Controller',
+    observations:
+      'Owns payroll controls, reconciliations, and monthly financial reporting support.',
     categorieProfessionnelle: 'Cadre',
     typeContrat: 'CDI',
     dateRecrutement: '2014-06-02',
@@ -197,6 +205,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Achats / Approvisionnement',
     universite: "Universite d'Oran 1 Ahmed Ben Bella",
     historiquePostes: 'Buyer Assistant -> Procurement Officer',
+    observations:
+      'Coordinates supplier follow-up and procurement file preparation for operational needs.',
     categorieProfessionnelle: 'Agent',
     typeContrat: 'CDI',
     dateRecrutement: '2015-11-09',
@@ -222,6 +232,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Logistique',
     universite: 'Universite Saad Dahlab de Blida',
     historiquePostes: 'Warehouse Agent -> Logistics Coordinator',
+    observations:
+      'Supports stock movement planning and logistics coordination for regional sites.',
     categorieProfessionnelle: 'Agent',
     typeContrat: 'CDD',
     dateRecrutement: '2021-04-18',
@@ -247,6 +259,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'HSE',
     universite: 'Universite Abou Bekr Belkaid de Tlemcen',
     historiquePostes: 'HSE Analyst -> HSE Specialist',
+    observations:
+      'Monitors HSE compliance actions and prevention follow-up for field operations.',
     categorieProfessionnelle: 'Cadre',
     typeContrat: 'CDI',
     dateRecrutement: '2019-01-13',
@@ -272,6 +286,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Administration publique',
     universite: 'Universite de Bejaia',
     historiquePostes: 'Administrative Officer -> Administrative Supervisor',
+    observations:
+      'Supervises administrative support activities and office services coordination.',
     categorieProfessionnelle: 'Cadre',
     typeContrat: 'CDI',
     dateRecrutement: '2011-05-22',
@@ -297,6 +313,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Ressources humaines',
     universite: "Universite d'Alger 2",
     historiquePostes: 'Training Officer -> Career Development Officer',
+    observations:
+      'Supports career path reviews, mobility tracking, and employee development follow-up.',
     categorieProfessionnelle: 'Cadre',
     typeContrat: 'CDI',
     dateRecrutement: '2016-09-04',
@@ -322,6 +340,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Formation / Ingenierie pedagogique',
     universite: "Universite d'Alger 2",
     historiquePostes: 'Training Assistant -> Training Coordinator',
+    observations:
+      'Coordinates annual training sessions and completion tracking for employees.',
     categorieProfessionnelle: 'Agent',
     typeContrat: 'CDI',
     dateRecrutement: '2018-10-07',
@@ -347,6 +367,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Ressources humaines',
     universite: 'Universite Mouloud Mammeri de Tizi Ouzou',
     historiquePostes: 'Talent Acquisition Assistant -> Recruitment Specialist',
+    observations:
+      'Manages recruitment screening, interview scheduling, and onboarding preparation.',
     categorieProfessionnelle: 'Agent',
     typeContrat: 'CDD',
     dateRecrutement: '2022-02-14',
@@ -372,6 +394,8 @@ const DEMO_EMPLOYEES = [
     specialite: 'Droit',
     universite: 'Universite Abou Bekr Belkaid de Tlemcen',
     historiquePostes: 'HR Compliance Officer -> Labour Relations Officer',
+    observations:
+      'Supports labor compliance reviews and social dialogue documentation.',
     categorieProfessionnelle: 'Cadre',
     typeContrat: 'CDI',
     dateRecrutement: '2013-01-20',
@@ -430,7 +454,7 @@ function buildEmployeeWritePayload(employee, departmentId) {
     specialite: employee.specialite,
     universite: employee.universite,
     historique_postes: employee.historiquePostes,
-    observations: null,
+    observations: employee.observations ?? null,
     poste: employee.poste,
     categorie_professionnelle: employee.categorieProfessionnelle,
     type_contrat: employee.typeContrat,
@@ -473,6 +497,7 @@ function buildMissingFieldPatch(existingRow, nextValues, departmentId) {
   maybeFill('specialite', nextValues.specialite)
   maybeFill('universite', nextValues.universite)
   maybeFill('historique_postes', nextValues.historique_postes)
+  maybeFill('observations', nextValues.observations)
   maybeFill('poste', nextValues.poste)
   maybeFill('categorie_professionnelle', nextValues.categorie_professionnelle)
   maybeFill('type_contrat', nextValues.type_contrat)
@@ -488,6 +513,73 @@ function buildMissingFieldPatch(existingRow, nextValues, departmentId) {
   return {
     patch,
     completedFieldCount,
+  }
+}
+
+function valuesMatch(currentValue, nextValue) {
+  if (currentValue === nextValue) {
+    return true
+  }
+
+  if (currentValue === null || currentValue === undefined) {
+    return nextValue === null || nextValue === undefined
+  }
+
+  if (nextValue === null || nextValue === undefined) {
+    return false
+  }
+
+  if (typeof currentValue === 'string' || typeof nextValue === 'string') {
+    return String(currentValue).trim() === String(nextValue).trim()
+  }
+
+  return false
+}
+
+function buildCanonicalFieldPatch(existingRow, nextValues, departmentId) {
+  const patch = {}
+  let normalizedFieldCount = 0
+
+  const maybeNormalize = (column, value) => {
+    if (value === undefined) {
+      return
+    }
+
+    if (valuesMatch(existingRow[column], value)) {
+      return
+    }
+
+    patch[column] = value
+    normalizedFieldCount += 1
+  }
+
+  maybeNormalize('departement_id', departmentId)
+  maybeNormalize('regional_branch', nextValues.regional_branch)
+  maybeNormalize('nom', nextValues.nom)
+  maybeNormalize('prenom', nextValues.prenom)
+  maybeNormalize('sexe', nextValues.sexe)
+  maybeNormalize('date_naissance', nextValues.date_naissance)
+  maybeNormalize('lieu_naissance', nextValues.lieu_naissance)
+  maybeNormalize('nationalite', nextValues.nationalite)
+  maybeNormalize('situation_familiale', nextValues.situation_familiale)
+  maybeNormalize('nombre_enfants', nextValues.nombre_enfants)
+  maybeNormalize('adresse', nextValues.adresse)
+  maybeNormalize('numero_securite_sociale', nextValues.numero_securite_sociale)
+  maybeNormalize('diplome', nextValues.diplome)
+  maybeNormalize('specialite', nextValues.specialite)
+  maybeNormalize('universite', nextValues.universite)
+  maybeNormalize('historique_postes', nextValues.historique_postes)
+  maybeNormalize('observations', nextValues.observations)
+  maybeNormalize('poste', nextValues.poste)
+  maybeNormalize('categorie_professionnelle', nextValues.categorie_professionnelle)
+  maybeNormalize('type_contrat', nextValues.type_contrat)
+  maybeNormalize('date_recrutement', nextValues.date_recrutement)
+  maybeNormalize('email', nextValues.email)
+  maybeNormalize('telephone', nextValues.telephone)
+
+  return {
+    patch,
+    normalizedFieldCount,
   }
 }
 
@@ -672,7 +764,7 @@ async function ensureSecurityNotification(adminClient, userId) {
 }
 
 async function ensureEmployeeRow(adminClient, employee, departmentId, options = {}) {
-  const { createWhenMissing = true } = options
+  const { createWhenMissing = true, forceCanonical = false } = options
   const normalizedEmail = normalizeEmail(employee.email)
   const { data: existingRows, error: lookupError } = await adminClient
     .from('Employe')
@@ -722,19 +814,27 @@ async function ensureEmployeeRow(adminClient, employee, departmentId, options = 
       nextValues,
       departmentId,
     )
+    const { patch: canonicalPatch, normalizedFieldCount } = forceCanonical
+      ? buildCanonicalFieldPatch(existingEmployee, nextValues, departmentId)
+      : { patch: {}, normalizedFieldCount: 0 }
+    const mergedPatch = {
+      ...patch,
+      ...canonicalPatch,
+    }
 
-    if (Object.keys(patch).length === 0) {
+    if (Object.keys(mergedPatch).length === 0) {
       return {
         id: existingEmployee.id,
         matricule: existingEmployee.matricule,
         created: false,
         completedFieldCount,
+        normalizedFieldCount,
       }
     }
 
     const { data: updatedRow, error: updateError } = await adminClient
       .from('Employe')
-      .update(patch)
+      .update(mergedPatch)
       .eq('id', existingEmployee.id)
       .select('id, matricule')
       .single()
@@ -743,13 +843,14 @@ async function ensureEmployeeRow(adminClient, employee, departmentId, options = 
       throw new Error(`Failed to update employee row for ${employee.email}: ${updateError.message}`)
     }
 
-    return {
-      id: updatedRow.id,
-      matricule: updatedRow.matricule,
-      created: false,
-      completedFieldCount,
+      return {
+        id: updatedRow.id,
+        matricule: updatedRow.matricule,
+        created: false,
+        completedFieldCount,
+        normalizedFieldCount,
+      }
     }
-  }
 
   if (!createWhenMissing) {
     throw new Error(
@@ -772,6 +873,7 @@ async function ensureEmployeeRow(adminClient, employee, departmentId, options = 
     matricule: createdRow.matricule,
     created: true,
     completedFieldCount: 0,
+    normalizedFieldCount: 0,
   }
 }
 
@@ -876,6 +978,7 @@ async function main() {
   const adminPassword =
     getEnvValue('EMPLOYEE_BACKFILL_ADMIN_PASSWORD', 'PAYROLL_BOOTSTRAP_ADMIN_PASSWORD') ??
     DEFAULT_ADMIN_PASSWORD
+  const forceCanonicalDemoFields = process.env.DEMO_EMPLOYEE_FORCE_CANONICAL === 'true'
 
   let adminClient
   let canManageAuth = false
@@ -922,6 +1025,7 @@ async function main() {
     const authUser = canManageAuth ? await ensureAuthUser(adminClient, employee) : null
     const employeeRow = await ensureEmployeeRow(adminClient, employee, departmentId, {
       createWhenMissing: canManageAuth,
+      forceCanonical: forceCanonicalDemoFields,
     })
 
     if (canManageAuth && authUser) {
@@ -945,9 +1049,13 @@ async function main() {
         : 'skipped-no-service-role',
       employeeStatus: employeeRow.created
         ? 'created-full-profile'
-        : employeeRow.completedFieldCount > 0
-          ? `backfilled-${employeeRow.completedFieldCount}`
-          : 'already-complete',
+        : employeeRow.completedFieldCount > 0 && employeeRow.normalizedFieldCount > 0
+          ? `backfilled-${employeeRow.completedFieldCount}-normalized-${employeeRow.normalizedFieldCount}`
+          : employeeRow.completedFieldCount > 0
+            ? `backfilled-${employeeRow.completedFieldCount}`
+            : employeeRow.normalizedFieldCount > 0
+              ? `normalized-${employeeRow.normalizedFieldCount}`
+              : 'already-complete',
     })
 
     console.log(
@@ -956,9 +1064,13 @@ async function main() {
       }, ${
         employeeRow.created
           ? 'new employee'
-          : employeeRow.completedFieldCount > 0
-            ? `backfilled ${employeeRow.completedFieldCount} field(s)`
-            : 'existing employee already complete'
+          : employeeRow.completedFieldCount > 0 && employeeRow.normalizedFieldCount > 0
+            ? `backfilled ${employeeRow.completedFieldCount} field(s), normalized ${employeeRow.normalizedFieldCount} field(s)`
+            : employeeRow.completedFieldCount > 0
+              ? `backfilled ${employeeRow.completedFieldCount} field(s)`
+              : employeeRow.normalizedFieldCount > 0
+                ? `normalized ${employeeRow.normalizedFieldCount} field(s)`
+                : 'existing employee already complete'
       })`,
     )
   }

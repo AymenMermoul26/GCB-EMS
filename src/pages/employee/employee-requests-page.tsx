@@ -61,7 +61,10 @@ import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
 import { useMyRequestsQuery } from '@/services/requestsService'
 import type { DemandeStatut, ModificationRequest } from '@/types/modification-request'
-import { getRequestFieldLabel } from '@/utils/modification-requests'
+import {
+  formatModificationRequestFieldValue,
+  getRequestFieldLabel,
+} from '@/utils/modification-requests'
 
 type StatusFilter = 'ALL' | DemandeStatut
 
@@ -122,10 +125,19 @@ function formatDateTime(
 function buildRequestSummary(
   request: ModificationRequest,
   t: ReturnType<typeof useI18n>['t'],
+  locale: string,
 ): string {
   const fieldLabel = getRequestFieldLabel(request.champCible, t)
-  const oldValue = (request.ancienneValeur ?? '').trim() || t('common.notSet')
-  const newValue = (request.nouvelleValeur ?? '').trim() || t('common.notSet')
+  const oldValue = formatModificationRequestFieldValue(
+    request.champCible,
+    request.ancienneValeur,
+    { emptyValue: t('common.notSet'), locale },
+  )
+  const newValue = formatModificationRequestFieldValue(
+    request.champCible,
+    request.nouvelleValeur,
+    { emptyValue: t('common.notSet'), locale },
+  )
   return `${fieldLabel}: ${oldValue} -> ${newValue}`
 }
 
@@ -133,13 +145,14 @@ function matchesSearch(
   request: ModificationRequest,
   term: string,
   t: ReturnType<typeof useI18n>['t'],
+  locale: string,
 ): boolean {
   if (!term) {
     return true
   }
 
   const normalized = term.toLowerCase()
-  const summary = buildRequestSummary(request, t).toLowerCase()
+  const summary = buildRequestSummary(request, t, locale).toLowerCase()
   const motif = (request.motif ?? '').toLowerCase()
   const field = getRequestFieldLabel(request.champCible, t).toLowerCase()
   const status = request.statutDemande.toLowerCase()
@@ -180,9 +193,9 @@ export function EmployeeRequestsPage() {
       requests.filter(
         (request) =>
           matchesStatus(request, statusFilter) &&
-          matchesSearch(request, debouncedSearch.trim(), t),
+          matchesSearch(request, debouncedSearch.trim(), t, locale),
       ),
-    [debouncedSearch, requests, statusFilter, t],
+    [debouncedSearch, locale, requests, statusFilter, t],
   )
 
   const isFiltered = statusFilter !== 'ALL' || debouncedSearch.trim().length > 0
@@ -348,7 +361,7 @@ export function EmployeeRequestsPage() {
                             <TableCell>{formatDateTime(request.createdAt, locale, t('common.notReviewed'))}</TableCell>
                             <TableCell className="max-w-[420px]">
                               <p className="line-clamp-2 text-sm text-slate-800">
-                                {buildRequestSummary(request, t)}
+                                {buildRequestSummary(request, t, locale)}
                               </p>
                             </TableCell>
                             <TableCell>
@@ -397,7 +410,7 @@ export function EmployeeRequestsPage() {
                               {formatDateTime(request.createdAt, locale, t('common.notReviewed'))}
                             </p>
                             <p className="mt-1 line-clamp-2 text-sm text-slate-800">
-                              {buildRequestSummary(request, t)}
+                              {buildRequestSummary(request, t, locale)}
                             </p>
                           </div>
                           <StatusBadge tone={statusMeta.tone} emphasis="solid">
@@ -442,7 +455,7 @@ export function EmployeeRequestsPage() {
                     {t('employee.requests.summary')}
                   </p>
                   <p className="mt-1 text-sm text-slate-800">
-                    {buildRequestSummary(selectedRequest, t)}
+                    {buildRequestSummary(selectedRequest, t, locale)}
                   </p>
                 </div>
 
@@ -470,7 +483,11 @@ export function EmployeeRequestsPage() {
                     {t('employee.requests.currentValue')}
                   </p>
                   <p className="mt-1 text-sm text-slate-800">
-                    {(selectedRequest.ancienneValeur ?? '').trim() || t('common.notSet')}
+                    {formatModificationRequestFieldValue(
+                      selectedRequest.champCible,
+                      selectedRequest.ancienneValeur,
+                      { emptyValue: t('common.notSet'), locale },
+                    )}
                   </p>
                 </div>
 
@@ -479,7 +496,11 @@ export function EmployeeRequestsPage() {
                     {t('employee.requests.requestedValue')}
                   </p>
                   <p className="mt-1 text-sm text-slate-800">
-                    {(selectedRequest.nouvelleValeur ?? '').trim() || t('common.notSet')}
+                    {formatModificationRequestFieldValue(
+                      selectedRequest.champCible,
+                      selectedRequest.nouvelleValeur,
+                      { emptyValue: t('common.notSet'), locale },
+                    )}
                   </p>
                 </div>
 

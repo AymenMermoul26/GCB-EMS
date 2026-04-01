@@ -7,6 +7,7 @@
 } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
+import { getEmployee } from '@/services/employeesService'
 import type {
   DemandeStatut,
   ListMyRequestsParams,
@@ -18,6 +19,12 @@ import type {
   SubmitModificationRequestPayload,
 } from '@/types/modification-request'
 import { getDepartmentDisplayName } from '@/types/department'
+import {
+  getEmployeeFieldValue,
+  getRequestFieldLabel,
+  isModificationRequestValueValid,
+  normalizeModificationRequestValue,
+} from '@/utils/modification-requests'
 
 const REQUEST_SELECT =
   'id, employe_id, demandeur_user_id, champ_cible, ancienne_valeur, nouvelle_valeur, motif, statut_demande, traite_par_user_id, traite_at, commentaire_traitement, created_at, updated_at'
@@ -167,14 +174,43 @@ export async function submitModificationRequest(
   payload: SubmitModificationRequestPayload,
 ): Promise<ModificationRequest> {
   const userId = await currentUserId()
+  const employee = await getEmployee(payload.employeId)
+
+  if (!employee) {
+    throw new Error('Unable to load the employee profile for this request.')
+  }
+
+  const currentValue = getEmployeeFieldValue(employee, payload.champCible)
+  const normalizedNewValue = normalizeModificationRequestValue(
+    payload.champCible,
+    payload.nouvelleValeur,
+  )
+
+  if (!normalizedNewValue) {
+    throw new Error('New value is required.')
+  }
+
+  if (!isModificationRequestValueValid(payload.champCible, normalizedNewValue)) {
+    throw new Error(`Invalid value for ${getRequestFieldLabel(payload.champCible)}.`)
+  }
+
+  const normalizedCurrentValue = normalizeModificationRequestValue(
+    payload.champCible,
+    currentValue,
+  )
+
+  if ((normalizedCurrentValue ?? '') === normalizedNewValue) {
+    throw new Error('New value must be different from current value.')
+  }
+
   const { data, error } = await supabase
     .from('DemandeModification')
     .insert({
       employe_id: payload.employeId,
       demandeur_user_id: userId,
       champ_cible: payload.champCible,
-      ancienne_valeur: payload.ancienneValeur ?? null,
-      nouvelle_valeur: payload.nouvelleValeur ?? null,
+      ancienne_valeur: currentValue.trim().length > 0 ? currentValue : null,
+      nouvelle_valeur: normalizedNewValue,
       motif: payload.motif ?? null,
       statut_demande: 'EN_ATTENTE',
     })

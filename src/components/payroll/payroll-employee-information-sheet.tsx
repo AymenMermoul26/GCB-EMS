@@ -15,8 +15,12 @@ import {
 
 const COMPANY_NAME = 'LA SOCIETE NATIONALE DE GENIE-CIVIL & BATIMENT'
 const DOCUMENT_TITLE = 'Employee Information Sheet'
+const SHEET_EMPTY_VALUE = '\u2014'
 
-function formatDisplayValue(value: string | null | undefined, fallback = '—'): string {
+function formatDisplayValue(
+  value: string | null | undefined,
+  fallback = SHEET_EMPTY_VALUE,
+): string {
   if (!value || value.trim().length === 0) {
     return fallback
   }
@@ -26,7 +30,7 @@ function formatDisplayValue(value: string | null | undefined, fallback = '—'):
 
 function formatDateValue(value: string | null | undefined): string {
   if (!value) {
-    return '—'
+    return SHEET_EMPTY_VALUE
   }
 
   return new Intl.DateTimeFormat('en-GB', {
@@ -35,7 +39,7 @@ function formatDateValue(value: string | null | undefined): string {
 }
 
 function formatNumberValue(value: number | null | undefined): string {
-  return value === null || value === undefined ? '—' : String(value)
+  return value === null || value === undefined ? SHEET_EMPTY_VALUE : String(value)
 }
 
 function getInitials(prenom: string, nom: string): string {
@@ -219,7 +223,7 @@ export function PayrollEmployeeInformationSheet({
 
         <SheetSection
           title="Family & Payroll-Relevant Information"
-          description="Civil and administrative fields currently approved for payroll use."
+          description="Civil status fields approved for payroll printouts."
         >
           <SheetField
             label="Marital status"
@@ -228,16 +232,12 @@ export function PayrollEmployeeInformationSheet({
             )}
           />
           <SheetField label="Number of children" value={formatNumberValue(employee.nombreEnfants)} />
-          <SheetField
-            label="Social security number"
-            value={formatDisplayValue(employee.numeroSecuriteSociale)}
-            mono
-          />
         </SheetSection>
 
         <footer className="border-t border-slate-200 pt-5 text-sm text-slate-500">
-          Payroll-safe employee information sheet. Internal HR notes, QR settings, audit metadata,
-          and workflow controls are intentionally excluded.
+          Payroll-safe employee information sheet. Official identifiers, internal HR notes, QR
+          settings, audit metadata, and workflow controls are intentionally excluded from this
+          printable surface.
         </footer>
       </div>
     </div>

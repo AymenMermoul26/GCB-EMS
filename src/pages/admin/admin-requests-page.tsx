@@ -99,7 +99,11 @@ import {
   type PublicProfileVisibilityRequestStatusFilter,
 } from '@/types/visibility'
 import { getDepartmentDisplayName } from '@/types/department'
-import { getRequestFieldLabel, toEmployeeUpdatePayload } from '@/utils/modification-requests'
+import {
+  formatModificationRequestFieldValue,
+  getRequestFieldLabel,
+  toEmployeeUpdatePayload,
+} from '@/utils/modification-requests'
 
 type ModificationStatusFilter = DemandeStatut | 'ALL'
 type VisibilityDecisionStatus = 'IN_REVIEW' | 'APPROVED' | 'REJECTED'
@@ -200,10 +204,22 @@ function formatVisibilityEmployeeName(request: AdminPublicProfileVisibilityReque
   return `${request.employePrenom ?? ''} ${request.employeNom ?? ''}`.replace(/\s+/g, ' ').trim()
 }
 
-function formatRequestSummary(request: ModificationRequest, t: TranslateFn): string {
+function formatRequestSummary(
+  request: ModificationRequest,
+  t: TranslateFn,
+  locale: string,
+): string {
   const field = getRequestFieldLabel(request.champCible, t)
-  const previousValue = request.ancienneValeur ?? '-'
-  const nextValue = request.nouvelleValeur ?? '-'
+  const previousValue = formatModificationRequestFieldValue(
+    request.champCible,
+    request.ancienneValeur,
+    { emptyValue: '-', locale },
+  )
+  const nextValue = formatModificationRequestFieldValue(
+    request.champCible,
+    request.nouvelleValeur,
+    { emptyValue: '-', locale },
+  )
   const motif = request.motif ? ` • ${request.motif}` : ''
 
   return `${field}: ${previousValue} -> ${nextValue}${motif}`
@@ -352,7 +368,7 @@ export function AdminRequestsPage() {
           await notificationsService.createNotification({
             userId: recipientUserId,
             title: 'Modification request approved',
-            body: `Your request for ${getRequestFieldLabel(payload.request.champCible)} has been approved.`,
+            body: `Your request for ${getRequestFieldLabel(payload.request.champCible, t)} has been approved.`,
             link: ROUTES.EMPLOYEE_PROFILE,
           })
         } catch (error) {
@@ -420,7 +436,7 @@ export function AdminRequestsPage() {
           await notificationsService.createNotification({
             userId: recipientUserId,
             title: 'Modification request rejected',
-            body: `Your request for ${getRequestFieldLabel(payload.request.champCible)} was rejected.`,
+            body: `Your request for ${getRequestFieldLabel(payload.request.champCible, t)} was rejected.`,
             link: ROUTES.EMPLOYEE_PROFILE,
           })
         } catch (error) {
@@ -499,6 +515,7 @@ export function AdminRequestsPage() {
       const searchTarget = [
         formatEmployeeName(request),
         request.employeMatricule ?? '',
+        formatRequestSummary(request, t, locale),
         getRequestFieldLabel(request.champCible, t),
         request.motif ?? '',
       ]
@@ -507,7 +524,7 @@ export function AdminRequestsPage() {
 
       return searchTarget.includes(term)
     })
-  }, [baseItems, debouncedSearch, t])
+  }, [baseItems, debouncedSearch, locale, t])
 
   const visibilityItems = visibilityRequestsQuery.data ?? []
   const total = requestsQuery.data?.total ?? 0
@@ -751,7 +768,7 @@ export function AdminRequestsPage() {
                           </TableCell>
                           <TableCell>
                             <p className="[display:-webkit-box] overflow-hidden text-sm text-slate-700 [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                              {formatRequestSummary(request, t)}
+                              {formatRequestSummary(request, t, locale)}
                             </p>
                           </TableCell>
                           <TableCell>
@@ -1314,10 +1331,20 @@ export function AdminRequestsPage() {
                     {t('employee.requests.targetField')}: {getRequestFieldLabel(selectedRequest.champCible, t)}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    {t('admin.requests.dialogs.request.previousValue')}: {selectedRequest.ancienneValeur ?? '-'}
+                    {t('admin.requests.dialogs.request.previousValue')}:{' '}
+                    {formatModificationRequestFieldValue(
+                      selectedRequest.champCible,
+                      selectedRequest.ancienneValeur,
+                      { emptyValue: '-', locale },
+                    )}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    {t('admin.requests.dialogs.request.newValue')}: {selectedRequest.nouvelleValeur ?? '-'}
+                    {t('admin.requests.dialogs.request.newValue')}:{' '}
+                    {formatModificationRequestFieldValue(
+                      selectedRequest.champCible,
+                      selectedRequest.nouvelleValeur,
+                      { emptyValue: '-', locale },
+                    )}
                   </p>
                   {selectedRequest.motif ? (
                     <p className="mt-1 text-sm text-slate-700">

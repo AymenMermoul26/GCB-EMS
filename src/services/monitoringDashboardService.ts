@@ -587,6 +587,7 @@ function buildPayrollActivity(rows: MonitoringAuditRow[]): MonitoringMetricItem[
 
   for (const row of rows) {
     switch (row.action) {
+      case 'PAYROLL_EXPORT_REQUESTED':
       case 'PAYROLL_EXPORT_GENERATED':
       case 'PAYROLL_EXPORT_PRINT_INITIATED':
         counts.export_output += 1
@@ -1014,6 +1015,7 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
       return recipientEmail
         ? `Employee information sheet email to ${recipientEmail} failed.`
         : 'Employee information sheet email failed.'
+    case 'PAYROLL_EXPORT_REQUESTED':
     case 'PAYROLL_EXPORT_GENERATED': {
       const rowCount = readText(detailsJson.row_count)
       const departmentName = getDepartmentDisplayName(readText(detailsJson.department_name))
@@ -1025,15 +1027,20 @@ function buildDetailsPreview(action: string, detailsJson: Record<string, unknown
         typeContrat ? `Contract ${typeContrat}` : null,
       ].filter((value): value is string => Boolean(value))
 
+      const actionVerb =
+        action === 'PAYROLL_EXPORT_REQUESTED' ? 'Requested' : 'Generated'
+
       if (rowCount && scopeParts.length > 0) {
-        return `Generated payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
+        return `${actionVerb} payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
       }
 
       if (rowCount) {
-        return `Generated payroll CSV export (${rowCount} rows).`
+        return `${actionVerb} payroll CSV export (${rowCount} rows).`
       }
 
-      return 'Generated a payroll CSV export.'
+      return action === 'PAYROLL_EXPORT_REQUESTED'
+        ? 'Requested a payroll CSV export.'
+        : 'Generated a payroll CSV export.'
     }
     case 'PAYROLL_EXPORT_PRINT_INITIATED':
       return matricule

@@ -118,6 +118,7 @@ function getActivityBadgeClass(action: string): string {
     case 'PAYSLIP_REQUEST_STATUS_UPDATED':
     case 'PAYSLIP_DOCUMENT_DOWNLOADED':
       return 'border-transparent bg-sky-100 text-sky-700'
+    case 'PAYROLL_EXPORT_REQUESTED':
     case 'PAYROLL_EXPORT_PRINT_INITIATED':
     case 'PAYROLL_CALCULATION_STARTED':
     case 'PAYROLL_RUN_UPDATED':

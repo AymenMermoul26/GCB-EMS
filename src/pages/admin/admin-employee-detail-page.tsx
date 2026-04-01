@@ -110,6 +110,7 @@ import {
   getEmployeeSpecialiteLabel,
   getEmployeeTypeContratLabel,
   getEmployeeUniversiteLabel,
+  sanitizeEmployeeTextValue,
 } from '@/types/employee'
 import { getDepartmentDisplayName } from '@/types/department'
 import { PUBLIC_QR_VISIBILITY_FIELDS } from '@/types/employee-governance'
@@ -150,16 +151,11 @@ function findOpenVisibilityRequest(
 }
 
 function formatOptionalValue(value: string | null | undefined): string {
-  if (!value || value.trim().length === 0) {
-    return 'Not provided'
-  }
-
-  return value
+  return sanitizeEmployeeTextValue(value) ?? 'Not provided'
 }
 
 function formatEmploymentValue(value: string | null | undefined): string {
-  const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : 'Not provided'
+  return sanitizeEmployeeTextValue(value) ?? 'Not provided'
 }
 
 function formatEmploymentDate(value: string | null | undefined): string {
@@ -171,8 +167,7 @@ function formatEmploymentDate(value: string | null | undefined): string {
 }
 
 function formatCivilValue(value: string | null | undefined): string {
-  const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : 'Not provided'
+  return sanitizeEmployeeTextValue(value) ?? 'Not provided'
 }
 
 function formatCivilDate(value: string | null | undefined): string {

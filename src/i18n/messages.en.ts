@@ -106,6 +106,13 @@
     payslipRequest: { PENDING: 'Pending', IN_REVIEW: 'In review', FULFILLED: 'Fulfilled', REJECTED: 'Rejected' },
   },
   requests: {
+    groups: {
+      identity: 'Identity',
+      contact: 'Contact',
+      personal: 'Personal Information',
+      organization: 'Organization',
+      education_career: 'Education & Career Background',
+    },
     fields: {
       poste: 'Job title',
       email: 'Email',
@@ -113,6 +120,18 @@
       photo_url: 'Photo URL',
       nom: 'Last name',
       prenom: 'First name',
+      regional_branch: 'Regional branch',
+      sexe: 'Sex',
+      date_naissance: 'Birth date',
+      lieu_naissance: 'Birth place',
+      nationalite: 'Nationality',
+      situation_familiale: 'Marital status',
+      nombre_enfants: 'Number of children',
+      adresse: 'Address',
+      diplome: 'Degree',
+      specialite: 'Specialization',
+      universite: 'University',
+      historique_postes: 'Career history',
     },
   },
   qr: {
@@ -144,6 +163,7 @@
       EMPLOYEE_SHEET_EXPORTED: 'Employee sheet exported',
       EMPLOYEE_SHEET_EMAIL_SENT: 'Employee sheet email sent',
       EMPLOYEE_SHEET_EMAIL_FAILED: 'Employee sheet email failed',
+      PAYROLL_EXPORT_REQUESTED: 'Payroll export requested',
       PAYROLL_EXPORT_GENERATED: 'Payroll export generated',
       PAYROLL_EXPORT_PRINT_INITIATED: 'Payroll sheet print started',
       PAYROLL_PERIOD_CREATED: 'Payroll period created',
@@ -421,6 +441,32 @@
       ADJUSTMENT: 'Adjustment',
       CORRECTION: 'Correction',
     },
+    payslipWorkflow: {
+      currentStep: 'Current',
+      closedStep: 'Closed',
+      steps: {
+        REQUESTED: {
+          label: 'Requested',
+          description: 'Employee submitted the payslip request.',
+        },
+        IN_REVIEW: {
+          label: 'In Review',
+          description: 'Payroll is reviewing the request and delivery note.',
+        },
+        GENERATED: {
+          label: 'Generated',
+          description: 'The payslip file was published to secure delivery storage.',
+        },
+        DELIVERED: {
+          label: 'Delivered',
+          description: 'The payslip is now available in the employee account.',
+        },
+        REJECTED: {
+          label: 'Rejected',
+          description: 'The request was closed without delivering a payslip file.',
+        },
+      },
+    },
     dashboard: {
       title: 'Payroll Dashboard',
       subtitle: 'Controlled access to payroll processing foundations and payroll-relevant insights.',
@@ -598,6 +644,10 @@
     request: {
       newValueRequired: 'New value is required',
       newValueDifferent: 'New value must be different from current value',
+      invalidPhone: 'Please enter a valid Algerian phone number',
+      invalidDate: 'Please enter a valid date',
+      invalidNumber: 'Please enter a valid whole number',
+      invalidSelection: 'Please select a valid value for {field}',
     },
     qr: {
       noteMax: 'Keep the note under 500 characters',

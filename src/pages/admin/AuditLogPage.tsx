@@ -193,6 +193,11 @@ const ACTION_PRESENTATION: Record<string, ActionPresentation> = {
     tone: 'rose',
     critical: true,
   },
+  PAYROLL_EXPORT_REQUESTED: {
+    label: 'Payroll Export Requested',
+    category: 'Payroll',
+    tone: 'amber',
+  },
   PAYROLL_EXPORT_GENERATED: {
     label: 'Payroll Export Generated',
     category: 'Payroll',
@@ -308,6 +313,7 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | 'ALL'; label: string }> = [
   { value: 'PUBLIC_PROFILE_VISIBILITY_REQUEST_IN_REVIEW', label: 'Visibility Request In Review' },
   { value: 'PUBLIC_PROFILE_VISIBILITY_REQUEST_APPROVED', label: 'Visibility Request Approved' },
   { value: 'PUBLIC_PROFILE_VISIBILITY_REQUEST_REJECTED', label: 'Visibility Request Rejected' },
+  { value: 'PAYROLL_EXPORT_REQUESTED', label: 'Payroll Export Requested' },
   { value: 'PAYROLL_EXPORT_GENERATED', label: 'Payroll Export Generated' },
   { value: 'PAYROLL_EXPORT_PRINT_INITIATED', label: 'Payroll Sheet Print Initiated' },
   { value: 'PAYROLL_PERIOD_CREATED', label: 'Payroll Period Created' },

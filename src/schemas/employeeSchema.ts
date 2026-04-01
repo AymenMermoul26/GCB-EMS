@@ -11,6 +11,7 @@ import {
   EMPLOYEE_SPECIALITE_OPTIONS,
   EMPLOYEE_TYPE_CONTRAT_OPTIONS,
   EMPLOYEE_UNIVERSITE_OPTIONS,
+  sanitizeEmployeeTextValue,
 } from '@/types/employee'
 
 const requiredText = (label: string) =>
@@ -330,18 +331,18 @@ export type EmployeeUpdateFormValues = z.input<typeof employeeUpdateSchema>
 export type EmployeeFormValues = EmployeeUpdateFormValues
 
 export function normalizeOptional(value?: string): string | null {
-  const trimmed = value?.trim()
+  const sanitized = sanitizeEmployeeTextValue(value)
 
-  if (!trimmed || trimmed.length === 0) {
+  if (!sanitized) {
     return null
   }
 
-  const compact = trimmed.replace(/\s+/g, '')
+  const compact = sanitized.replace(/\s+/g, '')
   if (algerianMobileRegex.test(compact)) {
     return compact
   }
 
-  return trimmed
+  return sanitized
 }
 
 export function normalizeOptionalEmail(value?: string): string | null {

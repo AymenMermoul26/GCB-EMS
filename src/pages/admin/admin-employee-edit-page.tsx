@@ -75,6 +75,7 @@ import {
   EMPLOYEE_TYPE_CONTRAT_LABELS,
   EMPLOYEE_UNIVERSITE_LABELS,
   EMPLOYEE_UNIVERSITE_OPTIONS,
+  sanitizeEmployeeTextValue,
 } from '@/types/employee'
 import { getDepartmentDisplayName } from '@/types/department'
 import { mapEmployeeWriteError } from '@/utils/supabase-errors'
@@ -84,6 +85,64 @@ function isMatriculeConflict(message: string): boolean {
 }
 
 const EMPTY_SELECT_VALUE = '__none__'
+
+function toOptionalInputValue(value: string | null | undefined): string {
+  return sanitizeEmployeeTextValue(value) ?? ''
+}
+
+function toOptionalSelectValue<T extends string>(
+  value: string | null | undefined,
+  options: readonly T[],
+): string {
+  const sanitized = sanitizeEmployeeTextValue(value)
+
+  if (!sanitized) {
+    return ''
+  }
+
+  return options.includes(sanitized as T) ? sanitized : ''
+}
+
+function buildEmployeeEditFormValues(
+  employee: NonNullable<ReturnType<typeof useAdminEmployeeQuery>['data']>,
+): EmployeeFormValues {
+  return {
+    matricule: employee.matricule,
+    nom: employee.nom,
+    prenom: employee.prenom,
+    departementId: employee.departementId,
+    regionalBranch: toOptionalSelectValue(employee.regionalBranch, EMPLOYEE_REGIONAL_BRANCH_OPTIONS),
+    sexe: toOptionalSelectValue(employee.sexe, EMPLOYEE_SEXE_OPTIONS),
+    dateNaissance: employee.dateNaissance ?? '',
+    lieuNaissance: toOptionalInputValue(employee.lieuNaissance),
+    nationalite: toOptionalSelectValue(employee.nationalite, EMPLOYEE_NATIONALITE_OPTIONS),
+    situationFamiliale: toOptionalSelectValue(
+      employee.situationFamiliale,
+      EMPLOYEE_SITUATION_FAMILIALE_OPTIONS,
+    ),
+    nombreEnfants:
+      employee.nombreEnfants !== null && employee.nombreEnfants !== undefined
+        ? String(employee.nombreEnfants)
+        : '',
+    adresse: toOptionalInputValue(employee.adresse),
+    numeroSecuriteSociale: toOptionalInputValue(employee.numeroSecuriteSociale),
+    diplome: toOptionalSelectValue(employee.diplome, EMPLOYEE_DIPLOME_OPTIONS),
+    specialite: toOptionalSelectValue(employee.specialite, EMPLOYEE_SPECIALITE_OPTIONS),
+    universite: toOptionalSelectValue(employee.universite, EMPLOYEE_UNIVERSITE_OPTIONS),
+    historiquePostes: toOptionalInputValue(employee.historiquePostes),
+    observations: toOptionalInputValue(employee.observations),
+    poste: toOptionalSelectValue(employee.poste, EMPLOYEE_POSTE_OPTIONS),
+    categorieProfessionnelle: toOptionalSelectValue(
+      employee.categorieProfessionnelle,
+      EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS,
+    ),
+    typeContrat: toOptionalSelectValue(employee.typeContrat, EMPLOYEE_TYPE_CONTRAT_OPTIONS),
+    dateRecrutement: employee.dateRecrutement ?? '',
+    email: toOptionalInputValue(employee.email),
+    telephone: toOptionalInputValue(employee.telephone),
+    photoUrl: toOptionalInputValue(employee.photoUrl),
+  }
+}
 
 export function AdminEmployeeEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -131,36 +190,7 @@ export function AdminEmployeeEditPage() {
       return
     }
 
-    form.reset({
-      matricule: employeeQuery.data.matricule,
-      nom: employeeQuery.data.nom,
-      prenom: employeeQuery.data.prenom,
-      departementId: employeeQuery.data.departementId,
-      regionalBranch: employeeQuery.data.regionalBranch ?? '',
-      sexe: employeeQuery.data.sexe ?? '',
-      dateNaissance: employeeQuery.data.dateNaissance ?? '',
-      lieuNaissance: employeeQuery.data.lieuNaissance ?? '',
-      nationalite: employeeQuery.data.nationalite ?? '',
-      situationFamiliale: employeeQuery.data.situationFamiliale ?? '',
-      nombreEnfants:
-        employeeQuery.data.nombreEnfants !== null && employeeQuery.data.nombreEnfants !== undefined
-          ? String(employeeQuery.data.nombreEnfants)
-          : '',
-      adresse: employeeQuery.data.adresse ?? '',
-      numeroSecuriteSociale: employeeQuery.data.numeroSecuriteSociale ?? '',
-      diplome: employeeQuery.data.diplome ?? '',
-      specialite: employeeQuery.data.specialite ?? '',
-      universite: employeeQuery.data.universite ?? '',
-      historiquePostes: employeeQuery.data.historiquePostes ?? '',
-      observations: employeeQuery.data.observations ?? '',
-      poste: employeeQuery.data.poste ?? '',
-      categorieProfessionnelle: employeeQuery.data.categorieProfessionnelle ?? '',
-      typeContrat: employeeQuery.data.typeContrat ?? '',
-      dateRecrutement: employeeQuery.data.dateRecrutement ?? '',
-      email: employeeQuery.data.email ?? '',
-      telephone: employeeQuery.data.telephone ?? '',
-      photoUrl: employeeQuery.data.photoUrl ?? '',
-    })
+    form.reset(buildEmployeeEditFormValues(employeeQuery.data))
   }, [employeeQuery.data, form])
 
   const telephoneRegister = form.register('telephone')
@@ -225,7 +255,7 @@ export function AdminEmployeeEditPage() {
 
   const isSubmitting = updateMutation.isPending
   const isInactive = Boolean(employeeQuery.data && !employeeQuery.data.isActive)
-  const isFormDisabled = isSubmitting || employeeQuery.isPending || isInactive
+  const isFormDisabled = isSubmitting || employeeQuery.isFetching || isInactive
   const formId = 'edit-employee-form'
   const currentPhotoUrl = useWatch({ control: form.control, name: 'photoUrl' })
   const currentNom = useWatch({ control: form.control, name: 'nom' })
@@ -253,7 +283,7 @@ export function AdminEmployeeEditPage() {
     )
   }
 
-  if (employeeQuery.isPending) {
+  if (employeeQuery.isPending || employeeQuery.isFetching) {
     return (
       <DashboardLayout title="Edit Employee" subtitle="Loading employee details...">
         <div className="mx-auto grid w-full max-w-5xl gap-6">

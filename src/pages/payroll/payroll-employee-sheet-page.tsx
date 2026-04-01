@@ -233,7 +233,7 @@ export function PayrollEmployeeSheetPage() {
       >
         <PageHeader
           title="Employee Information Sheet"
-          description={`Preview the payroll-safe information sheet for ${fullName} and use your browser print dialog to print or save it as PDF.`}
+          description={`Preview the payroll-safe information sheet for ${fullName} and use your browser print dialog to print or save it as PDF. Official identifiers remain excluded from this printable document.`}
           className="mb-6"
           backAction={
             <Button asChild variant="outline" size="sm">
@@ -283,7 +283,8 @@ export function PayrollEmployeeSheetPage() {
                 <p className="text-sm font-medium text-slate-900">Export options</p>
                 <p className="text-sm text-slate-500">
                   Use your browser print dialog to print the sheet or save a PDF copy for payroll
-                  operations. Email sending and admin actions are intentionally unavailable here.
+                  operations. Official identifiers, email sending, and admin actions are
+                  intentionally unavailable here.
                 </p>
               </div>
               <Button

@@ -306,6 +306,7 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
       return readText(detailsJson.review_note)
         ? `Rejected public profile visibility request: ${readText(detailsJson.review_note)}`
         : 'Rejected a public profile visibility request.'
+    case 'PAYROLL_EXPORT_REQUESTED':
     case 'PAYROLL_EXPORT_GENERATED': {
       const rowCount = readText(detailsJson.row_count)
       const departmentName = getDepartmentDisplayName(readText(detailsJson.department_name))
@@ -317,15 +318,20 @@ function toDetailsPreview(action: string, detailsJson: Record<string, unknown>):
         typeContrat ? `Contract ${typeContrat}` : null,
       ].filter((value): value is string => Boolean(value))
 
+      const actionVerb =
+        action === 'PAYROLL_EXPORT_REQUESTED' ? 'Requested' : 'Generated'
+
       if (rowCount && scopeParts.length > 0) {
-        return `Generated payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
+        return `${actionVerb} payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
       }
 
       if (rowCount) {
-        return `Generated payroll CSV export (${rowCount} rows).`
+        return `${actionVerb} payroll CSV export (${rowCount} rows).`
       }
 
-      return 'Generated a payroll CSV export.'
+      return action === 'PAYROLL_EXPORT_REQUESTED'
+        ? 'Requested a payroll CSV export.'
+        : 'Generated a payroll CSV export.'
     }
     case 'PAYROLL_EXPORT_PRINT_INITIATED':
       return matricule

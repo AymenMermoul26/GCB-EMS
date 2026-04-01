@@ -258,7 +258,9 @@ export function PayrollEmployeeDetailPage() {
             </div>
 
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-900">
-              Sensitive payroll identifiers remain limited to controlled payroll views. Internal HR observations and public-profile controls are intentionally excluded.
+              Sensitive payroll identifiers remain limited to controlled on-screen payroll detail
+              views. CSV exports, printable sheets, internal HR observations, and public-profile
+              controls are intentionally excluded.
             </div>
           </CardContent>
         </Card>

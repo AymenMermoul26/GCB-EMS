@@ -140,6 +140,7 @@ export type PayrollExportType =
   | 'PAYROLL_EMPLOYEE_INFORMATION_SHEET'
 
 export type PayrollExportAction =
+  | 'PAYROLL_EXPORT_REQUESTED'
   | 'PAYROLL_EXPORT_GENERATED'
   | 'PAYROLL_EXPORT_PRINT_INITIATED'
 
@@ -155,12 +156,108 @@ export interface PayrollEmployeeExportRow {
   categorieProfessionnelle: string | null
   typeContrat: string | null
   dateRecrutement: string | null
-  email: string | null
-  telephone: string | null
-  adresse: string | null
-  situationFamiliale: string | null
-  nombreEnfants: number | null
   isActive: boolean
+}
+
+export type PayrollEmployeeExportFieldKey =
+  | 'matricule'
+  | 'nom'
+  | 'prenom'
+  | 'departement'
+  | 'regional_branch'
+  | 'poste'
+  | 'categorie_professionnelle'
+  | 'type_contrat'
+  | 'date_recrutement'
+  | 'is_active'
+
+export interface PayrollEmployeeExportFieldDefinition {
+  key: PayrollEmployeeExportFieldKey
+  label: string
+  header: string
+}
+
+export const PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS: PayrollEmployeeExportFieldDefinition[] = [
+  {
+    key: 'matricule',
+    label: 'Employee ID',
+    header: 'matricule',
+  },
+  {
+    key: 'nom',
+    label: 'Last name',
+    header: 'nom',
+  },
+  {
+    key: 'prenom',
+    label: 'First name',
+    header: 'prenom',
+  },
+  {
+    key: 'departement',
+    label: 'Department',
+    header: 'departement',
+  },
+  {
+    key: 'regional_branch',
+    label: 'Regional branch',
+    header: 'regional_branch',
+  },
+  {
+    key: 'poste',
+    label: 'Job title',
+    header: 'poste',
+  },
+  {
+    key: 'categorie_professionnelle',
+    label: 'Professional category',
+    header: 'categorie_professionnelle',
+  },
+  {
+    key: 'type_contrat',
+    label: 'Contract type',
+    header: 'type_contrat',
+  },
+  {
+    key: 'date_recrutement',
+    label: 'Hire date',
+    header: 'date_recrutement',
+  },
+  {
+    key: 'is_active',
+    label: 'Status',
+    header: 'is_active',
+  },
+] as const
+
+export function buildPayrollEmployeeDirectoryExportFileName(date = new Date()): string {
+  return `payroll_employees_${date.toISOString().slice(0, 10)}.csv`
+}
+
+export function getPayrollExportActionLabel(action: PayrollExportAction): string {
+  switch (action) {
+    case 'PAYROLL_EXPORT_REQUESTED':
+      return 'CSV export requested'
+    case 'PAYROLL_EXPORT_PRINT_INITIATED':
+      return 'Information sheet export'
+    case 'PAYROLL_EXPORT_GENERATED':
+    default:
+      return 'CSV export generated'
+  }
+}
+
+export function getPayrollExportActionTone(
+  action: PayrollExportAction,
+): 'warning' | 'brand' | 'info' {
+  switch (action) {
+    case 'PAYROLL_EXPORT_REQUESTED':
+      return 'warning'
+    case 'PAYROLL_EXPORT_PRINT_INITIATED':
+      return 'info'
+    case 'PAYROLL_EXPORT_GENERATED':
+    default:
+      return 'brand'
+  }
 }
 
 export interface PayrollExportHistoryItem {
@@ -357,6 +454,35 @@ export interface EmployeePayslipRequestItem {
   updatedAt: string
 }
 
+export type PayslipWorkflowStepKey =
+  | 'REQUESTED'
+  | 'IN_REVIEW'
+  | 'GENERATED'
+  | 'DELIVERED'
+  | 'REJECTED'
+
+export type PayslipWorkflowStepState =
+  | 'completed'
+  | 'current'
+  | 'pending'
+  | 'rejected'
+
+export interface PayslipWorkflowTimelineSource {
+  status: PayslipRequestStatus
+  createdAt: string
+  reviewedAt: string | null
+  documentPublishedAt: string | null
+  fulfilledAt: string | null
+}
+
+export interface PayslipWorkflowTimelineStep {
+  key: PayslipWorkflowStepKey
+  label: string
+  description: string
+  state: PayslipWorkflowStepState
+  timestamp: string | null
+}
+
 export interface AvailablePayslipDocumentItem {
   id: string
   payslipId: string | null
@@ -500,6 +626,29 @@ export const PAYSLIP_REQUEST_STATUS_META = {
   REJECTED: { label: 'Rejected', tone: 'danger' },
 } as const
 
+const PAYSLIP_WORKFLOW_STEP_COPY = {
+  REQUESTED: {
+    label: 'Requested',
+    description: 'Employee submitted the payslip request.',
+  },
+  IN_REVIEW: {
+    label: 'In Review',
+    description: 'Payroll is reviewing the request and delivery note.',
+  },
+  GENERATED: {
+    label: 'Generated',
+    description: 'The payslip file was published to secure delivery storage.',
+  },
+  DELIVERED: {
+    label: 'Delivered',
+    description: 'The payslip is now available in the employee account.',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    description: 'The request was closed without delivering a payslip file.',
+  },
+} as const
+
 export const PAYSLIP_DOCUMENT_SOURCE_LABELS: Record<PayslipDocumentSource, string> = {
   REQUEST_DELIVERY: 'Request delivery',
   PAYROLL_PUBLICATION: 'Payroll publication',
@@ -574,6 +723,106 @@ export function getPayslipRequestStatusMeta(
         ? base.label
         : translated,
   }
+}
+
+export function getPayslipWorkflowStepCopy(
+  step: PayslipWorkflowStepKey,
+  t?: TranslateFn,
+) {
+  const base = PAYSLIP_WORKFLOW_STEP_COPY[step]
+  const translatedLabel = t?.(`payroll.payslipWorkflow.steps.${step}.label`)
+  const translatedDescription = t?.(`payroll.payslipWorkflow.steps.${step}.description`)
+
+  return {
+    label:
+      !translatedLabel || translatedLabel === `payroll.payslipWorkflow.steps.${step}.label`
+        ? base.label
+        : translatedLabel,
+    description:
+      !translatedDescription ||
+      translatedDescription === `payroll.payslipWorkflow.steps.${step}.description`
+        ? base.description
+        : translatedDescription,
+  }
+}
+
+export function buildPayslipWorkflowTimelineSteps(
+  source: PayslipWorkflowTimelineSource,
+  t?: TranslateFn,
+): PayslipWorkflowTimelineStep[] {
+  const requestedCopy = getPayslipWorkflowStepCopy('REQUESTED', t)
+  const reviewCopy = getPayslipWorkflowStepCopy('IN_REVIEW', t)
+
+  if (source.status === 'REJECTED') {
+    const rejectedCopy = getPayslipWorkflowStepCopy('REJECTED', t)
+
+    return [
+      {
+        key: 'REQUESTED',
+        label: requestedCopy.label,
+        description: requestedCopy.description,
+        state: 'completed',
+        timestamp: source.createdAt,
+      },
+      {
+        key: 'IN_REVIEW',
+        label: reviewCopy.label,
+        description: reviewCopy.description,
+        state: 'completed',
+        timestamp: source.reviewedAt,
+      },
+      {
+        key: 'REJECTED',
+        label: rejectedCopy.label,
+        description: rejectedCopy.description,
+        state: 'rejected',
+        timestamp: source.reviewedAt,
+      },
+    ]
+  }
+
+  const generatedCopy = getPayslipWorkflowStepCopy('GENERATED', t)
+  const deliveredCopy = getPayslipWorkflowStepCopy('DELIVERED', t)
+
+  return [
+    {
+      key: 'REQUESTED',
+      label: requestedCopy.label,
+      description: requestedCopy.description,
+      state: 'completed',
+      timestamp: source.createdAt,
+    },
+    {
+      key: 'IN_REVIEW',
+      label: reviewCopy.label,
+      description: reviewCopy.description,
+      state:
+        source.status === 'PENDING'
+          ? 'pending'
+          : source.status === 'IN_REVIEW'
+            ? 'current'
+            : 'completed',
+      timestamp: source.reviewedAt,
+    },
+    {
+      key: 'GENERATED',
+      label: generatedCopy.label,
+      description: generatedCopy.description,
+      state: source.documentPublishedAt
+        ? source.status === 'FULFILLED'
+          ? 'completed'
+          : 'current'
+        : 'pending',
+      timestamp: source.documentPublishedAt,
+    },
+    {
+      key: 'DELIVERED',
+      label: deliveredCopy.label,
+      description: deliveredCopy.description,
+      state: source.status === 'FULFILLED' ? 'current' : 'pending',
+      timestamp: source.fulfilledAt,
+    },
+  ]
 }
 
 export function getPayslipDocumentSourceLabel(

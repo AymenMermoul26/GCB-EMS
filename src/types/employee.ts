@@ -332,6 +332,58 @@ function normalizeEmployeeLookupKey(value: string): string {
     .replace(/[’`´]/g, "'")
 }
 
+const EMPLOYEE_DISPLAY_ONLY_PLACEHOLDER_KEYS = new Set([
+  'not provided',
+  'not set',
+  'not available',
+  'not assigned',
+  'not reviewed',
+  'non renseigné',
+  'non défini',
+  'non disponible',
+  'non attribué',
+  'non examiné',
+  'غير مذكور',
+  'غير محدد',
+  'غير متاح',
+  'غير معيّن',
+  'لم تتم مراجعته',
+])
+
+export function isEmployeeDisplayOnlyPlaceholder(
+  value: string | null | undefined,
+): boolean {
+  if (typeof value !== 'string') {
+    return false
+  }
+
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    return false
+  }
+
+  return EMPLOYEE_DISPLAY_ONLY_PLACEHOLDER_KEYS.has(normalizeEmployeeLookupKey(trimmed))
+}
+
+export function sanitizeEmployeeTextValue(
+  value: string | null | undefined,
+): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    return null
+  }
+
+  if (isEmployeeDisplayOnlyPlaceholder(trimmed)) {
+    return null
+  }
+
+  return trimmed
+}
+
 function resolveEmployeeLookupValue<T extends string>(
   value: string,
   aliases?: Partial<Record<string, T>>,
@@ -351,11 +403,13 @@ function getEmployeeLabel<T extends string>(
   labels: Partial<Record<T, string>>,
   aliases?: Partial<Record<string, T>>,
 ): string | null {
-  if (!value) {
+  const sanitizedValue = sanitizeEmployeeTextValue(value)
+
+  if (!sanitizedValue) {
     return null
   }
 
-  const resolvedValue = resolveEmployeeLookupValue(value, aliases)
+  const resolvedValue = resolveEmployeeLookupValue(sanitizedValue, aliases)
   return labels[resolvedValue as T] ?? resolvedValue
 }
 

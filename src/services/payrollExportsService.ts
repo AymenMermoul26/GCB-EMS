@@ -12,18 +12,20 @@ import {
   getEmployeeCategorieProfessionnelleLabel,
   getEmployeePosteLabel,
   getEmployeeRegionalBranchLabel,
-  getEmployeeSituationFamilialeLabel,
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
-import type { PayrollEmployeeDetail } from '@/types/payroll'
-import type {
-  PayrollEmployeeExportRow,
-  PayrollEmployeeListFilters,
-  PayrollEmployeeStatusFilter,
-  PayrollExportAction,
-  PayrollExportHistoryItem,
-  PayrollExportHistoryListOptions,
-  PayrollExportType,
+import {
+  buildPayrollEmployeeDirectoryExportFileName,
+  type PayrollEmployeeDetail,
+  type PayrollEmployeeExportFieldKey,
+  type PayrollEmployeeExportRow,
+  type PayrollEmployeeListFilters,
+  type PayrollEmployeeStatusFilter,
+  type PayrollExportAction,
+  type PayrollExportHistoryItem,
+  type PayrollExportHistoryListOptions,
+  type PayrollExportType,
+  PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS,
 } from '@/types/payroll'
 import { downloadCsv, toCsv, type CsvColumn } from '@/utils/csv'
 
@@ -39,11 +41,6 @@ interface PayrollEmployeeExportRowRecord {
   categorie_professionnelle: string | null
   type_contrat: string | null
   date_recrutement: string | null
-  email: string | null
-  telephone: string | null
-  adresse: string | null
-  situation_familiale: string | null
-  nombre_enfants: number | null
   is_active: boolean
 }
 
@@ -56,23 +53,7 @@ interface PayrollExportAuditRow {
   created_at: string
 }
 
-interface PayrollExportCsvRow {
-  matricule: string
-  nom: string
-  prenom: string
-  departement: string
-  regional_branch: string
-  poste: string
-  categorie_professionnelle: string
-  type_contrat: string
-  date_recrutement: string
-  is_active: string
-  email: string
-  telephone: string
-  adresse: string
-  situation_familiale: string
-  nombre_enfants: string
-}
+type PayrollExportCsvRow = Record<PayrollEmployeeExportFieldKey, string>
 
 export interface GeneratePayrollCsvExportParams {
   filters?: PayrollEmployeeListFilters
@@ -84,23 +65,11 @@ interface GeneratePayrollCsvExportResult {
   rowCount: number
 }
 
-const PAYROLL_EXPORT_CSV_COLUMNS: CsvColumn<PayrollExportCsvRow>[] = [
-  { key: 'matricule', header: 'matricule' },
-  { key: 'nom', header: 'nom' },
-  { key: 'prenom', header: 'prenom' },
-  { key: 'departement', header: 'departement' },
-  { key: 'regional_branch', header: 'regional_branch' },
-  { key: 'poste', header: 'poste' },
-  { key: 'categorie_professionnelle', header: 'categorie_professionnelle' },
-  { key: 'type_contrat', header: 'type_contrat' },
-  { key: 'date_recrutement', header: 'date_recrutement' },
-  { key: 'is_active', header: 'is_active' },
-  { key: 'email', header: 'email' },
-  { key: 'telephone', header: 'telephone' },
-  { key: 'adresse', header: 'adresse' },
-  { key: 'situation_familiale', header: 'situation_familiale' },
-  { key: 'nombre_enfants', header: 'nombre_enfants' },
-]
+const PAYROLL_EXPORT_CSV_COLUMNS: CsvColumn<PayrollExportCsvRow>[] =
+  PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS.map((field) => ({
+    key: field.key,
+    header: field.header,
+  }))
 
 function normalizeFilters(filters: PayrollEmployeeListFilters = {}) {
   return {
@@ -150,24 +119,12 @@ function ensureArrayResult<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : []
 }
 
-function currentDateStamp(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function formatTextValue(value: string | null | undefined): string {
   return value?.trim() ?? ''
 }
 
 function formatDateValue(value: string | null | undefined): string {
   return value?.trim() ?? ''
-}
-
-function formatNumberValue(value: number | null | undefined): string {
-  return value === null || value === undefined ? '' : String(value)
-}
-
-function buildPayrollExportFileName(): string {
-  return `payroll_employees_${currentDateStamp()}.csv`
 }
 
 function mapPayrollEmployeeExportRow(
@@ -185,11 +142,6 @@ function mapPayrollEmployeeExportRow(
     categorieProfessionnelle: row.categorie_professionnelle ?? null,
     typeContrat: row.type_contrat ?? null,
     dateRecrutement: row.date_recrutement ?? null,
-    email: row.email ?? null,
-    telephone: row.telephone ?? null,
-    adresse: row.adresse ?? null,
-    situationFamiliale: row.situation_familiale ?? null,
-    nombreEnfants: row.nombre_enfants ?? null,
     isActive: row.is_active,
   }
 }
@@ -208,13 +160,6 @@ function toPayrollCsvRow(row: PayrollEmployeeExportRow): PayrollExportCsvRow {
     type_contrat: formatTextValue(getEmployeeTypeContratLabel(row.typeContrat)),
     date_recrutement: formatDateValue(row.dateRecrutement),
     is_active: row.isActive ? 'true' : 'false',
-    email: formatTextValue(row.email),
-    telephone: formatTextValue(row.telephone),
-    adresse: formatTextValue(row.adresse),
-    situation_familiale: formatTextValue(
-      getEmployeeSituationFamilialeLabel(row.situationFamiliale),
-    ),
-    nombre_enfants: formatNumberValue(row.nombreEnfants),
   }
 }
 
@@ -307,27 +252,35 @@ export async function generatePayrollEmployeesCsvExport({
     throw new Error('No payroll employees matched the selected export scope.')
   }
 
-  const fileName = buildPayrollExportFileName()
+  const fileName = buildPayrollEmployeeDirectoryExportFileName()
+  const normalizedFilters = normalizeFilters(filters)
+  const auditDetails = {
+    export_type: 'PAYROLL_EMPLOYEE_DIRECTORY_CSV' satisfies PayrollExportType,
+    format: 'csv',
+    file_name: fileName,
+    row_count: rows.length,
+    search: normalizedFilters.search,
+    department_id: normalizedFilters.departementId,
+    department_name: departmentName ?? null,
+    regional_branch: normalizedFilters.regionalBranch,
+    status: normalizedFilters.status,
+    type_contrat: normalizedFilters.typeContrat,
+    columns: PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS.map((field) => field.header),
+  }
+
+  await auditService.insertAuditLog({
+    action: 'PAYROLL_EXPORT_REQUESTED',
+    targetType: 'payroll_export',
+    detailsJson: auditDetails,
+  })
+
   const csvRows = rows.map(toPayrollCsvRow)
   const csv = toCsv(csvRows, PAYROLL_EXPORT_CSV_COLUMNS)
-  const normalizedFilters = normalizeFilters(filters)
 
   await auditService.insertAuditLog({
     action: 'PAYROLL_EXPORT_GENERATED',
     targetType: 'payroll_export',
-    detailsJson: {
-      export_type: 'PAYROLL_EMPLOYEE_DIRECTORY_CSV' satisfies PayrollExportType,
-      format: 'csv',
-      file_name: fileName,
-      row_count: rows.length,
-      search: normalizedFilters.search,
-      department_id: normalizedFilters.departementId,
-      department_name: departmentName ?? null,
-      regional_branch: normalizedFilters.regionalBranch,
-      status: normalizedFilters.status,
-      type_contrat: normalizedFilters.typeContrat,
-      columns: PAYROLL_EXPORT_CSV_COLUMNS.map((column) => column.header),
-    },
+    detailsJson: auditDetails,
   })
 
   downloadCsv(fileName, csv)

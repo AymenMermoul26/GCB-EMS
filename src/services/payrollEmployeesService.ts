@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabaseClient'
 import { getDepartmentDisplayName } from '@/types/department'
+import { sanitizeEmployeeTextValue } from '@/types/employee'
 import type {
   PayrollEmployeeDetail,
   PayrollEmployeeListFilters,
@@ -58,13 +59,13 @@ function mapPayrollEmployeeListItem(row: PayrollEmployeeListRow): PayrollEmploye
     id: row.id,
     departementId: row.departement_id,
     departementNom: getDepartmentDisplayName(row.departement_nom) ?? null,
-    regionalBranch: row.regional_branch ?? null,
+    regionalBranch: sanitizeEmployeeTextValue(row.regional_branch),
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
-    poste: row.poste ?? null,
-    categorieProfessionnelle: row.categorie_professionnelle ?? null,
-    typeContrat: row.type_contrat ?? null,
+    poste: sanitizeEmployeeTextValue(row.poste),
+    categorieProfessionnelle: sanitizeEmployeeTextValue(row.categorie_professionnelle),
+    typeContrat: sanitizeEmployeeTextValue(row.type_contrat),
     isActive: row.is_active,
   }
 }
@@ -72,19 +73,19 @@ function mapPayrollEmployeeListItem(row: PayrollEmployeeListRow): PayrollEmploye
 function mapPayrollEmployeeDetail(row: PayrollEmployeeDetailRow): PayrollEmployeeDetail {
   return {
     ...mapPayrollEmployeeListItem(row),
-    photoUrl: row.photo_url ?? null,
-    categorieProfessionnelle: row.categorie_professionnelle ?? null,
-    dateRecrutement: row.date_recrutement ?? null,
-    email: row.email ?? null,
-    telephone: row.telephone ?? null,
-    sexe: row.sexe ?? null,
-    dateNaissance: row.date_naissance ?? null,
-    lieuNaissance: row.lieu_naissance ?? null,
-    nationalite: row.nationalite ?? null,
-    situationFamiliale: row.situation_familiale ?? null,
+    photoUrl: sanitizeEmployeeTextValue(row.photo_url),
+    categorieProfessionnelle: sanitizeEmployeeTextValue(row.categorie_professionnelle),
+    dateRecrutement: sanitizeEmployeeTextValue(row.date_recrutement),
+    email: sanitizeEmployeeTextValue(row.email),
+    telephone: sanitizeEmployeeTextValue(row.telephone),
+    sexe: sanitizeEmployeeTextValue(row.sexe),
+    dateNaissance: sanitizeEmployeeTextValue(row.date_naissance),
+    lieuNaissance: sanitizeEmployeeTextValue(row.lieu_naissance),
+    nationalite: sanitizeEmployeeTextValue(row.nationalite),
+    situationFamiliale: sanitizeEmployeeTextValue(row.situation_familiale),
     nombreEnfants: row.nombre_enfants ?? null,
-    adresse: row.adresse ?? null,
-    numeroSecuriteSociale: row.numero_securite_sociale ?? null,
+    adresse: sanitizeEmployeeTextValue(row.adresse),
+    numeroSecuriteSociale: sanitizeEmployeeTextValue(row.numero_securite_sociale),
   }
 }
 

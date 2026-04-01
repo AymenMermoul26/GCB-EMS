@@ -19,6 +19,7 @@ import type {
   EmployeesListResponse,
   UpdateEmployeePayload,
 } from '@/types/employee'
+import { sanitizeEmployeeTextValue } from '@/types/employee'
 
 const EMPLOYEE_LIST_SELECT =
   'id, departement_id, regional_branch, matricule, nom, prenom, nationalite, diplome, specialite, universite, poste, type_contrat, email, telephone, photo_url, is_active, created_at, updated_at'
@@ -90,28 +91,28 @@ function mapEmployee(row: EmployeeRow): Employee {
   return {
     id: row.id,
     departementId: row.departement_id,
-    regionalBranch: row.regional_branch ?? null,
+    regionalBranch: sanitizeEmployeeTextValue(row.regional_branch),
     matricule: row.matricule,
     nom: row.nom,
     prenom: row.prenom,
-    sexe: row.sexe ?? null,
-    dateNaissance: row.date_naissance ?? null,
-    lieuNaissance: row.lieu_naissance ?? null,
-    nationalite: row.nationalite ?? null,
-    situationFamiliale: row.situation_familiale ?? null,
+    sexe: sanitizeEmployeeTextValue(row.sexe),
+    dateNaissance: sanitizeEmployeeTextValue(row.date_naissance),
+    lieuNaissance: sanitizeEmployeeTextValue(row.lieu_naissance),
+    nationalite: sanitizeEmployeeTextValue(row.nationalite),
+    situationFamiliale: sanitizeEmployeeTextValue(row.situation_familiale),
     nombreEnfants: row.nombre_enfants ?? null,
-    adresse: row.adresse ?? null,
-    diplome: row.diplome ?? null,
-    specialite: row.specialite ?? null,
-    universite: row.universite ?? null,
-    historiquePostes: row.historique_postes ?? null,
-    poste: row.poste ?? null,
-    categorieProfessionnelle: row.categorie_professionnelle ?? null,
-    typeContrat: row.type_contrat ?? null,
-    dateRecrutement: row.date_recrutement ?? null,
-    email: row.email ?? null,
-    telephone: row.telephone ?? null,
-    photoUrl: row.photo_url ?? null,
+    adresse: sanitizeEmployeeTextValue(row.adresse),
+    diplome: sanitizeEmployeeTextValue(row.diplome),
+    specialite: sanitizeEmployeeTextValue(row.specialite),
+    universite: sanitizeEmployeeTextValue(row.universite),
+    historiquePostes: sanitizeEmployeeTextValue(row.historique_postes),
+    poste: sanitizeEmployeeTextValue(row.poste),
+    categorieProfessionnelle: sanitizeEmployeeTextValue(row.categorie_professionnelle),
+    typeContrat: sanitizeEmployeeTextValue(row.type_contrat),
+    dateRecrutement: sanitizeEmployeeTextValue(row.date_recrutement),
+    email: sanitizeEmployeeTextValue(row.email),
+    telephone: sanitizeEmployeeTextValue(row.telephone),
+    photoUrl: sanitizeEmployeeTextValue(row.photo_url),
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -121,9 +122,30 @@ function mapEmployee(row: EmployeeRow): Employee {
 function mapAdminEmployee(row: AdminEmployeeRow): AdminEmployee {
   return {
     ...mapEmployee(row),
-    numeroSecuriteSociale: row.numero_securite_sociale ?? null,
-    observations: row.observations,
+    numeroSecuriteSociale: sanitizeEmployeeTextValue(row.numero_securite_sociale),
+    observations: sanitizeEmployeeTextValue(row.observations),
   }
+}
+
+function normalizePayloadText(
+  value: string | null | undefined,
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  return sanitizeEmployeeTextValue(value)
+}
+
+function normalizePayloadEmail(
+  value: string | null | undefined,
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  const sanitized = sanitizeEmployeeTextValue(value)
+  return sanitized ? sanitized.toLowerCase() : null
 }
 
 function toInsertPayload(payload: CreateEmployeePayload) {
@@ -131,30 +153,30 @@ function toInsertPayload(payload: CreateEmployeePayload) {
 
   return {
     departement_id: payload.departementId,
-    regional_branch: payload.regionalBranch ?? null,
+    regional_branch: normalizePayloadText(payload.regionalBranch) ?? null,
     matricule: normalizedMatricule && normalizedMatricule.length > 0 ? normalizedMatricule : null,
     nom: payload.nom,
     prenom: payload.prenom,
-    sexe: payload.sexe ?? null,
-    date_naissance: payload.dateNaissance ?? null,
-    lieu_naissance: payload.lieuNaissance ?? null,
-    nationalite: payload.nationalite ?? null,
-    situation_familiale: payload.situationFamiliale ?? null,
+    sexe: normalizePayloadText(payload.sexe) ?? null,
+    date_naissance: normalizePayloadText(payload.dateNaissance) ?? null,
+    lieu_naissance: normalizePayloadText(payload.lieuNaissance) ?? null,
+    nationalite: normalizePayloadText(payload.nationalite) ?? null,
+    situation_familiale: normalizePayloadText(payload.situationFamiliale) ?? null,
     nombre_enfants: payload.nombreEnfants ?? null,
-    adresse: payload.adresse ?? null,
-    numero_securite_sociale: payload.numeroSecuriteSociale ?? null,
-    diplome: payload.diplome ?? null,
-    specialite: payload.specialite ?? null,
-    universite: payload.universite ?? null,
-    historique_postes: payload.historiquePostes ?? null,
-    observations: payload.observations ?? null,
-    poste: payload.poste ?? null,
-    categorie_professionnelle: payload.categorieProfessionnelle ?? null,
-    type_contrat: payload.typeContrat ?? null,
-    date_recrutement: payload.dateRecrutement ?? null,
-    email: payload.email ?? null,
-    telephone: payload.telephone ?? null,
-    photo_url: payload.photoUrl ?? null,
+    adresse: normalizePayloadText(payload.adresse) ?? null,
+    numero_securite_sociale: normalizePayloadText(payload.numeroSecuriteSociale) ?? null,
+    diplome: normalizePayloadText(payload.diplome) ?? null,
+    specialite: normalizePayloadText(payload.specialite) ?? null,
+    universite: normalizePayloadText(payload.universite) ?? null,
+    historique_postes: normalizePayloadText(payload.historiquePostes) ?? null,
+    observations: normalizePayloadText(payload.observations) ?? null,
+    poste: normalizePayloadText(payload.poste) ?? null,
+    categorie_professionnelle: normalizePayloadText(payload.categorieProfessionnelle) ?? null,
+    type_contrat: normalizePayloadText(payload.typeContrat) ?? null,
+    date_recrutement: normalizePayloadText(payload.dateRecrutement) ?? null,
+    email: normalizePayloadEmail(payload.email) ?? null,
+    telephone: normalizePayloadText(payload.telephone) ?? null,
+    photo_url: normalizePayloadText(payload.photoUrl) ?? null,
     is_active: payload.isActive ?? true,
   }
 }
@@ -166,7 +188,7 @@ function toUpdatePayload(payload: UpdateEmployeePayload) {
     updatePayload.departement_id = payload.departementId
   }
   if (payload.regionalBranch !== undefined) {
-    updatePayload.regional_branch = payload.regionalBranch
+    updatePayload.regional_branch = normalizePayloadText(payload.regionalBranch)
   }
   if (payload.matricule !== undefined) {
     updatePayload.matricule = payload.matricule
@@ -178,64 +200,64 @@ function toUpdatePayload(payload: UpdateEmployeePayload) {
     updatePayload.prenom = payload.prenom
   }
   if (payload.sexe !== undefined) {
-    updatePayload.sexe = payload.sexe
+    updatePayload.sexe = normalizePayloadText(payload.sexe)
   }
   if (payload.dateNaissance !== undefined) {
-    updatePayload.date_naissance = payload.dateNaissance
+    updatePayload.date_naissance = normalizePayloadText(payload.dateNaissance)
   }
   if (payload.lieuNaissance !== undefined) {
-    updatePayload.lieu_naissance = payload.lieuNaissance
+    updatePayload.lieu_naissance = normalizePayloadText(payload.lieuNaissance)
   }
   if (payload.nationalite !== undefined) {
-    updatePayload.nationalite = payload.nationalite
+    updatePayload.nationalite = normalizePayloadText(payload.nationalite)
   }
   if (payload.situationFamiliale !== undefined) {
-    updatePayload.situation_familiale = payload.situationFamiliale
+    updatePayload.situation_familiale = normalizePayloadText(payload.situationFamiliale)
   }
   if (payload.nombreEnfants !== undefined) {
     updatePayload.nombre_enfants = payload.nombreEnfants
   }
   if (payload.adresse !== undefined) {
-    updatePayload.adresse = payload.adresse
+    updatePayload.adresse = normalizePayloadText(payload.adresse)
   }
   if (payload.numeroSecuriteSociale !== undefined) {
-    updatePayload.numero_securite_sociale = payload.numeroSecuriteSociale
+    updatePayload.numero_securite_sociale = normalizePayloadText(payload.numeroSecuriteSociale)
   }
   if (payload.diplome !== undefined) {
-    updatePayload.diplome = payload.diplome
+    updatePayload.diplome = normalizePayloadText(payload.diplome)
   }
   if (payload.specialite !== undefined) {
-    updatePayload.specialite = payload.specialite
+    updatePayload.specialite = normalizePayloadText(payload.specialite)
   }
   if (payload.universite !== undefined) {
-    updatePayload.universite = payload.universite
+    updatePayload.universite = normalizePayloadText(payload.universite)
   }
   if (payload.historiquePostes !== undefined) {
-    updatePayload.historique_postes = payload.historiquePostes
+    updatePayload.historique_postes = normalizePayloadText(payload.historiquePostes)
   }
   if (payload.observations !== undefined) {
-    updatePayload.observations = payload.observations
+    updatePayload.observations = normalizePayloadText(payload.observations)
   }
   if (payload.poste !== undefined) {
-    updatePayload.poste = payload.poste
+    updatePayload.poste = normalizePayloadText(payload.poste)
   }
   if (payload.categorieProfessionnelle !== undefined) {
-    updatePayload.categorie_professionnelle = payload.categorieProfessionnelle
+    updatePayload.categorie_professionnelle = normalizePayloadText(payload.categorieProfessionnelle)
   }
   if (payload.typeContrat !== undefined) {
-    updatePayload.type_contrat = payload.typeContrat
+    updatePayload.type_contrat = normalizePayloadText(payload.typeContrat)
   }
   if (payload.dateRecrutement !== undefined) {
-    updatePayload.date_recrutement = payload.dateRecrutement
+    updatePayload.date_recrutement = normalizePayloadText(payload.dateRecrutement)
   }
   if (payload.email !== undefined) {
-    updatePayload.email = payload.email
+    updatePayload.email = normalizePayloadEmail(payload.email)
   }
   if (payload.telephone !== undefined) {
-    updatePayload.telephone = payload.telephone
+    updatePayload.telephone = normalizePayloadText(payload.telephone)
   }
   if (payload.photoUrl !== undefined) {
-    updatePayload.photo_url = payload.photoUrl
+    updatePayload.photo_url = normalizePayloadText(payload.photoUrl)
   }
   if (payload.isActive !== undefined) {
     updatePayload.is_active = payload.isActive
@@ -521,6 +543,7 @@ export function useAdminEmployeeQuery(employeeId?: string | null) {
     queryKey: ['adminEmployee', employeeId],
     queryFn: () => getAdminEmployee(employeeId as string),
     enabled: Boolean(employeeId),
+    refetchOnMount: 'always',
   })
 }
 
@@ -572,6 +595,7 @@ export function useUpdateAdminEmployeeMutation(
   return useMutation({
     mutationFn: ({ id, payload }) => updateAdminEmployee(id, payload),
     onSuccess: async (data, variables, onMutateResult, context) => {
+      queryClient.setQueryData(['adminEmployee', data.id], data)
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       await queryClient.invalidateQueries({ queryKey: ['employee', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['adminEmployee', data.id] })

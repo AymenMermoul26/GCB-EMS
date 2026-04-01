@@ -61,31 +61,16 @@ import {
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
 import { getDepartmentDisplayName } from '@/types/department'
-import type {
-  PayrollEmployeeListFilters,
-  PayrollEmployeeListItem,
-  PayrollEmployeeStatusFilter,
-  PayrollExportAction,
-  PayrollExportHistoryItem,
+import {
+  buildPayrollEmployeeDirectoryExportFileName,
+  getPayrollExportActionLabel,
+  getPayrollExportActionTone,
+  PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS,
+  type PayrollEmployeeListFilters,
+  type PayrollEmployeeListItem,
+  type PayrollEmployeeStatusFilter,
+  type PayrollExportHistoryItem,
 } from '@/types/payroll'
-
-const EXPORT_FIELD_LABELS = [
-  'Employee ID',
-  'Last name',
-  'First name',
-  'Department',
-  'Regional branch',
-  'Job title',
-  'Professional category',
-  'Contract type',
-  'Hire date',
-  'Status',
-  'Email',
-  'Phone',
-  'Address',
-  'Marital status',
-  'Number of children',
-] as const
 
 function buildDepartmentOptions(employees: PayrollEmployeeListItem[]) {
   const departmentEntries = employees.flatMap((employee) => {
@@ -119,16 +104,6 @@ function formatContractType(value: string | null | undefined): string {
 
 function formatRegionalBranch(value: string | null | undefined): string {
   return getEmployeeRegionalBranchLabel(value) ?? 'All regional branches'
-}
-
-function formatExportActionLabel(action: PayrollExportAction): string {
-  return action === 'PAYROLL_EXPORT_PRINT_INITIATED'
-    ? 'Information sheet export'
-    : 'CSV export generated'
-}
-
-function getExportActionTone(action: PayrollExportAction): 'brand' | 'info' {
-  return action === 'PAYROLL_EXPORT_PRINT_INITIATED' ? 'info' : 'brand'
 }
 
 function buildExportHistoryDescription(item: PayrollExportHistoryItem): string {
@@ -269,6 +244,10 @@ export function PayrollExportsPage() {
 
   const selectedDepartmentName =
     departmentFilter !== 'all' ? departmentNameById.get(departmentFilter) ?? null : null
+  const exportFileNamePreview = useMemo(
+    () => buildPayrollEmployeeDirectoryExportFileName(),
+    [],
+  )
 
   const activeEmployeesInScope = useMemo(
     () => previewEmployees.filter((employee) => employee.isActive).length,
@@ -428,7 +407,7 @@ export function PayrollExportsPage() {
         />
         <ExportSummaryCard
           title="Exportable columns"
-          value={EXPORT_FIELD_LABELS.length}
+          value={PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS.length}
           helper="Fields included in the controlled payroll CSV export."
         />
         <ExportSummaryCard
@@ -548,17 +527,17 @@ export function PayrollExportsPage() {
               <div>
                 <p className="text-sm font-medium text-slate-900">Included fields</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {EXPORT_FIELD_LABELS.map((fieldLabel) => (
-                    <StatusBadge key={fieldLabel} tone="neutral" emphasis="outline">
-                      {fieldLabel}
+                  {PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS.map((field) => (
+                    <StatusBadge key={field.key} tone="neutral" emphasis="outline">
+                      {field.label}
                     </StatusBadge>
                   ))}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                Internal HR notes, QR controls, public-profile settings, social security numbers,
-                and unsupported sensitive fields are intentionally excluded from CSV exports.
+                Contact details, household details, social security numbers, internal HR notes,
+                and QR/public-profile controls are intentionally excluded from payroll CSV exports.
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -595,7 +574,8 @@ export function PayrollExportsPage() {
                 <p className="text-sm font-semibold text-slate-900">Batch CSV export</p>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
                   Export the currently filtered payroll employee directory as CSV using the same
-                  payroll-safe scope visible in this workspace.
+                  payroll-safe scope visible in this workspace. The review step confirms filters,
+                  included columns, and the generated output file.
                 </p>
               </div>
 
@@ -603,7 +583,8 @@ export function PayrollExportsPage() {
                 <p className="text-sm font-semibold text-slate-900">Employee information sheet</p>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
                   Individual employee sheets remain available from employee detail pages and can be
-                  printed or saved as PDF through the browser.
+                  printed or saved as PDF through the browser. Official identifiers stay excluded
+                  from that printable surface.
                 </p>
                 <Button asChild variant="outline" size="sm" className="mt-3">
                   <Link to={ROUTES.PAYROLL_EMPLOYEES}>
@@ -614,8 +595,9 @@ export function PayrollExportsPage() {
               </div>
 
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
-                Export actions are logged for payroll activity visibility. Email delivery,
-                unrestricted file exports, and payroll calculations remain intentionally unavailable.
+                Export actions are logged for payroll activity visibility. Downloaded CSV files stay
+                limited to governed employment fields, while unrestricted exports remain
+                intentionally unavailable.
               </div>
             </CardContent>
           </Card>
@@ -660,8 +642,8 @@ export function PayrollExportsPage() {
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge tone={getExportActionTone(item.action)}>
-                          {formatExportActionLabel(item.action)}
+                        <StatusBadge tone={getPayrollExportActionTone(item.action)}>
+                          {getPayrollExportActionLabel(item.action)}
                         </StatusBadge>
                         <StatusBadge tone="neutral" emphasis="outline">
                           {item.exportType === 'PAYROLL_EMPLOYEE_INFORMATION_SHEET'
@@ -716,9 +698,23 @@ export function PayrollExportsPage() {
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Included fields</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-950">
-                  {EXPORT_FIELD_LABELS.length}
+                  {PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS.length}
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+              <p className="text-sm font-medium text-slate-900">Export output</p>
+              <dl className="mt-3 space-y-2 text-sm text-slate-600">
+                <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
+                  <dt className="min-w-32 text-slate-500">Export type</dt>
+                  <dd>Payroll employee directory CSV</dd>
+                </div>
+                <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
+                  <dt className="min-w-32 text-slate-500">Generated file</dt>
+                  <dd className="font-mono text-xs text-slate-700">{exportFileNamePreview}</dd>
+                </div>
+              </dl>
             </div>
 
             <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
@@ -755,9 +751,21 @@ export function PayrollExportsPage() {
               </dl>
             </div>
 
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+              <p className="text-sm font-medium text-slate-900">Included fields</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {PAYROLL_EMPLOYEE_EXPORT_FIELD_DEFINITIONS.map((field) => (
+                  <StatusBadge key={field.key} tone="neutral" emphasis="outline">
+                    {field.label}
+                  </StatusBadge>
+                ))}
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-              This export excludes social security numbers, internal notes, QR/public-profile data,
-              and any field outside the current payroll-safe export policy.
+              This export excludes contact details, family or household details, social security
+              numbers, internal notes, QR/public-profile data, and any field outside the current
+              payroll-safe export policy.
             </div>
           </div>
 

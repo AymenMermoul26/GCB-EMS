@@ -72,6 +72,7 @@ interface EmployeeLookupRow {
 
 const INVITE_ACTIVITY_WINDOW_DAYS = 7
 const PAYROLL_ACTIVITY_ACTIONS = [
+  'PAYROLL_EXPORT_REQUESTED',
   'PAYROLL_EXPORT_GENERATED',
   'PAYROLL_EXPORT_PRINT_INITIATED',
   'PAYROLL_PERIOD_CREATED',
@@ -461,6 +462,7 @@ function buildPayrollActivitySummary(action: string, detailsJson: Record<string,
   const failureReason = readText(detailsJson.failure_reason)
 
   switch (action) {
+    case 'PAYROLL_EXPORT_REQUESTED':
     case 'PAYROLL_EXPORT_GENERATED': {
       const rowCount = readText(detailsJson.row_count)
       const departmentName = getDepartmentDisplayName(readText(detailsJson.department_name))
@@ -472,15 +474,20 @@ function buildPayrollActivitySummary(action: string, detailsJson: Record<string,
         typeContrat ? `Contract ${typeContrat}` : null,
       ].filter((value): value is string => Boolean(value))
 
+      const actionVerb =
+        action === 'PAYROLL_EXPORT_REQUESTED' ? 'Requested' : 'Generated'
+
       if (rowCount && scopeParts.length > 0) {
-        return `Generated payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
+        return `${actionVerb} payroll CSV export (${rowCount} rows) for ${scopeParts.join(', ')}.`
       }
 
       if (rowCount) {
-        return `Generated payroll CSV export (${rowCount} rows).`
+        return `${actionVerb} payroll CSV export (${rowCount} rows).`
       }
 
-      return 'Generated a payroll CSV export.'
+      return action === 'PAYROLL_EXPORT_REQUESTED'
+        ? 'Requested a payroll CSV export.'
+        : 'Generated a payroll CSV export.'
     }
     case 'PAYROLL_EXPORT_PRINT_INITIATED':
       return matricule
