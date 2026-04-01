@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react'
 
 import { PayrollSidebar, PayrollSidebarMobile } from '@/components/layout/payroll/PayrollSidebar'
 import { env } from '@/config/env'
+import { useI18n } from '@/hooks/use-i18n'
 
 interface PayrollLayoutProps extends PropsWithChildren {
   title: string
@@ -17,8 +18,10 @@ export function PayrollLayout({
   userEmail,
   children,
 }: PayrollLayoutProps) {
+  const { direction, t } = useI18n()
+
   return (
-    <div className="min-h-screen bg-slate-100/70">
+    <div className="min-h-screen bg-slate-100/70" dir={direction}>
       <div className="mx-auto flex max-w-[1700px] gap-3 p-3 lg:gap-4 lg:p-4">
         <PayrollSidebar
           onSignOut={onSignOut}
@@ -37,7 +40,7 @@ export function PayrollLayout({
                 />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-900">{env.VITE_APP_NAME}</p>
-                  <p className="truncate text-xs text-muted-foreground">Payroll workspace</p>
+                  <p className="truncate text-xs text-muted-foreground">{t('shell.payrollWorkspace')}</p>
                 </div>
               </div>
             </div>

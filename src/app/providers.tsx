@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { PropsWithChildren } from 'react'
 
 import { AuthProvider } from '@/contexts/auth-context'
+import { I18nProvider } from '@/contexts/i18n-context'
 import { Sonner } from '@/components/ui/sonner'
 
 const queryClient = new QueryClient({
@@ -20,10 +21,12 @@ const queryClient = new QueryClient({
 export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        {children}
-        <Sonner />
-      </AuthProvider>
+      <I18nProvider>
+        <AuthProvider>
+          {children}
+          <Sonner />
+        </AuthProvider>
+      </I18nProvider>
     </QueryClientProvider>
   )
 }

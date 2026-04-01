@@ -60,10 +60,12 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { useRole } from '@/hooks/use-role'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
+import { cn } from '@/lib/utils'
 import {
-  employeeSelfEditSchema,
+  createEmployeeSelfEditSchema,
   normalizeOptional,
   type EmployeeSelfEditValues,
 } from '@/schemas/employeeSelfEditSchema'
@@ -72,7 +74,7 @@ import {
   normalizePhoneNumberInput,
 } from '@/schemas/employeeSchema'
 import {
-  modificationRequestSchema,
+  createModificationRequestSchema,
   type ModificationRequestValues,
 } from '@/schemas/modification-request.schema'
 import { auditService } from '@/services/auditService'
@@ -100,7 +102,7 @@ import {
   type ModificationRequestField,
 } from '@/types/modification-request'
 import {
-  REQUEST_FIELD_LABELS,
+  getRequestFieldLabel,
   getEmployeeFieldValue,
 } from '@/utils/modification-requests'
 
@@ -162,38 +164,47 @@ function getStatusTone(status: string): 'success' | 'warning' | 'danger' | 'neut
   return 'neutral'
 }
 
-function formatRequestStatus(status: string): string {
+function formatRequestStatus(
+  status: string,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
   if (status === 'ACCEPTEE') {
-    return 'Approved'
+    return t('status.modification.ACCEPTEE')
   }
 
   if (status === 'REJETEE') {
-    return 'Rejected'
+    return t('status.modification.REJETEE')
   }
 
   if (status === 'EN_ATTENTE') {
-    return 'Pending'
+    return t('status.modification.EN_ATTENTE')
   }
 
   return status
 }
 
-function formatFieldValue(value: string | null): string {
+function formatFieldValue(value: string | null, emptyValue: string): string {
   const normalized = (value ?? '').trim()
-  return normalized.length > 0 ? normalized : 'Not provided'
+  return normalized.length > 0 ? normalized : emptyValue
 }
 
-function formatProfileValue(value: string | null | undefined): string {
+function formatProfileValue(
+  value: string | null | undefined,
+  emptyValue: string,
+): string {
   const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : EMPTY_FIELD_VALUE
+  return normalized && normalized.length > 0 ? normalized : emptyValue
 }
 
-function formatProfileDate(value: string | null | undefined): string {
+function formatProfileDate(
+  value: string | null | undefined,
+  locale: string,
+): string {
   if (!value) {
     return EMPTY_FIELD_VALUE
   }
 
-  return new Date(`${value}T00:00:00`).toLocaleDateString()
+  return new Date(`${value}T00:00:00`).toLocaleDateString(locale)
 }
 
 function formatProfileNumber(value: number | null | undefined): string {
@@ -235,6 +246,7 @@ function ReadOnlyRow({ label, value }: ReadOnlyRowProps) {
 export function EmployeeProfileManagePage() {
   const { employeId } = useRole()
   const { mustChangePassword } = useAuth()
+  const { t, locale, isRTL } = useI18n()
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [requestSubmitError, setRequestSubmitError] = useState<string | null>(null)
@@ -257,8 +269,11 @@ export function EmployeeProfileManagePage() {
     )
   }, [departmentsQuery.data, employeeQuery.data])
 
+  const editSchema = useMemo(() => createEmployeeSelfEditSchema(t), [t])
+  const requestSchema = useMemo(() => createModificationRequestSchema(t), [t])
+
   const editForm = useForm<EmployeeSelfEditValues>({
-    resolver: zodResolver(employeeSelfEditSchema),
+    resolver: zodResolver(editSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -270,7 +285,7 @@ export function EmployeeProfileManagePage() {
   })
 
   const requestForm = useForm<ModificationRequestValues>({
-    resolver: zodResolver(modificationRequestSchema),
+    resolver: zodResolver(requestSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -324,7 +339,7 @@ export function EmployeeProfileManagePage() {
 
   const updateProfileMutation = useUpdateEmployeeMutation({
     onSuccess: async (updatedEmployee) => {
-      toast.success('Profile updated successfully.')
+      toast.success(t('employee.manage.saveSuccess'))
       try {
         await auditService.insertAuditLog({
           action: 'EMPLOYEE_SELF_UPDATED',
@@ -335,7 +350,7 @@ export function EmployeeProfileManagePage() {
           },
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to write audit log")
+        toast.error(error instanceof Error ? error.message : t('employee.manage.saveAuditError'))
       }
       await employeeQuery.refetch()
     },
@@ -347,7 +362,7 @@ export function EmployeeProfileManagePage() {
   const submitRequestMutation = useSubmitModificationRequestMutation({
     onSuccess: async (createdRequest) => {
       setRequestSubmitError(null)
-      toast.success('Request submitted successfully.')
+      toast.success(t('employee.manage.requestSuccess'))
       requestForm.clearErrors()
       requestForm.reset({
         champCible: 'poste',
@@ -455,16 +470,10 @@ export function EmployeeProfileManagePage() {
       photoUrl: watchedEditValues.photoUrl ?? '',
     })
 
-    const fieldLabels: Record<QrRefreshField, string> = {
-      poste: 'Job Title',
-      email: 'Email',
-      telephone: 'Phone',
-      photo_url: 'Photo URL',
-    }
-
-    return changedFields.map((field) => fieldLabels[field])
+    return changedFields.map((field) => getRequestFieldLabel(field, t))
   }, [
     employeeQuery.data,
+    t,
     watchedEditValues.email,
     watchedEditValues.photoUrl,
     watchedEditValues.poste,
@@ -472,7 +481,7 @@ export function EmployeeProfileManagePage() {
   ])
 
   const selectedRequestFieldLabel =
-    REQUEST_FIELD_LABELS[selectedRequestField as ModificationRequestField] ?? 'Selected field'
+    getRequestFieldLabel(selectedRequestField as ModificationRequestField, t)
 
   const canSubmitApproval =
     requestForm.formState.isDirty &&
@@ -482,8 +491,8 @@ export function EmployeeProfileManagePage() {
   if (employeeQuery.isPending) {
     return (
       <DashboardLayout
-        title="Manage My Profile"
-        subtitle="Update your information and submit changes for HR approval."
+        title={t('employee.manage.title')}
+        subtitle={t('employee.manage.subtitle')}
       >
         <PageStateSkeleton variant="profile" />
       </DashboardLayout>
@@ -493,12 +502,12 @@ export function EmployeeProfileManagePage() {
   if (employeeQuery.isError) {
     return (
       <DashboardLayout
-        title="Manage My Profile"
-        subtitle="Update your information and submit changes for HR approval."
+        title={t('employee.manage.title')}
+        subtitle={t('employee.manage.subtitle')}
       >
         <ErrorState
-          title="Could not load profile"
-          description="We couldn't load your profile management workspace right now."
+          title={t('employee.manage.loadErrorTitle')}
+          description={t('employee.manage.loadErrorDescription')}
           message={employeeQuery.error.message}
           onRetry={() => void employeeQuery.refetch()}
         />
@@ -509,12 +518,12 @@ export function EmployeeProfileManagePage() {
   if (!employeeQuery.data) {
     return (
       <DashboardLayout
-        title="Manage My Profile"
-        subtitle="Update your information and submit changes for HR approval."
+        title={t('employee.manage.title')}
+        subtitle={t('employee.manage.subtitle')}
       >
         <EmptyState
-          title="Profile unavailable"
-          description="Contact HR if your employee profile is not linked."
+          title={t('employee.manage.emptyTitle')}
+          description={t('employee.manage.emptyDescription')}
         />
       </DashboardLayout>
     )
@@ -524,34 +533,34 @@ export function EmployeeProfileManagePage() {
 
   return (
     <DashboardLayout
-      title="Manage My Profile"
-      subtitle="Update your information and submit changes for HR approval."
+      title={t('employee.manage.title')}
+      subtitle={t('employee.manage.subtitle')}
     >
       {mustChangePassword ? (
         <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Password change required</AlertTitle>
+          <AlertTitle>{t('auth.reset.createBadge')}</AlertTitle>
           <AlertDescription>
-            You must change your password before using the application.
+            {t('employee.profile.passwordWarning')}
           </AlertDescription>
         </Alert>
       ) : null}
 
       {requestSubmitError ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertTitle>Could not submit request</AlertTitle>
+          <AlertTitle>{t('employee.manage.requestTitle')}</AlertTitle>
           <AlertDescription className="mt-1">{requestSubmitError}</AlertDescription>
         </Alert>
       ) : null}
 
       <PageHeader
-        title="Manage My Profile"
-        description="Update your information and submit changes for HR approval."
+        title={t('employee.manage.title')}
+        description={t('employee.manage.subtitle')}
         className="sticky top-16 z-20 mb-6"
         actions={
           <>
             <Button asChild variant="outline">
-              <Link to={ROUTES.EMPLOYEE_PROFILE}>Cancel</Link>
+              <Link to={ROUTES.EMPLOYEE_PROFILE}>{t('actions.cancel')}</Link>
             </Button>
             <Button
               type="button"
@@ -560,11 +569,13 @@ export function EmployeeProfileManagePage() {
               className={BRAND_BUTTON_CLASS_NAME}
             >
               {submitRequestMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : (
-                <SendHorizontal className="mr-2 h-4 w-4" />
+                <SendHorizontal className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               )}
-              {submitRequestMutation.isPending ? 'Sending...' : 'Submit for Approval'}
+              {submitRequestMutation.isPending
+                ? t('employee.manage.sending')
+                : t('actions.submitForApproval')}
             </Button>
           </>
         }
@@ -576,16 +587,19 @@ export function EmployeeProfileManagePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <UserRound className="h-4 w-4 text-slate-600" />
-                Editable Information
+                {t('employee.manage.directChangesTitle')}
               </CardTitle>
               <CardDescription>
-                These fields can be edited directly and may trigger QR refresh notifications.
+                {t('employee.manage.directChangesDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-5" onSubmit={onSubmitSelfEdit}>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FormField label="Job Title" error={editForm.formState.errors.poste?.message}>
+                  <FormField
+                    label={t('employee.profile.fields.jobTitle')}
+                    error={editForm.formState.errors.poste?.message}
+                  >
                     <Controller
                       control={editForm.control}
                       name="poste"
@@ -598,10 +612,12 @@ export function EmployeeProfileManagePage() {
                           disabled={updateProfileMutation.isPending}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select a job title" />
+                            <SelectValue placeholder={t('employee.profile.fields.jobTitle')} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={EMPTY_SELECT_VALUE}>Not provided</SelectItem>
+                            <SelectItem value={EMPTY_SELECT_VALUE}>
+                              {t('common.notProvided')}
+                            </SelectItem>
                             {EMPLOYEE_POSTE_OPTIONS.map((option) => (
                               <SelectItem key={option} value={option}>
                                 {EMPLOYEE_POSTE_LABELS[option]}
@@ -613,7 +629,7 @@ export function EmployeeProfileManagePage() {
                     />
                   </FormField>
 
-                  <FormField label="Email" error={editForm.formState.errors.email?.message}>
+                  <FormField label={t('common.email')} error={editForm.formState.errors.email?.message}>
                     <Input
                       type="email"
                       {...editForm.register('email')}
@@ -622,9 +638,9 @@ export function EmployeeProfileManagePage() {
                   </FormField>
 
                   <FormField
-                    label="Phone"
+                    label={t('employee.profile.fields.phone')}
                     error={editForm.formState.errors.telephone?.message}
-                    helperText="Format: +213 followed by 5, 6, or 7 and 8 digits."
+                    helperText={t('employee.manage.phoneHelper')}
                   >
                     <Input
                       type="tel"
@@ -645,7 +661,10 @@ export function EmployeeProfileManagePage() {
                     />
                   </FormField>
 
-                  <FormField label="Photo URL" error={editForm.formState.errors.photoUrl?.message}>
+                  <FormField
+                    label={t('employee.manage.directFields.photo_url')}
+                    error={editForm.formState.errors.photoUrl?.message}
+                  >
                     <Input {...editForm.register('photoUrl')} disabled={updateProfileMutation.isPending} />
                   </FormField>
                 </div>
@@ -657,11 +676,13 @@ export function EmployeeProfileManagePage() {
                     disabled={updateProfileMutation.isPending || !editForm.formState.isDirty}
                   >
                     {updateProfileMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                     ) : (
-                      <Save className="mr-2 h-4 w-4" />
+                      <Save className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                     )}
-                    {updateProfileMutation.isPending ? 'Saving...' : 'Save Direct Changes'}
+                    {updateProfileMutation.isPending
+                      ? t('employee.manage.saving')
+                      : t('actions.save')}
                   </Button>
                 </div>
               </form>
@@ -672,88 +693,111 @@ export function EmployeeProfileManagePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lock className="h-4 w-4 text-slate-600" />
-                HR-Managed Fields
+                {t('employee.manage.hrManagedTitle')}
               </CardTitle>
               <CardDescription>
-                The locked fields below are managed by HR and require a modification request.
+                {t('employee.manage.hrManagedDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
-                <ReadOnlyRow label="Last Name" value={employee.nom} />
-                <ReadOnlyRow label="First Name" value={employee.prenom} />
+                <ReadOnlyRow label={t('requests.fields.nom')} value={employee.nom} />
+                <ReadOnlyRow label={t('requests.fields.prenom')} value={employee.prenom} />
                 <ReadOnlyRow
-                  label="Sex"
-                  value={formatProfileValue(getEmployeeSexeLabel(employee.sexe))}
+                  label={t('employee.profile.fields.sex')}
+                  value={formatProfileValue(getEmployeeSexeLabel(employee.sexe), t('common.notProvided'))}
                 />
                 <ReadOnlyRow
-                  label="Birth Date"
-                  value={formatProfileDate(employee.dateNaissance)}
+                  label={t('employee.profile.fields.birthDate')}
+                  value={formatProfileDate(employee.dateNaissance, locale)}
                 />
                 <ReadOnlyRow
-                  label="Birth Place"
-                  value={formatProfileValue(employee.lieuNaissance)}
+                  label={t('employee.profile.fields.birthPlace')}
+                  value={formatProfileValue(employee.lieuNaissance, t('common.notProvided'))}
                 />
                 <ReadOnlyRow
-                  label="Nationality"
-                  value={formatProfileValue(getEmployeeNationaliteLabel(employee.nationalite))}
+                  label={t('employee.profile.fields.nationality')}
+                  value={formatProfileValue(
+                    getEmployeeNationaliteLabel(employee.nationalite),
+                    t('common.notProvided'),
+                  )}
                 />
                 <ReadOnlyRow
-                  label="Marital Status"
+                  label={t('employee.profile.fields.maritalStatus')}
                   value={formatProfileValue(
                     getEmployeeSituationFamilialeLabel(employee.situationFamiliale),
+                    t('common.notProvided'),
                   )}
                 />
                 <ReadOnlyRow
-                  label="Number of Children"
+                  label={t('employee.profile.fields.children')}
                   value={formatProfileNumber(employee.nombreEnfants)}
                 />
-                <ReadOnlyRow label="Address" value={formatProfileValue(employee.adresse)} />
-                <ReadOnlyRow label="Employee ID" value={employee.matricule} />
-                <ReadOnlyRow label="Department" value={departmentName ?? employee.departementId} />
                 <ReadOnlyRow
-                  label="Regional Branch"
+                  label={t('employee.profile.fields.address')}
+                  value={formatProfileValue(employee.adresse, t('common.notProvided'))}
+                />
+                <ReadOnlyRow label={t('employee.profile.fields.employeeId')} value={employee.matricule} />
+                <ReadOnlyRow
+                  label={t('employee.profile.fields.department')}
+                  value={departmentName ?? employee.departementId ?? t('common.notAssigned')}
+                />
+                <ReadOnlyRow
+                  label={t('employee.profile.fields.regionalBranch')}
                   value={formatProfileValue(
                     getEmployeeRegionalBranchLabel(employee.regionalBranch),
+                    t('common.notAssigned'),
                   )}
                 />
                 <ReadOnlyRow
-                  label="Professional Category"
+                  label={t('employee.profile.fields.professionalCategory')}
                   value={formatProfileValue(
                     getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
+                    t('common.notAssigned'),
                   )}
                 />
                 <ReadOnlyRow
-                  label="Contract Type"
-                  value={formatProfileValue(getEmployeeTypeContratLabel(employee.typeContrat))}
+                  label={t('employee.profile.fields.contractType')}
+                  value={formatProfileValue(
+                    getEmployeeTypeContratLabel(employee.typeContrat),
+                    t('common.notAssigned'),
+                  )}
                 />
                 <ReadOnlyRow
-                  label="Hire Date"
-                  value={formatProfileDate(employee.dateRecrutement)}
+                  label={t('employee.profile.fields.hireDate')}
+                  value={formatProfileDate(employee.dateRecrutement, locale)}
                 />
                 <ReadOnlyRow
-                  label="Degree"
-                  value={formatProfileValue(getEmployeeDiplomeLabel(employee.diplome))}
+                  label={t('employee.profile.fields.degree')}
+                  value={formatProfileValue(getEmployeeDiplomeLabel(employee.diplome), t('common.notProvided'))}
                 />
                 <ReadOnlyRow
-                  label="Specialization"
-                  value={formatProfileValue(getEmployeeSpecialiteLabel(employee.specialite))}
+                  label={t('employee.profile.fields.specialization')}
+                  value={formatProfileValue(
+                    getEmployeeSpecialiteLabel(employee.specialite),
+                    t('common.notProvided'),
+                  )}
                 />
                 <ReadOnlyRow
-                  label="University"
-                  value={formatProfileValue(getEmployeeUniversiteLabel(employee.universite))}
+                  label={t('employee.profile.fields.university')}
+                  value={formatProfileValue(
+                    getEmployeeUniversiteLabel(employee.universite),
+                    t('common.notProvided'),
+                  )}
                 />
               </div>
 
               <div className="rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2.5">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Career History</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">
+                  {t('employee.profile.fields.careerHistory')}
+                </p>
                 <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-slate-900">
-                  {formatProfileValue(employee.historiquePostes)}
+                  {formatProfileValue(employee.historiquePostes, t('common.notProvided'))}
                 </p>
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                Your social security number is sensitive HR data and is not displayed here.
+                {t('employee.manage.socialSecurityHidden')}
               </div>
             </CardContent>
           </Card>
@@ -762,28 +806,31 @@ export function EmployeeProfileManagePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BriefcaseBusiness className="h-4 w-4 text-slate-600" />
-                Submit a Modification Request
+                {t('employee.manage.requestTitle')}
               </CardTitle>
               <CardDescription>
-                Submit one request at a time. HR reviews and approves changes through the workflow.
+                {t('employee.manage.requestDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-5" onSubmit={(event) => event.preventDefault()}>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FormField label="Field" error={requestForm.formState.errors.champCible?.message}>
+                  <FormField
+                    label={t('employee.manage.field')}
+                    error={requestForm.formState.errors.champCible?.message}
+                  >
                     <Controller
                       control={requestForm.control}
                       name="champCible"
                       render={({ field }) => (
                         <Select value={field.value} onValueChange={field.onChange}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select a field" />
+                            <SelectValue placeholder={t('employee.manage.field')} />
                           </SelectTrigger>
                           <SelectContent>
                             {MODIFICATION_REQUEST_FIELD_OPTIONS.map((option) => (
                               <SelectItem key={option.key} value={option.key}>
-                                {option.label}
+                                {getRequestFieldLabel(option.key, t)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -792,24 +839,24 @@ export function EmployeeProfileManagePage() {
                     />
                   </FormField>
 
-                  <FormField label="Current Value">
+                  <FormField label={t('employee.manage.currentValue')}>
                     <Input value={requestForm.getValues('ancienneValeur') ?? ''} disabled />
                   </FormField>
                 </div>
 
                 <FormField
-                  label="Requested New Value"
+                  label={t('employee.manage.requestedNewValue')}
                   error={requestForm.formState.errors.nouvelleValeur?.message}
                 >
                   <Input {...requestForm.register('nouvelleValeur')} />
                 </FormField>
 
-                <FormField label="Additional Note for HR (optional)">
+                <FormField label={t('employee.manage.additionalNote')}>
                   <Textarea rows={3} {...requestForm.register('motif')} />
                 </FormField>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                  Use <span className="font-medium">Submit for Approval</span> in the header to send this request.
+                  {t('employee.manage.useHeaderSubmit')}
                 </div>
               </form>
             </CardContent>
@@ -821,23 +868,25 @@ export function EmployeeProfileManagePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-slate-600" />
-                Before Submission
+                {t('employee.manage.beforeSubmission')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                Your changes will be reviewed by HR before becoming official.
+                {t('employee.manage.hrReviewNote')}
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                You will receive a notification once your request is reviewed.
+                {t('employee.manage.notificationAfterReview')}
               </div>
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Direct Profile Changes
+                  {t('employee.manage.directChangesTitle')}
                 </p>
                 {editedProfileFields.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No unsaved direct changes.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('employee.manage.noUnsavedDirectChanges')}
+                  </p>
                 ) : (
                   <ul className="space-y-1">
                     {editedProfileFields.map((field) => (
@@ -852,31 +901,31 @@ export function EmployeeProfileManagePage() {
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Request summary
+                  {t('employee.manage.requestSummary')}
                 </p>
-                <ReadOnlyRow label="Selected Field" value={selectedRequestFieldLabel} />
+                <ReadOnlyRow label={t('employee.manage.selectedField')} value={selectedRequestFieldLabel} />
                 <ReadOnlyRow
-                  label="Current Value"
-                  value={formatFieldValue(watchedAncienneValeur ?? null)}
+                  label={t('employee.manage.currentValue')}
+                  value={formatFieldValue(watchedAncienneValeur ?? null, t('common.notProvided'))}
                 />
                 <ReadOnlyRow
-                  label="Requested Value"
-                  value={formatFieldValue(watchedNouvelleValeur ?? null)}
+                  label={t('employee.manage.requestedValue')}
+                  value={formatFieldValue(watchedNouvelleValeur ?? null, t('common.notProvided'))}
                 />
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                Some fields are locked and can only be changed by HR.
+                {t('employee.manage.someFieldsLocked')}
                 <br />
-                Phone format reminder: +213[5|6|7]XXXXXXXX
+                {t('employee.manage.phoneHelper')}
               </div>
             </CardContent>
           </Card>
 
           <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
-              <CardTitle>Recent Requests</CardTitle>
-              <CardDescription>Track your latest submitted modification requests.</CardDescription>
+              <CardTitle>{t('employee.manage.recentRequestsTitle')}</CardTitle>
+              <CardDescription>{t('employee.manage.recentRequestsDescription')}</CardDescription>
             </CardHeader>
             <CardContent>
               {myRequestsQuery.isPending ? (
@@ -890,8 +939,8 @@ export function EmployeeProfileManagePage() {
               {myRequestsQuery.isError ? (
                 <ErrorState
                   surface="plain"
-                  title="Could not load requests"
-                  description="We couldn't load your recent requests right now."
+                  title={t('employee.manage.recentRequestsLoadErrorTitle')}
+                  description={t('employee.manage.recentRequestsLoadErrorDescription')}
                   message={myRequestsQuery.error.message}
                   onRetry={() => void myRequestsQuery.refetch()}
                 />
@@ -901,28 +950,28 @@ export function EmployeeProfileManagePage() {
                 myRequestsQuery.data.items.length === 0 ? (
                   <EmptyState
                     surface="plain"
-                    title="No requests submitted yet"
-                    description="Your latest HR requests will appear here once you submit them."
+                    title={t('employee.manage.noRequestsTitle')}
+                    description={t('employee.manage.noRequestsDescription')}
                   />
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Field</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
+                        <TableHead>{t('employee.manage.field')}</TableHead>
+                        <TableHead>{t('employee.requests.filterPlaceholder')}</TableHead>
+                        <TableHead>{t('employee.requests.submitted')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {myRequestsQuery.data.items.slice(0, 5).map((request) => (
                         <TableRow key={request.id}>
-                          <TableCell>{REQUEST_FIELD_LABELS[request.champCible]}</TableCell>
+                          <TableCell>{getRequestFieldLabel(request.champCible, t)}</TableCell>
                           <TableCell>
                             <StatusBadge tone={getStatusTone(request.statutDemande)}>
-                              {formatRequestStatus(request.statutDemande)}
+                              {formatRequestStatus(request.statutDemande, t)}
                             </StatusBadge>
                           </TableCell>
-                          <TableCell>{new Date(request.createdAt).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(request.createdAt).toLocaleDateString(locale)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -935,15 +984,17 @@ export function EmployeeProfileManagePage() {
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
+          <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Submit changes for approval?</AlertDialogTitle>
+            <AlertDialogTitle>{t('employee.manage.confirmSubmitTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              HR will review your request. You can track its status from your requests and notifications.
+              {t('employee.manage.confirmSubmitDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={submitRequestMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={submitRequestMutation.isPending}>
+              {t('actions.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={submitRequestMutation.isPending}
               onClick={(event) => {
@@ -953,11 +1004,13 @@ export function EmployeeProfileManagePage() {
               className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:opacity-95"
             >
               {submitRequestMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : (
-                <SendHorizontal className="mr-2 h-4 w-4" />
+                <SendHorizontal className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               )}
-              {submitRequestMutation.isPending ? 'Sending...' : 'Send'}
+              {submitRequestMutation.isPending
+                ? t('employee.manage.sending')
+                : t('employee.manage.send')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

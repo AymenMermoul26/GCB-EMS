@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Loader2, MailCheck } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 
@@ -11,13 +11,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ROUTES } from '@/constants/routes'
+import { useI18n } from '@/hooks/use-i18n'
 import {
-  forgotPasswordSchema,
+  createForgotPasswordSchema,
   type ForgotPasswordInput,
 } from '@/schemas/auth/forgot-password.schema'
 import { authService } from '@/services/auth'
 
-function getForgotPasswordErrorMessage(error: Error): string {
+function getForgotPasswordErrorMessage(error: Error, t: (key: string) => string): string {
   const normalizedMessage = error.message.toLowerCase()
 
   if (
@@ -25,14 +26,16 @@ function getForgotPasswordErrorMessage(error: Error): string {
     normalizedMessage.includes('fetch') ||
     normalizedMessage.includes('timeout')
   ) {
-    return 'We could not reach the server. Check your connection and try again.'
+    return t('auth.forgot.networkError')
   }
 
-  return 'We could not submit your password reset request right now. Please try again in a moment.'
+  return t('auth.forgot.submitError')
 }
 
 export function ForgotPasswordPage() {
   const [hasSubmitted, setHasSubmitted] = useState(false)
+  const { isRTL, t } = useI18n()
+  const forgotPasswordSchema = useMemo(() => createForgotPasswordSchema(t), [t])
 
   const form = useForm<ForgotPasswordInput>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -56,25 +59,25 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthLayout
-      badge="Account recovery"
-      title="Forgot Password"
-      description="Enter the email address linked to your account to request a password reset."
-      heroBadge="Recovery flow"
-      heroTitle="Request a secure reset link without exposing account details."
-      heroDescription="If the email is registered, the reset link will be sent shortly. The flow stays generic for security and clear for real users."
+      badge={t('auth.forgot.badge')}
+      title={t('auth.forgot.title')}
+      description={t('auth.forgot.description')}
+      heroBadge={t('auth.forgot.heroBadge')}
+      heroTitle={t('auth.forgot.heroTitle')}
+      heroDescription={t('auth.forgot.heroDescription')}
       heroHighlights={[
-        'Security-safe messaging without account enumeration.',
-        'A reset link is sent to the registered email address.',
-        'Users are guided to check spam or junk folders if needed.',
+        t('auth.forgot.heroHighlights.one'),
+        t('auth.forgot.heroHighlights.two'),
+        t('auth.forgot.heroHighlights.three'),
       ]}
       heroIcon={MailCheck}
       theme="recovery"
     >
       {requestResetMutation.error ? (
         <Alert variant="destructive" className="rounded-2xl">
-          <AlertTitle>Unable to send reset email</AlertTitle>
+          <AlertTitle>{t('auth.forgot.errorTitle')}</AlertTitle>
           <AlertDescription>
-            {getForgotPasswordErrorMessage(requestResetMutation.error)}
+            {getForgotPasswordErrorMessage(requestResetMutation.error, t)}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -82,22 +85,19 @@ export function ForgotPasswordPage() {
       {hasSubmitted ? (
         <Alert className="rounded-2xl border-emerald-200 bg-emerald-50 text-emerald-900">
           <MailCheck className="h-4 w-4" />
-          <AlertTitle>Reset request received</AlertTitle>
-          <AlertDescription>
-            If this email is registered, you will receive a password reset link shortly.
-            Please check your spam or junk folder if you do not see the email.
-          </AlertDescription>
+          <AlertTitle>{t('auth.forgot.successTitle')}</AlertTitle>
+          <AlertDescription>{t('auth.forgot.successMessage')}</AlertDescription>
         </Alert>
       ) : null}
 
       <form className="space-y-4" onSubmit={onSubmit}>
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t('common.email')}</Label>
           <Input
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="Enter your email address"
+            placeholder={t('auth.forgot.emailPlaceholder')}
             disabled={requestResetMutation.isPending}
             className="h-11 rounded-xl border-slate-200 bg-white/90 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0"
             {...form.register('email')}
@@ -106,12 +106,12 @@ export function ForgotPasswordPage() {
             <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
           ) : null}
           <p className="text-xs text-slate-500">
-            Use the same email address you normally use to sign in.
+            {t('auth.forgot.emailHelper')}
           </p>
         </div>
 
         <p className="text-sm leading-6 text-slate-600">
-          If your email is registered, you will receive a password reset link.
+          {t('auth.forgot.formHint')}
         </p>
 
         <Button
@@ -121,21 +121,21 @@ export function ForgotPasswordPage() {
         >
           {requestResetMutation.isPending ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sending reset link...
+              <Loader2 className={isRTL ? 'ml-2 h-4 w-4 animate-spin' : 'mr-2 h-4 w-4 animate-spin'} />
+              {t('auth.forgot.sending')}
             </>
           ) : hasSubmitted ? (
-            'Send another reset link'
+            t('actions.sendAnotherResetLink')
           ) : (
-            'Send reset link'
+            t('actions.sendResetLink')
           )}
         </Button>
       </form>
 
       <Button asChild variant="outline" className="h-11 w-full rounded-xl">
         <Link to={ROUTES.LOGIN}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to login
+          <ArrowLeft className={isRTL ? 'ml-2 h-4 w-4' : 'mr-2 h-4 w-4'} />
+          {t('common.backToLogin')}
         </Link>
       </Button>
     </AuthLayout>

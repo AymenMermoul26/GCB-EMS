@@ -32,169 +32,69 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES, getAdminEmployeeRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
+import type { TranslateFn } from '@/i18n/messages'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
 import { useAdminDashboardQuery } from '@/services/adminDashboardService'
 import type { AuditLogItem } from '@/types/audit-log'
 import type { DemandeStatut, ModificationRequest } from '@/types/modification-request'
 import { getEmployeePosteLabel } from '@/types/employee'
-import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
+import { formatRelativeTime } from '@/utils/date'
+import { getRequestFieldLabel } from '@/utils/modification-requests'
 
 const KPI_CARD_STYLES = {
   totalEmployees: {
     icon: Users,
     accent:
       'bg-[linear-gradient(135deg,rgba(255,107,53,0.16),rgba(255,201,71,0.24))] text-[rgb(var(--brand-primary))]',
-    helper: 'Current registered employees',
+    helperKey: 'admin.dashboard.kpi.totalEmployees',
   },
   activeEmployees: {
     icon: UserCheck,
     accent: 'bg-emerald-100 text-emerald-700',
-    helper: 'Employees with active accounts',
+    helperKey: 'admin.dashboard.kpi.activeEmployees',
   },
   inactiveEmployees: {
     icon: UserMinus,
     accent: 'bg-slate-200 text-slate-700',
-    helper: 'Inactive employee records',
+    helperKey: 'admin.dashboard.kpi.inactiveEmployees',
   },
   pendingRequests: {
     icon: ClipboardList,
     accent: 'bg-amber-100 text-amber-700',
-    helper: 'Awaiting HR review',
+    helperKey: 'admin.dashboard.kpi.pendingRequests',
   },
   departmentsCount: {
     icon: Building2,
     accent: 'bg-sky-100 text-sky-700',
-    helper: 'Configured departments',
+    helperKey: 'admin.dashboard.kpi.departmentsCount',
   },
   unreadNotifications: {
     icon: Bell,
     accent: 'bg-rose-100 text-rose-700',
-    helper: 'Unread admin notifications',
+    helperKey: 'admin.dashboard.kpi.unreadNotifications',
   },
   invitesSentRecent: {
     icon: Mail,
     accent: 'bg-orange-100 text-orange-700',
-    helper: 'Initial employee invite emails sent in the last 7 days',
+    helperKey: 'admin.dashboard.kpi.invitesSentRecent',
   },
   inviteFailuresRecent: {
     icon: AlertTriangle,
     accent: 'bg-rose-100 text-rose-700',
-    helper: 'Invite delivery failures in the last 7 days',
+    helperKey: 'admin.dashboard.kpi.inviteFailuresRecent',
   },
 } as const
 
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString()
+function formatDateTime(value: string, locale: string): string {
+  return new Date(value).toLocaleString(locale)
 }
 
-function formatRelativeDate(value: string): string {
-  const now = Date.now()
-  const target = new Date(value).getTime()
-  const diffMs = target - now
-  const diffMinutes = Math.round(diffMs / 60000)
-  const absMinutes = Math.abs(diffMinutes)
-
-  if (absMinutes < 1) {
-    return 'Just now'
-  }
-
-  if (absMinutes < 60) {
-    return `${absMinutes} minute${absMinutes === 1 ? '' : 's'} ${diffMinutes >= 0 ? 'from now' : 'ago'}`
-  }
-
-  const diffHours = Math.round(diffMinutes / 60)
-  const absHours = Math.abs(diffHours)
-  if (absHours < 24) {
-    return `${absHours} hour${absHours === 1 ? '' : 's'} ${diffHours >= 0 ? 'from now' : 'ago'}`
-  }
-
-  const diffDays = Math.round(diffHours / 24)
-  const absDays = Math.abs(diffDays)
-  return `${absDays} day${absDays === 1 ? '' : 's'} ${diffDays >= 0 ? 'from now' : 'ago'}`
-}
-
-function getActivityLabel(action: string): string {
-  switch (action) {
-    case 'EMPLOYEE_ACTIVATED':
-      return 'Employee activated'
-    case 'EMPLOYEE_CREATED':
-      return 'Employee created'
-    case 'EMPLOYEE_UPDATED':
-      return 'Employee updated'
-    case 'EMPLOYEE_DEACTIVATED':
-      return 'Employee deactivated'
-    case 'EMPLOYEE_INVITE_SENT':
-      return 'Invite email sent'
-    case 'EMPLOYEE_INVITE_FAILED':
-      return 'Invite delivery failed'
-    case 'EMPLOYEE_INVITE_ACCEPTED':
-      return 'Invite accepted'
-    case 'EMPLOYEE_SHEET_PREVIEWED':
-      return 'Sheet previewed'
-    case 'EMPLOYEE_SHEET_EXPORTED':
-      return 'Sheet exported'
-    case 'EMPLOYEE_SHEET_EMAIL_SENT':
-      return 'Sheet email sent'
-    case 'EMPLOYEE_SHEET_EMAIL_FAILED':
-      return 'Sheet email failed'
-    case 'PAYROLL_EXPORT_GENERATED':
-      return 'Payroll export generated'
-    case 'PAYROLL_EXPORT_PRINT_INITIATED':
-      return 'Payroll sheet print started'
-    case 'PAYROLL_PERIOD_CREATED':
-      return 'Payroll period created'
-    case 'PAYROLL_RUN_CREATED':
-      return 'Payroll run created'
-    case 'PAYROLL_CALCULATION_STARTED':
-      return 'Payroll calculation started'
-    case 'PAYROLL_CALCULATION_COMPLETED':
-      return 'Payroll calculation completed'
-    case 'PAYROLL_CALCULATION_FAILED':
-      return 'Payroll calculation failed'
-    case 'PAYROLL_RUN_UPDATED':
-      return 'Payroll run updated'
-    case 'PAYROLL_RUN_FINALIZED':
-      return 'Payroll run finalized'
-    case 'PAYROLL_PAYSLIP_PUBLISHED':
-      return 'Payslip published'
-    case 'PAYSLIP_REQUEST_CREATED':
-      return 'Payslip request created'
-    case 'PAYSLIP_REQUEST_STATUS_UPDATED':
-      return 'Payslip request updated'
-    case 'PAYSLIP_REQUEST_FULFILLED':
-      return 'Payslip request fulfilled'
-    case 'PAYSLIP_DOCUMENT_PUBLISHED':
-      return 'Payslip document published'
-    case 'PAYSLIP_DOCUMENT_VIEWED':
-      return 'Payslip document viewed'
-    case 'PAYSLIP_DOCUMENT_DOWNLOADED':
-      return 'Payslip document downloaded'
-    case 'EMPLOYEE_SELF_UPDATED':
-      return 'Employee self-updated'
-    case 'REQUEST_SUBMITTED':
-      return 'Request submitted'
-    case 'REQUEST_APPROVED':
-      return 'Request approved'
-    case 'REQUEST_REJECTED':
-      return 'Request rejected'
-    case 'QR_GENERATED':
-      return 'QR generated'
-    case 'QR_REGENERATED':
-      return 'QR regenerated'
-    case 'QR_REVOKED':
-      return 'QR revoked'
-    case 'QR_REFRESH_REQUIRED_CREATED':
-      return 'QR refresh required'
-    case 'QR_REFRESH_COMPLETED':
-      return 'QR refresh completed'
-    case 'VISIBILITY_UPDATED':
-      return 'Visibility updated'
-    case 'PUBLIC_PROFILE_VIEWED':
-      return 'Public profile viewed'
-    default:
-      return action.replaceAll('_', ' ')
-  }
+function getActivityLabel(action: string, t: TranslateFn): string {
+  const key = `audit.actions.${action}`
+  const translated = t(key)
+  return translated === key ? action.replaceAll('_', ' ') : translated
 }
 
 function getActivityBadgeClass(action: string): string {
@@ -262,16 +162,11 @@ function getInviteStatusBadgeClass(status: 'sent' | 'failed' | 'accepted'): stri
   return 'border-transparent bg-orange-100 text-orange-700'
 }
 
-function getInviteStatusLabel(status: 'sent' | 'failed' | 'accepted'): string {
-  if (status === 'failed') {
-    return 'Failed'
-  }
-
-  if (status === 'accepted') {
-    return 'Accepted'
-  }
-
-  return 'Sent'
+function getInviteStatusLabel(
+  status: 'sent' | 'failed' | 'accepted',
+  t: TranslateFn,
+): string {
+  return t(`status.invite.${status}`)
 }
 
 function getRequestStatusClass(status: DemandeStatut): string {
@@ -287,22 +182,16 @@ function getRequestStatusClass(status: DemandeStatut): string {
   }
 }
 
-function getRequestStatusLabel(status: DemandeStatut): string {
-  switch (status) {
-    case 'EN_ATTENTE':
-      return 'Pending'
-    case 'ACCEPTEE':
-      return 'Approved'
-    case 'REJETEE':
-      return 'Rejected'
-    default:
-      return status
-  }
+function getRequestStatusLabel(status: DemandeStatut, t: TranslateFn): string {
+  return t(`status.modification.${status}`)
 }
 
-function formatRequestSummary(request: ModificationRequest): string {
-  const fieldLabel = REQUEST_FIELD_LABELS[request.champCible]
-  const nextValue = request.nouvelleValeur?.trim() || 'No value provided'
+function formatRequestSummary(
+  request: ModificationRequest,
+  t: TranslateFn,
+): string {
+  const fieldLabel = getRequestFieldLabel(request.champCible, t)
+  const nextValue = request.nouvelleValeur?.trim() || t('common.noValueProvided')
   return `${fieldLabel}: ${nextValue}`
 }
 
@@ -318,7 +207,13 @@ function getActivityHref(item: AuditLogItem): string | null {
   return null
 }
 
-function SectionError({ message }: { message?: string }) {
+function SectionError({
+  message,
+  title,
+}: {
+  message?: string
+  title: string
+}) {
   if (!message) {
     return null
   }
@@ -326,7 +221,7 @@ function SectionError({ message }: { message?: string }) {
   return (
     <Alert className="rounded-2xl border-amber-200 bg-amber-50 text-amber-900">
       <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Partial data unavailable</AlertTitle>
+      <AlertTitle>{title}</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
     </Alert>
   )
@@ -383,11 +278,13 @@ function QuickActionButton({
   title,
   description,
   onClick,
+  isRTL = false,
   primary = false,
 }: {
   title: string
   description: string
   onClick: () => void
+  isRTL?: boolean
   primary?: boolean
 }) {
   return (
@@ -409,7 +306,9 @@ function QuickActionButton({
           {description}
         </p>
       </div>
-      <ArrowRight className={cn('h-4 w-4', primary ? 'text-white' : 'text-slate-400')} />
+      <ArrowRight
+        className={cn('h-4 w-4', primary ? 'text-white' : 'text-slate-400', isRTL && 'rotate-180')}
+      />
     </button>
   )
 }
@@ -417,32 +316,41 @@ function QuickActionButton({
 function ActivityItemRow({
   item,
   onOpen,
+  t,
+  locale,
 }: {
   item: AuditLogItem
   onOpen: (href: string) => void
+  t: TranslateFn
+  locale: string
 }) {
   const href = getActivityHref(item)
+  const actionLabel = getActivityLabel(item.action, t)
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-slate-900">{getActivityLabel(item.action)}</p>
-            <Badge className={getActivityBadgeClass(item.action)}>{item.action}</Badge>
+            <p className="text-sm font-semibold text-slate-900">{actionLabel}</p>
+            <Badge className={getActivityBadgeClass(item.action)}>{actionLabel}</Badge>
           </div>
           <p className="text-sm text-slate-600">{item.targetLabel}</p>
-          <p className="text-xs text-slate-500">By {item.actorLabel}</p>
+          <p className="text-xs text-slate-500">
+            {t('admin.dashboard.sections.activityRow.byActor', { value: item.actorLabel })}
+          </p>
         </div>
         {href ? (
           <Button type="button" variant="ghost" size="sm" onClick={() => onOpen(href)}>
-            Open
+            {t('admin.dashboard.sections.activityRow.openButton')}
           </Button>
         ) : null}
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
         <span>{item.detailsPreview}</span>
-        <span title={formatDateTime(item.createdAt)}>{formatRelativeDate(item.createdAt)}</span>
+        <span title={formatDateTime(item.createdAt, locale)}>
+          {formatRelativeTime(item.createdAt, locale)}
+        </span>
       </div>
     </div>
   )
@@ -451,6 +359,8 @@ function ActivityItemRow({
 function RecentInviteItemRow({
   item,
   onOpenEmployee,
+  t,
+  locale,
 }: {
   item: {
     id: string
@@ -463,6 +373,8 @@ function RecentInviteItemRow({
     failureReason?: string
   }
   onOpenEmployee?: () => void
+  t: TranslateFn
+  locale: string
 }) {
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
@@ -471,11 +383,11 @@ function RecentInviteItemRow({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-slate-900">{item.employeeName}</p>
             <Badge className={getInviteStatusBadgeClass(item.status)}>
-              {getInviteStatusLabel(item.status)}
+              {getInviteStatusLabel(item.status, t)}
             </Badge>
             {item.triggerSource === 'resend_invite' ? (
               <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-800">
-                Resend
+                {t('admin.dashboard.sections.recentInvites.resendBadge')}
               </Badge>
             ) : null}
           </div>
@@ -484,23 +396,23 @@ function RecentInviteItemRow({
             <p className="line-clamp-2 text-xs text-rose-700">{item.failureReason}</p>
           ) : item.status === 'accepted' ? (
             <p className="text-xs text-emerald-700">
-              Employee completed first-login password setup.
+              {t('admin.dashboard.sections.recentInvites.firstLoginCompleted')}
             </p>
           ) : (
             <p className="text-xs text-slate-500">
               {item.triggerSource === 'resend_invite'
-                ? 'Invite resend attempt recorded'
-                : 'Employee invite audit event'}
+                ? t('admin.dashboard.sections.recentInvites.resendRecorded')
+                : t('admin.dashboard.sections.recentInvites.auditEvent')}
             </p>
           )}
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
-            {formatRelativeDate(item.createdAt)}
+          <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt, locale)}>
+            {formatRelativeTime(item.createdAt, locale)}
           </span>
           {onOpenEmployee ? (
             <Button type="button" variant="outline" size="sm" onClick={onOpenEmployee}>
-              Open employee
+              {t('admin.dashboard.sections.activityRow.openEmployee')}
             </Button>
           ) : null}
         </div>
@@ -512,6 +424,8 @@ function RecentInviteItemRow({
 function RecentPayrollActivityRow({
   item,
   onOpenEmployee,
+  t,
+  locale,
 }: {
   item: {
     id: string
@@ -529,7 +443,11 @@ function RecentPayrollActivityRow({
     createdAt: string
   }
   onOpenEmployee?: () => void
+  t: TranslateFn
+  locale: string
 }) {
+  const actionLabel = getActivityLabel(item.action, t)
+
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -538,22 +456,26 @@ function RecentPayrollActivityRow({
             <p className="text-sm font-semibold text-slate-900">
               {item.employeeName ?? item.targetLabel}
             </p>
-            <Badge className={getActivityBadgeClass(item.action)}>{item.actionLabel}</Badge>
+            <Badge className={getActivityBadgeClass(item.action)}>{actionLabel}</Badge>
           </div>
           <p className="text-sm text-slate-600">{item.summary}</p>
           <p className="text-xs text-slate-500">
-            By {item.actorLabel}
-            {item.rowCount !== null ? ` • ${item.rowCount} row${item.rowCount === 1 ? '' : 's'}` : ''}
+            {t('admin.dashboard.sections.activityRow.byActor', { value: item.actorLabel })}
+            {item.rowCount !== null
+              ? ` • ${t('admin.dashboard.sections.activityRow.rowCount', {
+                  count: item.rowCount,
+                })}`
+              : ''}
             {item.fileName ? ` • ${item.fileName}` : item.format ? ` • ${item.format}` : ''}
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt)}>
-            {formatRelativeDate(item.createdAt)}
+          <span className="text-xs text-slate-500" title={formatDateTime(item.createdAt, locale)}>
+            {formatRelativeTime(item.createdAt, locale)}
           </span>
           {onOpenEmployee ? (
             <Button type="button" variant="outline" size="sm" onClick={onOpenEmployee}>
-              Open employee
+              {t('admin.dashboard.sections.activityRow.openEmployee')}
             </Button>
           ) : null}
         </div>
@@ -565,6 +487,7 @@ function RecentPayrollActivityRow({
 export function AdminDashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t, locale, isRTL } = useI18n()
   const dashboardQuery = useAdminDashboardQuery(user?.id)
 
   const dashboard = dashboardQuery.data
@@ -592,7 +515,10 @@ export function AdminDashboardPage() {
 
   if (!user?.id || (dashboardQuery.isPending && !dashboard)) {
     return (
-      <DashboardLayout title="Dashboard" subtitle="Operational overview for HR administration.">
+      <DashboardLayout
+        title={t('admin.dashboard.title')}
+        subtitle={t('admin.dashboard.subtitle')}
+      >
         <div className="space-y-6">
           <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
             <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between">
@@ -658,10 +584,13 @@ export function AdminDashboardPage() {
 
   if (dashboardQuery.isError && !dashboard) {
     return (
-      <DashboardLayout title="Dashboard" subtitle="Operational overview for HR administration.">
+      <DashboardLayout
+        title={t('admin.dashboard.title')}
+        subtitle={t('admin.dashboard.subtitle')}
+      >
         <ErrorState
-          title="Failed to load dashboard"
-          description="We couldn't load the HR dashboard right now."
+          title={t('admin.dashboard.loadErrorTitle')}
+          description={t('admin.dashboard.loadErrorDescription')}
           message={dashboardQuery.error.message}
           icon={AlertTriangle}
           onRetry={() => void dashboardQuery.refetch()}
@@ -675,15 +604,18 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <DashboardLayout title="Dashboard" subtitle="Operational overview for HR administration.">
+    <DashboardLayout
+      title={t('admin.dashboard.title')}
+      subtitle={t('admin.dashboard.subtitle')}
+    >
       <div className="space-y-6">
         <PageHeader
-          title="System Dashboard"
-          description="Track workforce activity, pending operations, and the administrative items that need attention."
+          title={t('admin.dashboard.headerTitle')}
+          description={t('admin.dashboard.headerDescription')}
           badges={
             <Badge className="border-transparent bg-orange-100 text-orange-700">
-              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" />
-              Admin command center
+              <LayoutDashboard className={cn('h-3.5 w-3.5', isRTL ? 'ml-1.5' : 'mr-1.5')} />
+              {t('admin.dashboard.badge')}
             </Badge>
           }
           actions={
@@ -695,17 +627,21 @@ export function AdminDashboardPage() {
                 disabled={dashboardQuery.isFetching}
               >
                 <RefreshCw
-                  className={cn('mr-2 h-4 w-4', dashboardQuery.isFetching && 'animate-spin')}
+                  className={cn(
+                    'h-4 w-4',
+                    isRTL ? 'ml-2' : 'mr-2',
+                    dashboardQuery.isFetching && 'animate-spin',
+                  )}
                 />
-                Refresh
+                {t('actions.refresh')}
               </Button>
               <Button
                 type="button"
                 className={BRAND_BUTTON_CLASS_NAME}
                 onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Employee
+                <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('actions.addEmployee')}
               </Button>
             </>
           }
@@ -715,51 +651,43 @@ export function AdminDashboardPage() {
           {[
             {
               key: 'totalEmployees',
-              title: 'Total Employees',
+              title: t('admin.dashboard.kpi.totalEmployeesLabel'),
               value: dashboard.kpis.totalEmployees,
-              helper: KPI_CARD_STYLES.totalEmployees.helper,
             },
             {
               key: 'activeEmployees',
-              title: 'Active Employees',
+              title: t('admin.dashboard.kpi.activeEmployeesLabel'),
               value: dashboard.kpis.activeEmployees,
-              helper: KPI_CARD_STYLES.activeEmployees.helper,
             },
             {
               key: 'inactiveEmployees',
-              title: 'Inactive Employees',
+              title: t('admin.dashboard.kpi.inactiveEmployeesLabel'),
               value: dashboard.kpis.inactiveEmployees,
-              helper: KPI_CARD_STYLES.inactiveEmployees.helper,
             },
             {
               key: 'pendingRequests',
-              title: 'Pending Requests',
+              title: t('admin.dashboard.kpi.pendingRequestsLabel'),
               value: dashboard.kpis.pendingRequests,
-              helper: KPI_CARD_STYLES.pendingRequests.helper,
             },
             {
               key: 'departmentsCount',
-              title: 'Departments',
+              title: t('admin.dashboard.kpi.departmentsCountLabel'),
               value: dashboard.kpis.departmentsCount,
-              helper: KPI_CARD_STYLES.departmentsCount.helper,
             },
             {
               key: 'unreadNotifications',
-              title: 'Unread Notifications',
+              title: t('admin.dashboard.kpi.unreadNotificationsLabel'),
               value: dashboard.kpis.unreadNotifications,
-              helper: KPI_CARD_STYLES.unreadNotifications.helper,
             },
             {
               key: 'invitesSentRecent',
-              title: 'Invites Sent',
+              title: t('admin.dashboard.kpi.invitesSentRecentLabel'),
               value: dashboard.kpis.invitesSentRecent,
-              helper: KPI_CARD_STYLES.invitesSentRecent.helper,
             },
             {
               key: 'inviteFailuresRecent',
-              title: 'Invite Failures',
+              title: t('admin.dashboard.kpi.inviteFailuresRecentLabel'),
               value: dashboard.kpis.inviteFailuresRecent,
-              helper: KPI_CARD_STYLES.inviteFailuresRecent.helper,
             },
           ].map((item) => {
             const style = KPI_CARD_STYLES[item.key as keyof typeof KPI_CARD_STYLES]
@@ -784,34 +712,37 @@ export function AdminDashboardPage() {
                       <Icon className="h-5 w-5" />
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500">{item.helper}</p>
+                  <p className="text-sm text-slate-500">{t(style.helperKey)}</p>
                 </CardContent>
               </Card>
             )
           })}
         </div>
 
-        <SectionError message={dashboard.sectionErrors.overview} />
+        <SectionError
+          message={dashboard.sectionErrors.overview}
+          title={t('admin.dashboard.partialDataUnavailable')}
+        />
 
         <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
           <div className="space-y-6">
             <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-base font-semibold">
-                  Employee distribution by department
+                  {t('admin.dashboard.sections.departmentDistribution.title')}
                 </CardTitle>
                 <CardDescription>
-                  Live employee counts grouped by configured departments.
+                  {t('admin.dashboard.sections.departmentDistribution.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {dashboard.departmentDistribution.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
                     <p className="text-sm font-medium text-slate-900">
-                      No employee distribution available
+                      {t('admin.dashboard.sections.departmentDistribution.emptyTitle')}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Create employees and assign departments to populate this widget.
+                      {t('admin.dashboard.sections.departmentDistribution.emptyDescription')}
                     </p>
                   </div>
                 ) : (
@@ -822,9 +753,12 @@ export function AdminDashboardPage() {
                         label={item.name}
                         value={item.employeeCount}
                         total={maxDepartmentEmployeeCount}
-                        helper={`${item.activeCount} active employee${
-                          item.activeCount === 1 ? '' : 's'
-                        }`}
+                        helper={t(
+                          'admin.dashboard.sections.departmentDistribution.activeEmployees',
+                          {
+                            count: item.activeCount,
+                          },
+                        )}
                       />
                     ))}
                   </div>
@@ -835,9 +769,11 @@ export function AdminDashboardPage() {
             <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                 <div>
-                  <CardTitle className="text-base font-semibold">Recent activity</CardTitle>
+                  <CardTitle className="text-base font-semibold">
+                    {t('admin.dashboard.sections.recentActivity.title')}
+                  </CardTitle>
                   <CardDescription>
-                    Latest administrative actions from the audit trail.
+                    {t('admin.dashboard.sections.recentActivity.description')}
                   </CardDescription>
                 </div>
                 <Button
@@ -846,16 +782,21 @@ export function AdminDashboardPage() {
                   size="sm"
                   onClick={() => navigate(ROUTES.ADMIN_AUDIT)}
                 >
-                  View audit log
+                  {t('admin.dashboard.quickActions.viewAuditLog.title')}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                <SectionError message={dashboard.sectionErrors.recentActivity} />
+                <SectionError
+                  message={dashboard.sectionErrors.recentActivity}
+                  title={t('admin.dashboard.partialDataUnavailable')}
+                />
                 {dashboard.recentActivity.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
-                    <p className="text-sm font-medium text-slate-900">No recent activity</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {t('admin.dashboard.sections.recentActivity.emptyTitle')}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Audit log events will appear here as admins manage the system.
+                      {t('admin.dashboard.sections.recentActivity.emptyDescription')}
                     </p>
                   </div>
                 ) : (
@@ -865,6 +806,8 @@ export function AdminDashboardPage() {
                         key={item.id}
                         item={item}
                         onOpen={(href) => navigate(href)}
+                        t={t}
+                        locale={locale}
                       />
                     ))}
                   </div>
@@ -876,17 +819,21 @@ export function AdminDashboardPage() {
           <div className="space-y-6">
             <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Requests overview</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  {t('admin.dashboard.sections.requestOverview.title')}
+                </CardTitle>
                 <CardDescription>
-                  Current status split for employee change requests.
+                  {t('admin.dashboard.sections.requestOverview.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {totalRequests === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
-                    <p className="text-sm font-medium text-slate-900">No requests yet</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {t('admin.dashboard.sections.requestOverview.emptyTitle')}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Submitted employee requests will appear here.
+                      {t('admin.dashboard.sections.requestOverview.emptyDescription')}
                     </p>
                   </div>
                 ) : (
@@ -894,57 +841,63 @@ export function AdminDashboardPage() {
                     <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
                       <div className="rounded-2xl border border-amber-200/80 bg-amber-50 p-4">
                         <p className="text-xs font-medium uppercase tracking-[0.14em] text-amber-700">
-                          Pending
+                          {t('status.common.pending')}
                         </p>
                         <p className="mt-2 text-2xl font-semibold text-amber-900">
                           {dashboard.requestOverview.pending}
                         </p>
                         <p className="mt-1 text-xs text-amber-700">
-                          {pendingRequestPercent}% of all requests
+                          {t('admin.dashboard.sections.requestOverview.pendingPercent', {
+                            value: pendingRequestPercent,
+                          })}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50 p-4">
                         <p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-700">
-                          Approved
+                          {t('status.common.approved')}
                         </p>
                         <p className="mt-2 text-2xl font-semibold text-emerald-900">
                           {dashboard.requestOverview.approved}
                         </p>
                         <p className="mt-1 text-xs text-emerald-700">
-                          {approvedRequestPercent}% of all requests
+                          {t('admin.dashboard.sections.requestOverview.approvedPercent', {
+                            value: approvedRequestPercent,
+                          })}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-rose-200/80 bg-rose-50 p-4">
                         <p className="text-xs font-medium uppercase tracking-[0.14em] text-rose-700">
-                          Rejected
+                          {t('status.common.rejected')}
                         </p>
                         <p className="mt-2 text-2xl font-semibold text-rose-900">
                           {dashboard.requestOverview.rejected}
                         </p>
                         <p className="mt-1 text-xs text-rose-700">
-                          {rejectedRequestPercent}% of all requests
+                          {t('admin.dashboard.sections.requestOverview.rejectedPercent', {
+                            value: rejectedRequestPercent,
+                          })}
                         </p>
                       </div>
                     </div>
 
                     <div className="space-y-3">
                       <DistributionBar
-                        label="Pending review"
+                        label={t('admin.dashboard.sections.requestOverview.pendingReviewTitle')}
                         value={dashboard.requestOverview.pending}
                         total={totalRequests}
-                        helper="Awaiting HR decision"
+                        helper={t('admin.dashboard.sections.requestOverview.pendingReviewDescription')}
                       />
                       <DistributionBar
-                        label="Approved requests"
+                        label={t('admin.dashboard.sections.requestOverview.approvedTitle')}
                         value={dashboard.requestOverview.approved}
                         total={totalRequests}
-                        helper="Already applied or accepted"
+                        helper={t('admin.dashboard.sections.requestOverview.approvedDescription')}
                       />
                       <DistributionBar
-                        label="Rejected requests"
+                        label={t('admin.dashboard.sections.requestOverview.rejectedTitle')}
                         value={dashboard.requestOverview.rejected}
                         total={totalRequests}
-                        helper="Closed without changes"
+                        helper={t('admin.dashboard.sections.requestOverview.rejectedDescription')}
                       />
                     </div>
                   </>
@@ -954,32 +907,42 @@ export function AdminDashboardPage() {
 
             <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base font-semibold">QR status summary</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  {t('admin.dashboard.sections.qrSummary.title')}
+                </CardTitle>
                 <CardDescription>
-                  Operational view of employee public-profile QR readiness.
+                  {t('admin.dashboard.sections.qrSummary.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                  <span className="text-sm text-slate-600">Employees with active QR</span>
+                  <span className="text-sm text-slate-600">
+                    {t('admin.dashboard.sections.qrSummary.activeQrEmployees')}
+                  </span>
                   <span className="text-lg font-semibold text-slate-900">
                     {dashboard.qrSummary.activeQrEmployees}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                  <span className="text-sm text-slate-600">Employees missing active QR</span>
+                  <span className="text-sm text-slate-600">
+                    {t('admin.dashboard.sections.qrSummary.employeesWithoutActiveQr')}
+                  </span>
                   <span className="text-lg font-semibold text-slate-900">
                     {dashboard.qrSummary.employeesWithoutActiveQr}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                  <span className="text-sm text-slate-600">QR refresh alerts</span>
+                  <span className="text-sm text-slate-600">
+                    {t('admin.dashboard.sections.qrSummary.needsQrRefresh')}
+                  </span>
                   <span className="text-lg font-semibold text-slate-900">
                     {dashboard.qrSummary.needsQrRefresh}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                  <span className="text-sm text-slate-600">Recent public profile views</span>
+                  <span className="text-sm text-slate-600">
+                    {t('admin.dashboard.sections.qrSummary.publicProfileViewsRecent')}
+                  </span>
                   <span className="text-lg font-semibold text-slate-900">
                     {dashboard.qrSummary.publicProfileViewsRecent}
                   </span>
@@ -991,10 +954,10 @@ export function AdminDashboardPage() {
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                 <div>
                   <CardTitle className="text-base font-semibold">
-                    Recent invite lifecycle activity
+                    {t('admin.dashboard.sections.recentInvites.title')}
                   </CardTitle>
                   <CardDescription>
-                    Latest employee invite sends, resend attempts, acceptances, and failures from the audit trail.
+                    {t('admin.dashboard.sections.recentInvites.description')}
                   </CardDescription>
                 </div>
                 <Button
@@ -1003,15 +966,18 @@ export function AdminDashboardPage() {
                   size="sm"
                   onClick={() => navigate(ROUTES.ADMIN_AUDIT)}
                 >
-                  View audit log
+                  {t('admin.dashboard.quickActions.viewAuditLog.title')}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                <SectionError message={dashboard.sectionErrors.recentInvites} />
+                <SectionError
+                  message={dashboard.sectionErrors.recentInvites}
+                  title={t('admin.dashboard.partialDataUnavailable')}
+                />
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-2xl border border-orange-200/80 bg-orange-50 px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-[0.14em] text-orange-700">
-                      Sent
+                      {t('status.invite.sent')}
                     </p>
                     <p className="mt-2 text-2xl font-semibold text-orange-900">
                       {dashboard.inviteLifecycleSummary.sent}
@@ -1019,7 +985,7 @@ export function AdminDashboardPage() {
                   </div>
                   <div className="rounded-2xl border border-amber-200/80 bg-amber-50 px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-[0.14em] text-amber-700">
-                      Resends
+                      {t('admin.dashboard.sections.recentInvites.resendCount')}
                     </p>
                     <p className="mt-2 text-2xl font-semibold text-amber-900">
                       {dashboard.inviteLifecycleSummary.resend}
@@ -1027,7 +993,7 @@ export function AdminDashboardPage() {
                   </div>
                   <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-700">
-                      Accepted
+                      {t('status.invite.accepted')}
                     </p>
                     <p className="mt-2 text-2xl font-semibold text-emerald-900">
                       {dashboard.inviteLifecycleSummary.accepted}
@@ -1035,7 +1001,7 @@ export function AdminDashboardPage() {
                   </div>
                   <div className="rounded-2xl border border-rose-200/80 bg-rose-50 px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-[0.14em] text-rose-700">
-                      Failed
+                      {t('status.invite.failed')}
                     </p>
                     <p className="mt-2 text-2xl font-semibold text-rose-900">
                       {dashboard.inviteLifecycleSummary.failed}
@@ -1044,9 +1010,11 @@ export function AdminDashboardPage() {
                 </div>
                 {dashboard.recentInvites.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
-                    <p className="text-sm font-medium text-slate-900">No recent invite emails</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {t('admin.dashboard.sections.recentInvites.emptyTitle')}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Invite sends, resend attempts, acceptances, and failures from the last 7 days will appear here.
+                      {t('admin.dashboard.sections.recentInvites.emptyDescription')}
                     </p>
                   </div>
                 ) : (
@@ -1060,6 +1028,8 @@ export function AdminDashboardPage() {
                             ? () => navigate(getAdminEmployeeRoute(item.employeeId as string))
                             : undefined
                         }
+                        t={t}
+                        locale={locale}
                       />
                     ))}
                   </div>
@@ -1071,10 +1041,10 @@ export function AdminDashboardPage() {
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                 <div>
                   <CardTitle className="text-base font-semibold">
-                    Recent payroll activity
+                    {t('admin.dashboard.recentPayrollActivity.title')}
                   </CardTitle>
                   <CardDescription>
-                    Recent payroll processing, request, and document actions visible to admins.
+                    {t('admin.dashboard.recentPayrollActivity.description')}
                   </CardDescription>
                 </div>
                 <Button
@@ -1083,18 +1053,21 @@ export function AdminDashboardPage() {
                   size="sm"
                   onClick={() => navigate(ROUTES.ADMIN_AUDIT)}
                 >
-                  View audit log
+                  {t('admin.dashboard.quickActions.viewAuditLog.title')}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                <SectionError message={dashboard.sectionErrors.recentPayrollActivity} />
+                <SectionError
+                  message={dashboard.sectionErrors.recentPayrollActivity}
+                  title={t('admin.dashboard.partialDataUnavailable')}
+                />
                 {dashboard.recentPayrollActivity.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
                     <p className="text-sm font-medium text-slate-900">
-                      No recent payroll activity
+                      {t('admin.dashboard.recentPayrollActivity.emptyTitle')}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Payroll processing, payslip requests, and payslip document actions will appear here.
+                      {t('admin.dashboard.recentPayrollActivity.emptyDescription')}
                     </p>
                   </div>
                 ) : (
@@ -1108,6 +1081,8 @@ export function AdminDashboardPage() {
                             ? () => navigate(getAdminEmployeeRoute(item.employeeId as string))
                             : undefined
                         }
+                        t={t}
+                        locale={locale}
                       />
                     ))}
                   </div>
@@ -1117,50 +1092,60 @@ export function AdminDashboardPage() {
 
             <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Quick actions</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  {t('admin.dashboard.quickActions.title')}
+                </CardTitle>
                 <CardDescription>
-                  Jump directly into the most common admin workflows.
+                  {t('admin.dashboard.quickActions.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <QuickActionButton
-                  title="Add employee"
-                  description="Create a new employee record and account"
+                  title={t('admin.dashboard.quickActions.addEmployee.title')}
+                  description={t('admin.dashboard.quickActions.addEmployee.description')}
                   onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
+                  isRTL={isRTL}
                   primary
                 />
                 <QuickActionButton
-                  title="View requests"
-                  description="Review employee modification requests"
+                  title={t('admin.dashboard.quickActions.viewRequests.title')}
+                  description={t('admin.dashboard.quickActions.viewRequests.description')}
                   onClick={() => navigate(ROUTES.ADMIN_REQUESTS)}
+                  isRTL={isRTL}
                 />
                 <QuickActionButton
-                  title="Manage departments"
-                  description="Maintain department metadata"
+                  title={t('admin.dashboard.quickActions.manageDepartments.title')}
+                  description={t('admin.dashboard.quickActions.manageDepartments.description')}
                   onClick={() => navigate(ROUTES.ADMIN_DEPARTMENTS)}
+                  isRTL={isRTL}
                 />
                 <QuickActionButton
-                  title="Open notifications"
-                  description="Check recent alerts and reminders"
+                  title={t('admin.dashboard.quickActions.openNotifications.title')}
+                  description={t('admin.dashboard.quickActions.openNotifications.description')}
                   onClick={() => navigate(ROUTES.NOTIFICATIONS)}
+                  isRTL={isRTL}
                 />
                 <QuickActionButton
-                  title="View audit log"
-                  description="Review administrative activity history"
+                  title={t('admin.dashboard.quickActions.viewAuditLog.title')}
+                  description={t('admin.dashboard.quickActions.viewAuditLog.description')}
                   onClick={() => navigate(ROUTES.ADMIN_AUDIT)}
+                  isRTL={isRTL}
                 />
                 <QuickActionButton
-                  title="Open monitoring"
-                  description="Inspect operational and delivery signals"
+                  title={t('admin.dashboard.quickActions.openMonitoring.title')}
+                  description={t('admin.dashboard.quickActions.openMonitoring.description')}
                   onClick={() => navigate(ROUTES.ADMIN_MONITORING)}
+                  isRTL={isRTL}
                 />
               </CardContent>
             </Card>
 
             <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Attention needed</CardTitle>
-                <CardDescription>Operational items worth reviewing next.</CardDescription>
+                <CardTitle className="text-base font-semibold">
+                  {t('admin.dashboard.attention.title')}
+                </CardTitle>
+                <CardDescription>{t('admin.dashboard.attention.description')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {dashboard.alerts.length === 0 ? (
@@ -1168,10 +1153,11 @@ export function AdminDashboardPage() {
                     <div className="flex items-start gap-3">
                       <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
                       <div>
-                        <p className="text-sm font-semibold">No urgent admin alerts</p>
+                        <p className="text-sm font-semibold">
+                          {t('admin.dashboard.attention.emptyTitle')}
+                        </p>
                         <p className="mt-1 text-sm text-emerald-800">
-                          The system currently has no high-priority operational issues detected
-                          by the dashboard.
+                          {t('admin.dashboard.attention.emptyDescription')}
                         </p>
                       </div>
                     </div>
@@ -1198,7 +1184,12 @@ export function AdminDashboardPage() {
                             {alertItem.description}
                           </p>
                         </div>
-                        <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <ArrowRight
+                          className={cn(
+                            'mt-0.5 h-4 w-4 shrink-0 text-slate-400',
+                            isRTL && 'rotate-180',
+                          )}
+                        />
                       </div>
                     </button>
                   ))
@@ -1212,9 +1203,11 @@ export function AdminDashboardPage() {
           <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
             <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
               <div>
-                <CardTitle className="text-base font-semibold">Recent requests</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  {t('admin.dashboard.recentRequests.title')}
+                </CardTitle>
                 <CardDescription>
-                  Latest employee change submissions waiting in the system.
+                  {t('admin.dashboard.recentRequests.description')}
                 </CardDescription>
               </div>
               <Button
@@ -1223,16 +1216,21 @@ export function AdminDashboardPage() {
                 size="sm"
                 onClick={() => navigate(ROUTES.ADMIN_REQUESTS)}
               >
-                Review queue
+                {t('actions.review')}
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SectionError message={dashboard.sectionErrors.recentRequests} />
+              <SectionError
+                message={dashboard.sectionErrors.recentRequests}
+                title={t('admin.dashboard.partialDataUnavailable')}
+              />
               {dashboard.recentRequests.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
-                  <p className="text-sm font-medium text-slate-900">No recent requests</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {t('admin.dashboard.recentRequests.emptyTitle')}
+                  </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    Employees have not submitted any modification requests yet.
+                    {t('admin.dashboard.recentRequests.emptyDescription')}
                   </p>
                 </div>
               ) : (
@@ -1255,17 +1253,19 @@ export function AdminDashboardPage() {
                                 {employeeName}
                               </p>
                               <Badge className={getRequestStatusClass(request.statutDemande)}>
-                                {getRequestStatusLabel(request.statutDemande)}
+                                {getRequestStatusLabel(request.statutDemande, t)}
                               </Badge>
                             </div>
                             <p className="line-clamp-2 text-sm text-slate-600">
-                              {formatRequestSummary(request)}
+                              {formatRequestSummary(request, t)}
                             </p>
                             <p
                               className="text-xs text-slate-500"
-                              title={formatDateTime(request.createdAt)}
+                              title={formatDateTime(request.createdAt, locale)}
                             >
-                              Submitted {formatRelativeDate(request.createdAt)}
+                              {t('admin.dashboard.recentRequests.submitted', {
+                                value: formatRelativeTime(request.createdAt, locale),
+                              })}
                             </p>
                           </div>
                           <Button
@@ -1274,7 +1274,7 @@ export function AdminDashboardPage() {
                             size="sm"
                             onClick={() => navigate(ROUTES.ADMIN_REQUESTS)}
                           >
-                            Review
+                            {t('actions.review')}
                           </Button>
                         </div>
                       </div>
@@ -1285,31 +1285,33 @@ export function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
-            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-              <div>
-                <CardTitle className="text-base font-semibold">
-                  Recently added employees
-                </CardTitle>
-                <CardDescription>
-                  Newest employee records in the current environment.
-                </CardDescription>
-              </div>
+            <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                <div>
+                  <CardTitle className="text-base font-semibold">
+                    {t('admin.dashboard.recentEmployees.title')}
+                  </CardTitle>
+                  <CardDescription>
+                    {t('admin.dashboard.recentEmployees.description')}
+                  </CardDescription>
+                </div>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}
               >
-                View all
+                {t('actions.viewAll')}
               </Button>
             </CardHeader>
             <CardContent className="space-y-3">
               {dashboard.recentEmployees.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
-                  <p className="text-sm font-medium text-slate-900">No employees yet</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {t('admin.dashboard.recentEmployees.emptyTitle')}
+                  </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    Create your first employee to populate the directory.
+                    {t('admin.dashboard.recentEmployees.emptyDescription')}
                   </p>
                 </div>
               ) : (
@@ -1329,23 +1331,26 @@ export function AdminDashboardPage() {
                           variant={employee.isActive ? 'secondary' : 'outline'}
                           className={employee.isActive ? 'bg-emerald-100 text-emerald-700' : ''}
                         >
-                          {employee.isActive ? 'Active' : 'Inactive'}
+                          {employee.isActive ? t('status.common.active') : t('status.common.inactive')}
                         </Badge>
                       </div>
                       <p className="mt-1 truncate text-sm text-slate-600">
-                        {getEmployeePosteLabel(employee.poste) ?? 'No job title assigned'}
+                        {getEmployeePosteLabel(employee.poste) ??
+                          t('admin.dashboard.recentEmployees.noJobTitle')}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span>{employee.departmentName}</span>
                         <span>•</span>
                         <span>{employee.matricule}</span>
                         <span>•</span>
-                        <span title={formatDateTime(employee.createdAt)}>
-                          {formatRelativeDate(employee.createdAt)}
+                        <span title={formatDateTime(employee.createdAt, locale)}>
+                          {formatRelativeTime(employee.createdAt, locale)}
                         </span>
                       </div>
                     </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    <ArrowRight
+                      className={cn('h-4 w-4 shrink-0 text-slate-400', isRTL && 'rotate-180')}
+                    />
                   </button>
                 ))
               )}
@@ -1358,14 +1363,13 @@ export function AdminDashboardPage() {
             <div className="flex items-center gap-2">
               <FileClock className="h-4 w-4" />
               <span>
-                Dashboard metrics are derived from live employees, departments, requests,
-                notifications, audit activity, payroll workflow signals, and active QR tokens.
+                {t('admin.dashboard.footer.derivedFrom')}
               </span>
             </div>
             <span>
               {dashboardQuery.isFetching
-                ? 'Refreshing data...'
-                : 'Data refreshes automatically every minute.'}
+                ? t('admin.dashboard.footer.refreshing')
+                : t('admin.dashboard.footer.autoRefresh')}
             </span>
           </div>
         </div>

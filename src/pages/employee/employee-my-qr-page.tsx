@@ -34,11 +34,12 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useI18n } from '@/hooks/use-i18n'
 import { useRole } from '@/hooks/use-role'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
 import {
-  publicProfileVisibilityRequestSchema,
+  createPublicProfileVisibilityRequestSchema,
   type PublicProfileVisibilityRequestValues,
 } from '@/schemas/publicProfileVisibilityRequestSchema'
 import {
@@ -47,33 +48,36 @@ import {
   useMyPublicProfileVisibilityRequestsQuery,
 } from '@/services/visibilityService'
 import {
-  EMPLOYEE_VISIBILITY_FIELD_LABELS,
   PUBLIC_QR_VISIBILITY_FIELDS,
   areVisibilityFieldKeyArraysEqual,
+  getEmployeeVisibilityFieldLabel,
   getPublicProfileVisibilityRequestStatusMeta,
   sortVisibilityFieldKeys,
   type EmployeePublicProfileVisibilityRequestItem,
   type EmployeeVisibilityFieldKey,
 } from '@/types/visibility'
 
-function formatDateTime(value: string | null | undefined): string {
+function formatDateTime(
+  value: string | null | undefined,
+  locale: string,
+  emptyValue: string,
+): string {
   if (!value) {
-    return 'Not reviewed'
+    return emptyValue
   }
 
-  return new Date(value).toLocaleString()
+  return new Date(value).toLocaleString(locale)
 }
 
-function fieldLabel(fieldKey: EmployeeVisibilityFieldKey): string {
-  return EMPLOYEE_VISIBILITY_FIELD_LABELS[fieldKey] ?? fieldKey
-}
-
-function formatFieldList(fieldKeys: EmployeeVisibilityFieldKey[]): string {
+function formatFieldList(
+  fieldKeys: EmployeeVisibilityFieldKey[],
+  t: ReturnType<typeof useI18n>['t'],
+): string {
   if (fieldKeys.length === 0) {
-    return 'No public fields selected'
+    return t('employee.qr.noPublicFields')
   }
 
-  return fieldKeys.map((fieldKey) => fieldLabel(fieldKey)).join(', ')
+  return fieldKeys.map((fieldKey) => getEmployeeVisibilityFieldLabel(fieldKey, t)).join(', ')
 }
 
 function findOpenRequest(
@@ -106,22 +110,24 @@ function PublishedVisibilityCard({
   isError,
   errorMessage,
   onRetry,
+  t,
 }: {
   publishedFieldKeys: EmployeeVisibilityFieldKey[]
   isPending: boolean
   isError: boolean
   errorMessage?: string
   onRetry: () => void
+  t: ReturnType<typeof useI18n>['t']
 }) {
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ShieldCheck className="h-4 w-4" />
-          Current Published Fields
+          {t('employee.qr.currentPublishedTitle')}
         </CardTitle>
         <CardDescription>
-          These are the live public profile fields currently exposed through your QR link.
+          {t('employee.qr.currentPublishedDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -136,8 +142,8 @@ function PublishedVisibilityCard({
         {isError ? (
           <ErrorState
             surface="plain"
-            title="Published visibility unavailable"
-            description="We couldn't load your current public profile settings."
+            title={t('employee.qr.publishedVisibilityUnavailableTitle')}
+            description={t('employee.qr.publishedVisibilityUnavailableDescription')}
             message={errorMessage}
             onRetry={onRetry}
           />
@@ -153,15 +159,17 @@ function PublishedVisibilityCard({
                   key={field.key}
                   className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5"
                 >
-                  <p className="text-sm text-slate-800">{field.label}</p>
+                  <p className="text-sm text-slate-800">
+                    {getEmployeeVisibilityFieldLabel(field.key, t)}
+                  </p>
                   <StatusBadge tone={isPublished ? 'success' : 'neutral'} emphasis="outline">
-                    {isPublished ? 'Published' : 'Hidden'}
+                    {isPublished ? t('status.common.published') : t('status.common.hidden')}
                   </StatusBadge>
                 </div>
               )
             })}
             <p className="text-xs text-muted-foreground">
-              Live public visibility changes only after HR approval.
+              {t('employee.qr.liveChangesAfterApproval')}
             </p>
           </>
         ) : null}
@@ -176,19 +184,23 @@ function RequestHistoryCard({
   isError,
   errorMessage,
   onRetry,
+  t,
+  locale,
 }: {
   requests: EmployeePublicProfileVisibilityRequestItem[]
   isPending: boolean
   isError: boolean
   errorMessage?: string
   onRetry: () => void
+  t: ReturnType<typeof useI18n>['t']
+  locale: string
 }) {
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
       <CardHeader>
-        <CardTitle className="text-base">Visibility Request History</CardTitle>
+        <CardTitle className="text-base">{t('employee.qr.historyTitle')}</CardTitle>
         <CardDescription>
-          Track previously submitted public profile visibility requests and their outcomes.
+          {t('employee.qr.historyDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -203,8 +215,8 @@ function RequestHistoryCard({
         {isError ? (
           <ErrorState
             surface="plain"
-            title="Could not load request history"
-            description="We couldn't load your public profile visibility requests."
+            title={t('employee.qr.historyLoadErrorTitle')}
+            description={t('employee.qr.historyLoadErrorDescription')}
             message={errorMessage}
             onRetry={onRetry}
           />
@@ -214,13 +226,13 @@ function RequestHistoryCard({
           requests.length === 0 ? (
             <EmptyState
               surface="plain"
-              title="No visibility requests yet"
-              description="Your future public profile visibility requests will appear here."
+              title={t('employee.qr.historyEmptyTitle')}
+              description={t('employee.qr.historyEmptyDescription')}
             />
           ) : (
             <div className="space-y-3">
               {requests.map((request) => {
-                const statusMeta = getPublicProfileVisibilityRequestStatusMeta(request.status)
+                const statusMeta = getPublicProfileVisibilityRequestStatusMeta(request.status, t)
 
                 return (
                   <div
@@ -235,43 +247,43 @@ function RequestHistoryCard({
                         {statusMeta.label}
                       </StatusBadge>
                       <p className="text-xs text-slate-500">
-                        Submitted {formatDateTime(request.createdAt)}
+                        {t('employee.requests.submitted')} {formatDateTime(request.createdAt, locale, t('common.notReviewed'))}
                       </p>
                     </div>
 
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       <div>
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                          Published when requested
+                          {t('employee.qr.publishedWhenRequested')}
                         </p>
                         <p className="mt-1 text-sm text-slate-700">
-                          {formatFieldList(request.currentFieldKeys)}
+                          {formatFieldList(request.currentFieldKeys, t)}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                          Requested visibility
+                          {t('employee.qr.requestedVisibility')}
                         </p>
                         <p className="mt-1 text-sm text-slate-700">
-                          {formatFieldList(request.requestedFieldKeys)}
+                          {formatFieldList(request.requestedFieldKeys, t)}
                         </p>
                       </div>
                     </div>
 
                     {request.requestNote ? (
                       <p className="mt-3 text-sm text-slate-700">
-                        <span className="font-medium">Employee note:</span> {request.requestNote}
+                        <span className="font-medium">{t('employee.qr.employeeNote')}:</span> {request.requestNote}
                       </p>
                     ) : null}
 
                     {request.reviewNote ? (
                       <p className="mt-2 text-sm text-slate-700">
-                        <span className="font-medium">HR review note:</span> {request.reviewNote}
+                        <span className="font-medium">{t('employee.qr.hrReviewNote')}:</span> {request.reviewNote}
                       </p>
                     ) : null}
 
                     <p className="mt-2 text-xs text-slate-500">
-                      Reviewed {formatDateTime(request.reviewedAt)}
+                      {t('employee.qr.reviewed')} {formatDateTime(request.reviewedAt, locale, t('common.notReviewed'))}
                     </p>
                   </div>
                 )
@@ -286,6 +298,7 @@ function RequestHistoryCard({
 
 export function EmployeeMyQrPage() {
   const { employeId } = useRole()
+  const { t, locale, isRTL } = useI18n()
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const visibilityQuery = useEmployeeVisibilityQuery(employeId)
@@ -304,8 +317,10 @@ export function EmployeeMyQrPage() {
   const requests = useMemo(() => requestsQuery.data ?? [], [requestsQuery.data])
   const openRequest = useMemo(() => findOpenRequest(requests), [requests])
 
+  const requestSchema = useMemo(() => createPublicProfileVisibilityRequestSchema(t), [t])
+
   const requestForm = useForm<PublicProfileVisibilityRequestValues>({
-    resolver: zodResolver(publicProfileVisibilityRequestSchema),
+    resolver: zodResolver(requestSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -332,7 +347,7 @@ export function EmployeeMyQrPage() {
 
   const createRequestMutation = useCreatePublicProfileVisibilityRequestMutation(employeId, {
     onSuccess: async () => {
-      toast.success('Public profile visibility request submitted.')
+      toast.success(t('employee.qr.submitSuccess'))
       setConfirmOpen(false)
       requestForm.reset({
         requestedFieldKeys: publishedFieldKeys,
@@ -357,7 +372,7 @@ export function EmployeeMyQrPage() {
     }
 
     if (!hasSelectionChanges) {
-      toast.error('Select a visibility configuration that differs from your current published profile.')
+      toast.error(t('employee.qr.selectionDifferentError'))
       return
     }
 
@@ -372,16 +387,16 @@ export function EmployeeMyQrPage() {
     })
   }
 
-  const selectedFieldSummary = formatFieldList(sortVisibilityFieldKeys(selectedFieldKeys))
+  const selectedFieldSummary = formatFieldList(sortVisibilityFieldKeys(selectedFieldKeys), t)
 
   return (
     <DashboardLayout
-      title="My QR Code"
-      subtitle="Share your verified public profile securely and request visibility changes."
+      title={t('employee.qr.title')}
+      subtitle={t('employee.qr.subtitle')}
     >
       <PageHeader
-        title="Public Profile QR"
-        description="Preview your QR status, review current public visibility, and submit visibility changes for HR approval."
+        title={t('employee.qr.headerTitle')}
+        description={t('employee.qr.headerDescription')}
         className="mb-5"
       />
 
@@ -398,33 +413,34 @@ export function EmployeeMyQrPage() {
             isError={visibilityQuery.isError}
             errorMessage={visibilityQuery.isError ? visibilityQuery.error.message : undefined}
             onRetry={() => void visibilityQuery.refetch()}
+            t={t}
           />
 
           <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="text-base">
-                {openRequest ? 'Pending Visibility Request' : 'Request Visibility Changes'}
+                {openRequest ? t('employee.qr.pendingTitle') : t('employee.qr.requestChangesTitle')}
               </CardTitle>
               <CardDescription>
                 {openRequest
-                  ? 'Your live public profile remains unchanged until HR completes the review.'
-                  : 'Select the public-safe fields you want HR to review for your public profile.'}
+                  ? t('employee.qr.pendingDescription')
+                  : t('employee.qr.requestDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Alert className="border-slate-200 bg-slate-50">
                 <Info className="h-4 w-4" />
-                <AlertTitle>Public-safe sharing</AlertTitle>
+                <AlertTitle>{t('employee.qr.publicSafeTitle')}</AlertTitle>
                 <AlertDescription>
-                  Only approved public-safe fields can ever appear on your QR profile. Sensitive or private data cannot be requested here.
+                  {t('employee.qr.publicSafeDescription')}
                 </AlertDescription>
               </Alert>
 
               {requestsQuery.isError ? (
                 <ErrorState
                   surface="plain"
-                  title="Visibility workflow unavailable"
-                  description="We couldn't load your public visibility request state."
+                  title={t('employee.qr.workflowUnavailableTitle')}
+                  description={t('employee.qr.workflowUnavailableDescription')}
                   message={requestsQuery.error.message}
                   onRetry={() => void requestsQuery.refetch()}
                 />
@@ -434,29 +450,29 @@ export function EmployeeMyQrPage() {
                 <>
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge
-                      tone={getPublicProfileVisibilityRequestStatusMeta(openRequest.status).tone}
+                      tone={getPublicProfileVisibilityRequestStatusMeta(openRequest.status, t).tone}
                       emphasis="solid"
                     >
-                      {getPublicProfileVisibilityRequestStatusMeta(openRequest.status).label}
+                      {getPublicProfileVisibilityRequestStatusMeta(openRequest.status, t).label}
                     </StatusBadge>
                     <p className="text-xs text-slate-500">
-                      Submitted {formatDateTime(openRequest.createdAt)}
+                      {t('employee.requests.submitted')} {formatDateTime(openRequest.createdAt, locale, t('common.notReviewed'))}
                     </p>
                   </div>
 
                   <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Requested public profile fields
+                      {t('employee.qr.requestedFields')}
                     </p>
                     <p className="mt-2 text-sm text-slate-700">
-                      {formatFieldList(openRequest.requestedFieldKeys)}
+                      {formatFieldList(openRequest.requestedFieldKeys, t)}
                     </p>
                   </div>
 
                   {openRequest.requestNote ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-4">
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        Your note
+                        {t('employee.qr.yourNote')}
                       </p>
                       <p className="mt-2 text-sm text-slate-700">{openRequest.requestNote}</p>
                     </div>
@@ -464,9 +480,9 @@ export function EmployeeMyQrPage() {
 
                   <Alert className="border-amber-300 bg-amber-50 text-amber-900">
                     <Clock3 className="h-4 w-4" />
-                    <AlertTitle>Review in progress</AlertTitle>
+                    <AlertTitle>{t('employee.qr.reviewInProgressTitle')}</AlertTitle>
                     <AlertDescription>
-                      Wait for HR to approve or reject this request before submitting another visibility change.
+                      {t('employee.qr.reviewInProgressDescription')}
                     </AlertDescription>
                   </Alert>
                 </>
@@ -497,12 +513,12 @@ export function EmployeeMyQrPage() {
                                 >
                                   <div>
                                     <p className="text-sm font-medium text-slate-900">
-                                      {visibilityField.label}
+                                      {getEmployeeVisibilityFieldLabel(visibilityField.key, t)}
                                     </p>
                                     <p className="text-xs text-slate-500">
                                       {publishedFieldKeys.includes(visibilityField.key)
-                                        ? 'Currently published'
-                                        : 'Currently hidden'}
+                                        ? t('employee.qr.currentlyPublished')
+                                        : t('employee.qr.currentlyHidden')}
                                     </p>
                                   </div>
                                   <Switch
@@ -526,12 +542,12 @@ export function EmployeeMyQrPage() {
 
                       <div className="space-y-2">
                         <Label htmlFor="public-visibility-request-note">
-                          Note for HR (optional)
+                          {t('employee.qr.noteForHr')}
                         </Label>
                         <Textarea
                           id="public-visibility-request-note"
                           rows={4}
-                          placeholder="Add a short note if you need to explain the requested public profile change."
+                          placeholder={t('employee.qr.notePlaceholder')}
                           disabled={createRequestMutation.isPending}
                           {...requestForm.register('requestNote')}
                         />
@@ -543,11 +559,11 @@ export function EmployeeMyQrPage() {
                       </div>
 
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                        <p className="font-medium text-slate-900">Review before submission</p>
+                        <p className="font-medium text-slate-900">{t('employee.qr.reviewBeforeSubmission')}</p>
                         <p className="mt-2">{selectedFieldSummary}</p>
                         {!hasSelectionChanges ? (
                           <p className="mt-2 text-xs text-slate-500">
-                            Choose a configuration that differs from your current published profile to create a request.
+                            {t('employee.qr.selectionMustDiffer')}
                           </p>
                         ) : null}
                       </div>
@@ -558,7 +574,7 @@ export function EmployeeMyQrPage() {
                         disabled={!hasSelectionChanges || createRequestMutation.isPending}
                         onClick={() => void handleOpenConfirm()}
                       >
-                        Submit for Approval
+                        {t('actions.submitForApproval')}
                       </Button>
                     </>
                   )}
@@ -569,14 +585,14 @@ export function EmployeeMyQrPage() {
 
           <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
-              <CardTitle className="text-base">Usage Notes</CardTitle>
+              <CardTitle className="text-base">{t('employee.qr.usageNotes')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-700">
               <Alert className="border-amber-300 bg-amber-50 text-amber-900">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>No active token?</AlertTitle>
+                <AlertTitle>{t('employee.qr.noActiveTokenTitle')}</AlertTitle>
                 <AlertDescription>
-                  If your QR token is missing, expired, or revoked, contact HR to regenerate it.
+                  {t('employee.qr.noActiveTokenDescription')}
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -591,31 +607,33 @@ export function EmployeeMyQrPage() {
           isError={requestsQuery.isError}
           errorMessage={requestsQuery.isError ? requestsQuery.error.message : undefined}
           onRetry={() => void requestsQuery.refetch()}
+          t={t}
+          locale={locale}
         />
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Submit public visibility request?</AlertDialogTitle>
+            <AlertDialogTitle>{t('employee.qr.confirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              HR will review this request before any public profile visibility change is published.
+              {t('employee.qr.confirmDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="space-y-3">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Current published fields
+                {t('employee.qr.currentPublishedFields')}
               </p>
               <p className="mt-2 text-sm text-slate-700">
-                {formatFieldList(publishedFieldKeys)}
+                {formatFieldList(publishedFieldKeys, t)}
               </p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Requested published fields
+                {t('employee.qr.requestedPublishedFields')}
               </p>
               <p className="mt-2 text-sm text-slate-700">{selectedFieldSummary}</p>
             </div>
@@ -623,7 +641,7 @@ export function EmployeeMyQrPage() {
             {requestForm.getValues('requestNote')?.trim() ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Note for HR
+                  {t('employee.qr.noteForHr')}
                 </p>
                 <p className="mt-2 text-sm text-slate-700">
                   {requestForm.getValues('requestNote')?.trim()}
@@ -634,7 +652,7 @@ export function EmployeeMyQrPage() {
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={createRequestMutation.isPending}>
-              Cancel
+              {t('actions.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={createRequestMutation.isPending}
@@ -645,9 +663,11 @@ export function EmployeeMyQrPage() {
               className="border-0 bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:opacity-95"
             >
               {createRequestMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : null}
-              {createRequestMutation.isPending ? 'Submitting...' : 'Confirm request'}
+              {createRequestMutation.isPending
+                ? t('employee.qr.submitting')
+                : t('employee.qr.confirmRequest')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

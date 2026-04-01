@@ -1,4 +1,7 @@
-export function formatRelativeTime(dateInput: string | Date): string {
+export function formatRelativeTime(
+  dateInput: string | Date,
+  locale?: string,
+): string {
   const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
   const now = Date.now()
   const diffMs = date.getTime() - now
@@ -9,7 +12,7 @@ export function formatRelativeTime(dateInput: string | Date): string {
   const dayMs = 24 * hourMs
   const weekMs = 7 * dayMs
 
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
 
   if (absMs < hourMs) {
     const minutes = Math.round(diffMs / minuteMs)

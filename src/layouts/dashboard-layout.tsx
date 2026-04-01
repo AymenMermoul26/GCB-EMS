@@ -8,6 +8,7 @@ import { NotificationsMenu } from '@/components/navigation/notifications-menu'
 import { APP_ROLES } from '@/constants/roles'
 import { env } from '@/config/env'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { EmployeeLayout } from '@/layouts/employee-layout'
 
 interface DashboardLayoutProps extends PropsWithChildren {
@@ -21,6 +22,7 @@ export function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
   const { role, signOut, user } = useAuth()
+  const { direction, t } = useI18n()
 
   const handleSignOut = async () => {
     await signOut()
@@ -28,7 +30,7 @@ export function DashboardLayout({
 
   if (role === APP_ROLES.ADMIN_RH) {
     return (
-      <div className="min-h-screen bg-slate-100/70">
+      <div className="min-h-screen bg-slate-100/70" dir={direction}>
         <div className="mx-auto flex max-w-[1700px] gap-3 p-3 lg:gap-4 lg:p-4">
           <AdminSidebar
             onSignOut={handleSignOut}
@@ -50,7 +52,7 @@ export function DashboardLayout({
                       {env.VITE_APP_NAME}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      Admin workspace
+                      {t('shell.adminWorkspace')}
                     </p>
                   </div>
                 </div>

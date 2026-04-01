@@ -19,6 +19,7 @@ import {
 import { Link, useLocation } from 'react-router-dom'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +33,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { useRole } from '@/hooks/use-role'
 import { cn } from '@/lib/utils'
 import { useEmployeeQuery } from '@/services/employeesService'
@@ -48,44 +50,44 @@ const MODERN_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 
 interface EmployeeNavItem {
   key: string
-  label: string
+  labelKey: string
   to: string
   icon: IconComponent
 }
 
 const EMPLOYEE_NAV_ITEMS: EmployeeNavItem[] = [
-  { key: 'profile', label: 'My Profile', to: ROUTES.EMPLOYEE_PROFILE, icon: UserRound },
+  { key: 'profile', labelKey: 'sidebar.employee.nav.profile', to: ROUTES.EMPLOYEE_PROFILE, icon: UserRound },
   {
     key: 'manage-profile',
-    label: 'Manage Profile',
+    labelKey: 'sidebar.employee.nav.manageProfile',
     to: ROUTES.EMPLOYEE_PROFILE_MANAGE,
     icon: PencilLine,
   },
   {
     key: 'requests',
-    label: 'Requests',
+    labelKey: 'sidebar.employee.nav.requests',
     to: ROUTES.EMPLOYEE_REQUESTS,
     icon: ClipboardList,
   },
   {
     key: 'payslips',
-    label: 'Payslips',
+    labelKey: 'sidebar.employee.nav.payslips',
     to: ROUTES.EMPLOYEE_PAYSLIPS,
     icon: FileText,
   },
   {
     key: 'my-qr',
-    label: 'My QR Code',
+    labelKey: 'sidebar.employee.nav.myQr',
     to: ROUTES.EMPLOYEE_MY_QR,
     icon: QrCode,
   },
   {
     key: 'security',
-    label: 'Security',
+    labelKey: 'sidebar.employee.nav.security',
     to: ROUTES.EMPLOYEE_SECURITY,
     icon: ShieldCheck,
   },
-  { key: 'notifications', label: 'Notifications', to: ROUTES.NOTIFICATIONS, icon: Bell },
+  { key: 'notifications', labelKey: 'sidebar.employee.nav.notifications', to: ROUTES.NOTIFICATIONS, icon: Bell },
 ]
 
 interface EmployeeSidebarProps {
@@ -148,6 +150,7 @@ function EmployeeSidebarContent({
   onNavigate,
 }: EmployeeSidebarProps) {
   const location = useLocation()
+  const { direction, isRTL, t } = useI18n()
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -267,6 +270,7 @@ function EmployeeSidebarContent({
 
   return (
     <aside
+      dir={direction}
       className={cn(
         'flex h-full flex-col rounded-[28px] border border-white/70 bg-white/85 p-4 shadow-[0_28px_65px_-38px_rgba(15,23,42,0.65)] backdrop-blur supports-[backdrop-filter]:bg-white/70',
         'transition-[width] duration-300 ease-out',
@@ -284,7 +288,7 @@ function EmployeeSidebarContent({
                   setIsCollapsed((value) => !value)
                 }
           }
-          aria-label={compactMode ? 'Expand employee sidebar' : 'Collapse employee sidebar'}
+          aria-label={compactMode ? t('sidebar.employee.expand') : t('sidebar.employee.collapse')}
           className={cn(
             'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-colors',
             !isMobile &&
@@ -292,16 +296,19 @@ function EmployeeSidebarContent({
           )}
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_12px_30px_-16px_rgba(255,107,53,0.85)]">
-            <img src={gcbLogo} alt="Company logo" className="h-8 w-8 object-contain" />
+            <img src={gcbLogo} alt={t('common.appSystemName')} className="h-8 w-8 object-contain" />
           </div>
           <div
             className={cn(
-              'min-w-0 overflow-hidden text-left transition-all duration-200',
-              compactMode ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] opacity-100',
+              'min-w-0 overflow-hidden transition-all duration-200',
+              compactMode
+                ? cn('max-w-0 opacity-0', isRTL ? 'translate-x-2' : '-translate-x-2')
+                : 'max-w-[170px] opacity-100',
+              isRTL ? 'text-right' : 'text-left',
             )}
           >
             <p className="truncate text-sm font-semibold text-slate-900">GCB EMS</p>
-            <p className="truncate text-xs text-slate-500">Employee workspace</p>
+            <p className="truncate text-xs text-slate-500">{t('sidebar.employee.workspace')}</p>
           </div>
         </button>
       </div>
@@ -336,13 +343,17 @@ function EmployeeSidebarContent({
                 compactMode ? 'justify-center px-0' : 'justify-start px-3.5',
                 isActive
                   ? 'text-white'
-                  : 'text-slate-700 hover:translate-x-[2px] hover:bg-slate-100 hover:text-slate-950',
+                  : cn(
+                      'text-slate-700 hover:bg-slate-100 hover:text-slate-950',
+                      isRTL ? 'hover:-translate-x-[2px]' : 'hover:translate-x-[2px]',
+                    ),
               )}
               style={{ transitionTimingFunction: MODERN_EASE }}
             >
               <span
                 className={cn(
                   'absolute left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-white/90 transition-opacity',
+                  isRTL && 'left-auto right-1',
                   compactMode && 'hidden',
                   isActive ? 'opacity-100' : 'opacity-0',
                 )}
@@ -354,12 +365,13 @@ function EmployeeSidebarContent({
               <span
                 className={cn(
                   'relative z-10 ml-3 overflow-hidden whitespace-nowrap leading-none transition-all duration-300',
+                  isRTL && 'ml-0 mr-3 text-right',
                   compactMode ? 'max-w-0 opacity-0' : 'max-w-[170px] opacity-100',
-                  isActive ? 'text-center font-semibold' : 'text-left',
+                  isActive ? 'text-center font-semibold' : isRTL ? 'text-right' : 'text-left',
                 )}
                 style={{ transitionTimingFunction: MODERN_EASE }}
               >
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </Link>
           )
@@ -399,7 +411,7 @@ function EmployeeSidebarContent({
               >
                 {employeeQuery.data
                   ? `${employeeQuery.data.prenom} ${employeeQuery.data.nom}`
-                  : 'Employee'}
+                  : t('common.employee')}
               </p>
               <p
                 className={cn(
@@ -407,7 +419,7 @@ function EmployeeSidebarContent({
                   compactMode && 'max-w-0 opacity-0',
                 )}
               >
-                {userEmail ?? user?.email ?? 'No email'}
+                {userEmail ?? user?.email ?? t('common.noEmail')}
               </p>
             </div>
           </div>
@@ -415,12 +427,13 @@ function EmployeeSidebarContent({
 
         <div className={cn('flex items-center justify-between', compactMode && 'justify-center')}>
           <StatusBadge tone="neutral" emphasis="outline" className="bg-white">
-            Employee
+            {t('sidebar.employee.role')}
           </StatusBadge>
           {employeeQuery.isError ? (
-            <span className="text-[11px] text-muted-foreground">Profile unavailable</span>
+            <span className="text-[11px] text-muted-foreground">{t('sidebar.employee.profileUnavailable')}</span>
           ) : null}
         </div>
+        <LanguageSwitcher variant="sidebar" compact={compactMode} />
 
         <Button
           type="button"
@@ -433,16 +446,19 @@ function EmployeeSidebarContent({
           onClick={() => {
             void handleSignOut()
           }}
-          aria-label="Sign out"
+          aria-label={t('common.logout')}
         >
-          <LogOut className={cn('h-4 w-4 shrink-0', !compactMode && 'mr-2')} aria-hidden="true" />
+          <LogOut
+            className={cn('h-4 w-4 shrink-0', !compactMode && (isRTL ? 'ml-2' : 'mr-2'))}
+            aria-hidden="true"
+          />
           <span
             className={cn(
               'overflow-hidden whitespace-nowrap transition-all duration-200',
               compactMode ? 'max-w-0 opacity-0' : 'max-w-[90px] opacity-100',
             )}
           >
-            Logout
+            {t('common.logout')}
           </span>
         </Button>
       </div>
@@ -460,6 +476,7 @@ export function EmployeeSidebarMobile({
   className,
 }: EmployeeSidebarMobileProps) {
   const [open, setOpen] = useState(false)
+  const { isRTL, t } = useI18n()
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -469,18 +486,18 @@ export function EmployeeSidebarMobile({
           size="icon"
           variant="outline"
           className={cn('border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-100', className)}
-          aria-label="Open employee sidebar"
+          aria-label={t('sidebar.employee.open')}
         >
           <Menu className="h-4 w-4" aria-hidden="true" />
         </Button>
       </SheetTrigger>
       <SheetContent
-        side="left"
+        side={isRTL ? 'right' : 'left'}
         className="w-[320px] border-none bg-transparent p-3 shadow-none sm:w-[360px]"
       >
         <SheetHeader className="sr-only">
-          <SheetTitle>Employee Navigation</SheetTitle>
-          <SheetDescription>Open employee pages and account actions.</SheetDescription>
+          <SheetTitle>{t('sidebar.employee.mobileTitle')}</SheetTitle>
+          <SheetDescription>{t('sidebar.employee.mobileDescription')}</SheetDescription>
         </SheetHeader>
         <EmployeeSidebarContent
           onSignOut={onSignOut}

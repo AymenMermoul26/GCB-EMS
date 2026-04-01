@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { cn } from '@/lib/utils'
 import {
   useMarkAllNotificationsReadMutation,
@@ -26,6 +27,7 @@ function getMenuNotificationSurfaceClass(isUnread: boolean): string {
 
 export function NotificationsMenu() {
   const { user } = useAuth()
+  const { isRTL, locale, t } = useI18n()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -43,7 +45,7 @@ export function NotificationsMenu() {
   const markAllMutation = useMarkAllNotificationsReadMutation(user?.id, {
     onSuccess: (updatedCount) => {
       if (updatedCount > 0) {
-        toast.success(`${updatedCount} notifications marked as read.`)
+        toast.success(t('notificationsMenu.markAllSuccess', { count: updatedCount }))
       }
     },
     onError: (error) => {
@@ -103,7 +105,7 @@ export function NotificationsMenu() {
       <Button
         variant="ghost"
         size="icon"
-        aria-label="Notifications"
+        aria-label={t('notificationsMenu.buttonLabel')}
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
       >
@@ -112,7 +114,10 @@ export function NotificationsMenu() {
           <StatusBadge
             tone="danger"
             emphasis="solid"
-            className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-[10px] text-white"
+            className={cn(
+              'absolute -top-1 h-5 min-w-5 rounded-full px-1 text-[10px] text-white',
+              isRTL ? '-left-1' : '-right-1',
+            )}
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </StatusBadge>
@@ -120,12 +125,12 @@ export function NotificationsMenu() {
       </Button>
 
       {isOpen ? (
-        <div className="absolute right-0 z-[70] mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_22px_45px_-25px_rgba(15,23,42,0.55)]">
+        <div className={cn('absolute z-[70] mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_22px_45px_-25px_rgba(15,23,42,0.55)]', isRTL ? 'left-0' : 'right-0')}>
           <div className="border-b border-slate-200/70 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">Notifications</p>
-                <p className="text-xs text-muted-foreground">Recent alerts and workflow updates.</p>
+                <p className="text-sm font-semibold text-slate-900">{t('notificationsMenu.title')}</p>
+                <p className="text-xs text-muted-foreground">{t('notificationsMenu.subtitle')}</p>
               </div>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 ? (
@@ -137,7 +142,7 @@ export function NotificationsMenu() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label="Refresh notifications"
+                  aria-label={t('notificationsMenu.refreshAria')}
                   onClick={() => void notificationsQuery.refetch()}
                   disabled={notificationsQuery.isFetching}
                 >
@@ -156,11 +161,11 @@ export function NotificationsMenu() {
                 }}
               >
                 {markAllMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <CheckCheck className="mr-2 h-4 w-4" />
+                  <CheckCheck className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                Mark all as read
+                {t('notificationsMenu.markAll')}
               </Button>
             </div>
           </div>
@@ -191,7 +196,7 @@ export function NotificationsMenu() {
                   className="mt-2"
                   onClick={() => void notificationsQuery.refetch()}
                 >
-                  Retry
+                  {t('notificationsMenu.errorRetry')}
                 </Button>
               </div>
             ) : null}
@@ -199,8 +204,8 @@ export function NotificationsMenu() {
             {!notificationsQuery.isPending && !notificationsQuery.isError ? (
               latestNotifications.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-muted/20 p-6 text-center">
-                  <p className="text-sm font-medium text-slate-900">You're all caught up</p>
-                  <p className="mt-1 text-xs text-muted-foreground">No new notifications.</p>
+                  <p className="text-sm font-medium text-slate-900">{t('notificationsMenu.emptyTitle')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('notificationsMenu.emptyDescription')}</p>
                 </div>
               ) : (
                 latestNotifications.map((notification) => (
@@ -256,7 +261,7 @@ export function NotificationsMenu() {
                               !notification.isRead ? 'text-rose-100/90' : 'text-muted-foreground',
                             )}
                           >
-                            {formatRelativeTime(notification.createdAt)}
+                            {formatRelativeTime(notification.createdAt, locale)}
                           </p>
                         </div>
                       </div>
@@ -267,7 +272,7 @@ export function NotificationsMenu() {
                           emphasis={notification.isRead ? 'soft' : 'solid'}
                           className="text-[10px]"
                         >
-                          {notification.isRead ? 'Read' : 'Unread'}
+                          {notification.isRead ? t('common.read') : t('common.unread')}
                         </StatusBadge>
                         {!notification.isRead ? (
                           <Button
@@ -285,9 +290,14 @@ export function NotificationsMenu() {
                             }}
                           >
                             {markReadMutation.isPending && markingId === notification.id ? (
-                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              <Loader2
+                                className={cn(
+                                  'h-3.5 w-3.5 animate-spin',
+                                  isRTL ? 'ml-1' : 'mr-1',
+                                )}
+                              />
                             ) : null}
-                            Mark read
+                            {t('actions.markRead')}
                           </Button>
                         ) : null}
                       </div>
@@ -303,7 +313,7 @@ export function NotificationsMenu() {
           <div className="p-3">
             <Button asChild className="w-full" variant="outline" size="sm">
               <Link to={ROUTES.NOTIFICATIONS} onClick={() => setIsOpen(false)}>
-                View all notifications
+                {t('actions.viewAllNotifications')}
               </Link>
             </Button>
           </div>

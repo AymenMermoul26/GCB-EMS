@@ -35,6 +35,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { PayrollLayout } from '@/layouts/payroll-layout'
 import { cn } from '@/lib/utils'
 import { usePayrollEmployeesQuery } from '@/services/payrollEmployeesService'
@@ -49,6 +50,7 @@ import {
   getEmployeeCategorieProfessionnelleLabel,
   getEmployeeTypeContratLabel,
 } from '@/types/employee'
+import { formatRelativeTime } from '@/utils/date'
 import type {
   PayrollEmployeeListItem,
   PayrollNotificationItem,
@@ -69,40 +71,8 @@ interface DistributionItem {
 }
 
 const DASHBOARD_WINDOW_DAYS = 7
-const EMPTY_FIELD_LABEL = 'Not set'
-
 function formatMetricValue(value: number | null): string {
   return value === null ? '\u2014' : String(value)
-}
-
-function formatTimestamp(value: string): string {
-  return new Date(value).toLocaleString()
-}
-
-function formatRelativeDate(value: string): string {
-  const now = Date.now()
-  const target = new Date(value).getTime()
-  const diffMs = target - now
-  const diffMinutes = Math.round(diffMs / 60000)
-  const absMinutes = Math.abs(diffMinutes)
-
-  if (absMinutes < 1) {
-    return 'Just now'
-  }
-
-  if (absMinutes < 60) {
-    return `${absMinutes} minute${absMinutes === 1 ? '' : 's'} ${diffMinutes >= 0 ? 'from now' : 'ago'}`
-  }
-
-  const diffHours = Math.round(diffMinutes / 60)
-  const absHours = Math.abs(diffHours)
-  if (absHours < 24) {
-    return `${absHours} hour${absHours === 1 ? '' : 's'} ${diffHours >= 0 ? 'from now' : 'ago'}`
-  }
-
-  const diffDays = Math.round(diffHours / 24)
-  const absDays = Math.abs(diffDays)
-  return `${absDays} day${absDays === 1 ? '' : 's'} ${diffDays >= 0 ? 'from now' : 'ago'}`
 }
 
 function formatDistributionShare(value: number, total: number): string {
@@ -146,14 +116,20 @@ function buildDistribution(
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
 }
 
-function getContractTypeLabel(employee: PayrollEmployeeListItem): string {
-  return getEmployeeTypeContratLabel(employee.typeContrat) ?? EMPTY_FIELD_LABEL
+function getContractTypeLabel(
+  employee: PayrollEmployeeListItem,
+  emptyFieldLabel: string,
+): string {
+  return getEmployeeTypeContratLabel(employee.typeContrat) ?? emptyFieldLabel
 }
 
-function getProfessionalCategoryLabel(employee: PayrollEmployeeListItem): string {
+function getProfessionalCategoryLabel(
+  employee: PayrollEmployeeListItem,
+  emptyFieldLabel: string,
+): string {
   return (
     getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle) ??
-    EMPTY_FIELD_LABEL
+    emptyFieldLabel
   )
 }
 
@@ -214,6 +190,7 @@ function DistributionRow({
   total: number
   barClassName: string
 }) {
+  const { t } = useI18n()
   const percentage = total > 0 ? Math.max(8, Math.round((value / total) * 100)) : 0
 
   return (
@@ -221,7 +198,9 @@ function DistributionRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-slate-900">{label}</p>
-          <p className="text-xs text-slate-500">{value} employees</p>
+          <p className="text-xs text-slate-500">
+            {t('payroll.dashboard.distribution.employeesLabel', { count: value })}
+          </p>
         </div>
         <span className="text-sm font-semibold text-slate-700">
           {formatDistributionShare(value, total)}
@@ -315,6 +294,7 @@ function StatusSummaryWidget({
   activeEmployees: number
   inactiveEmployees: number
 }) {
+  const { t } = useI18n()
   const activeWidth = total > 0 ? Math.round((activeEmployees / total) * 100) : 0
   const inactiveWidth = Math.max(total > 0 ? 100 - activeWidth : 0, 0)
 
@@ -323,10 +303,10 @@ function StatusSummaryWidget({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
           <ShieldCheck className="h-4 w-4 text-slate-600" />
-          Employee status summary
+          {t('payroll.dashboard.distribution.statusSummaryTitle')}
         </CardTitle>
         <CardDescription>
-          Payroll-visible employee headcount split by current active status.
+          {t('payroll.dashboard.distribution.statusSummaryDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -340,20 +320,24 @@ function StatusSummaryWidget({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
           <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50 p-4">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-700">
-              Active
+              {t('status.common.active')}
             </p>
             <p className="mt-2 text-2xl font-semibold text-emerald-900">{activeEmployees}</p>
             <p className="mt-1 text-xs text-emerald-700">
-              {formatDistributionShare(activeEmployees, total)} of payroll scope
+              {t('payroll.dashboard.distribution.activeShare', {
+                value: formatDistributionShare(activeEmployees, total),
+              })}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50 p-4">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-600">
-              Inactive
+              {t('status.common.inactive')}
             </p>
             <p className="mt-2 text-2xl font-semibold text-slate-900">{inactiveEmployees}</p>
             <p className="mt-1 text-xs text-slate-500">
-              {formatDistributionShare(inactiveEmployees, total)} of payroll scope
+              {t('payroll.dashboard.distribution.inactiveShare', {
+                value: formatDistributionShare(inactiveEmployees, total),
+              })}
             </p>
           </div>
         </div>
@@ -425,20 +409,21 @@ function DashboardRecentChangesCard({
   onRetry: () => void
   items: PayrollNotificationItem[]
 }) {
+  const { t, locale, isRTL } = useI18n()
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
             <Bell className="h-4 w-4 text-slate-600" />
-            Recent HR changes relevant to payroll
+            {t('payroll.dashboard.recentChangesFeedTitle')}
           </CardTitle>
           <CardDescription>
-            Latest payroll-relevant HR change signals from the notification feed.
+            {t('payroll.dashboard.recentChangesFeedDescription')}
           </CardDescription>
         </div>
         <Button asChild variant="ghost" size="sm">
-          <Link to={ROUTES.PAYROLL_NOTIFICATIONS}>Open feed</Link>
+          <Link to={ROUTES.PAYROLL_NOTIFICATIONS}>{t('payroll.dashboard.viewRecentChanges')}</Link>
         </Button>
       </CardHeader>
       <CardContent>
@@ -448,8 +433,8 @@ function DashboardRecentChangesCard({
           <ErrorState
             surface="plain"
             align="left"
-            title="Could not load payroll changes"
-            description="We couldn't load the recent payroll change feed right now."
+            title={t('payroll.dashboard.loadErrorTitle')}
+            description={t('payroll.dashboard.loadErrorDescription')}
             message={errorMessage}
             onRetry={onRetry}
           />
@@ -471,7 +456,7 @@ function DashboardRecentChangesCard({
                     <StatusBadge tone={categoryMeta.tone}>{categoryMeta.label}</StatusBadge>
                     {!item.isRead ? (
                       <StatusBadge tone="danger" emphasis="solid">
-                        Unread
+                        {t('common.unread')}
                       </StatusBadge>
                     ) : null}
                   </div>
@@ -481,7 +466,7 @@ function DashboardRecentChangesCard({
                       item.isRead ? 'text-slate-950' : 'text-white',
                     )}
                   >
-                    {item.employeeName ?? 'Employee change'}
+                    {item.employeeName ?? t('common.employee')}
                   </p>
                   <p
                     className={cn(
@@ -507,9 +492,9 @@ function DashboardRecentChangesCard({
                         'text-xs',
                         item.isRead ? 'text-slate-500' : 'text-rose-100/90',
                       )}
-                      title={formatTimestamp(item.createdAt)}
+                      title={new Date(item.createdAt).toLocaleString(locale)}
                     >
-                      {formatRelativeDate(item.createdAt)}
+                      {formatRelativeTime(item.createdAt, locale)}
                     </p>
                     {item.link ? (
                       <Button
@@ -522,8 +507,8 @@ function DashboardRecentChangesCard({
                         )}
                       >
                         <Link to={item.link}>
-                          Open employee
-                          <ArrowRight className="ml-2 h-4 w-4" />
+                          {t('payroll.dashboard.openEmployee')}
+                          <ArrowRight className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')} />
                         </Link>
                       </Button>
                     ) : null}
@@ -536,8 +521,8 @@ function DashboardRecentChangesCard({
           <EmptyState
             surface="plain"
             align="left"
-            title="No recent HR changes"
-            description="Payroll-relevant HR changes will appear here once they are recorded."
+            title={t('payroll.dashboard.recentChangesEmptyTitle')}
+            description={t('payroll.dashboard.recentChangesEmptyDescription')}
           />
         )}
       </CardContent>
@@ -546,50 +531,53 @@ function DashboardRecentChangesCard({
 }
 
 function DashboardSidePanel({ isRefreshing }: { isRefreshing: boolean }) {
+  const { t } = useI18n()
   return (
     <div className="space-y-4">
       <Card className={SURFACE_CARD_CLASS_NAME}>
         <CardHeader>
-          <CardTitle className="text-base font-semibold text-slate-950">Quick links</CardTitle>
+          <CardTitle className="text-base font-semibold text-slate-950">
+            {t('payroll.dashboard.quickLinksTitle')}
+          </CardTitle>
           <CardDescription>
-            Jump directly into payroll processing, payroll-safe employee consultation, and monitored export routes.
+            {t('payroll.dashboard.quickLinksDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <QuickLinkCard
-            title="Open processing"
-            description="Create periods, calculate runs, and review lifecycle state."
+            title={t('actions.openProcessing')}
+            description={t('payroll.processing.headerDescription')}
             href={ROUTES.PAYROLL_PROCESSING}
             primary
           />
           <QuickLinkCard
-            title="Configure compensation"
-            description="Maintain base salary, allowances, deductions, and eligibility."
+            title={t('payroll.processing.configureCompensation')}
+            description={t('payroll.dashboard.processingScopeItems.one')}
             href={ROUTES.PAYROLL_COMPENSATION}
           />
           <QuickLinkCard
-            title="View employees"
-            description="Open the payroll employee directory."
+            title={t('payroll.processing.viewPayrollEmployees')}
+            description={t('payroll.dashboard.directoryCta')}
             href={ROUTES.PAYROLL_EMPLOYEES}
           />
           <QuickLinkCard
-            title="Manage payslip requests"
-            description="Review employee requests and deliver published payslip files."
+            title={t('sidebar.payroll.nav.payslipRequests')}
+            description={t('auth.login.roles.payroll.features.payslips.description')}
             href={ROUTES.PAYROLL_PAYSLIP_REQUESTS}
           />
           <QuickLinkCard
-            title="View recent changes"
-            description="Review payroll-relevant HR notifications."
+            title={t('payroll.dashboard.viewRecentChanges')}
+            description={t('notificationsMenu.subtitle')}
             href={ROUTES.PAYROLL_NOTIFICATIONS}
           />
           <QuickLinkCard
-            title="Open export center"
-            description="Generate controlled payroll-safe CSV exports."
+            title={t('payroll.dashboard.openExportCenter')}
+            description={t('auth.login.roles.payroll.features.exports.description')}
             href={ROUTES.PAYROLL_EXPORTS}
           />
           <QuickLinkCard
-            title="Open employee information sheets"
-            description="Open an employee record, then launch the sheet preview."
+            title={t('payroll.dashboard.openEmployeeInformationSheets')}
+            description={t('payroll.dashboard.processingScopeItems.three')}
             href={ROUTES.PAYROLL_EMPLOYEES}
           />
         </CardContent>
@@ -598,54 +586,37 @@ function DashboardSidePanel({ isRefreshing }: { isRefreshing: boolean }) {
       <Card className={SURFACE_CARD_CLASS_NAME}>
         <CardHeader>
           <CardTitle className="text-base font-semibold text-slate-950">
-            Processing scope
+            {t('payroll.dashboard.processingScope')}
           </CardTitle>
-          <CardDescription>Payroll workflows remain controlled and role-scoped.</CardDescription>
+          <CardDescription>{t('payroll.dashboard.processingScopeDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
           <div className="flex items-start gap-2">
             <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-            <p>
-              Fixed compensation inputs stay inside the payroll module and drive the simplified
-              backend calculation engine for payroll runs.
-            </p>
+            <p>{t('payroll.dashboard.processingScopeItems.one')}</p>
           </div>
           <div className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-            <p>
-              Payroll agents can create periods, configure fixed compensation, calculate runs, and
-              publish payslip metadata, but employee records, QR management, public-profile controls,
-              and admin approval flows remain out of scope here.
-            </p>
+            <p>{t('payroll.dashboard.processingScopeItems.two')}</p>
           </div>
           <div className="flex items-start gap-2">
             <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-            <p>
-              Use the payroll employee detail pages and information sheets for read-only payroll
-              consultation and print-ready document review.
-            </p>
+            <p>{t('payroll.dashboard.processingScopeItems.three')}</p>
           </div>
           <div className="flex items-start gap-2">
             <FileDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-            <p>
-              Payroll exports remain limited to payroll-safe CSV fields, while payroll processing now
-              stores simplified gross, deductions, and net snapshots without introducing advanced
-              statutory payroll rules yet.
-            </p>
+            <p>{t('payroll.dashboard.processingScopeItems.four')}</p>
           </div>
         </CardContent>
       </Card>
 
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
         <div className="flex flex-col gap-2">
-          <span>
-            Dashboard data comes from payroll-safe employee records and payroll change
-            notifications only.
-          </span>
+          <span>{t('payroll.dashboard.footerData')}</span>
           <span>
             {isRefreshing
-              ? 'Refreshing payroll insight data...'
-              : 'Dashboard data refreshes automatically every 15 seconds.'}
+              ? t('payroll.dashboard.refreshing')
+              : t('payroll.dashboard.autoRefresh')}
           </span>
         </div>
       </div>
@@ -660,6 +631,8 @@ function PayrollInsightsContent({
   employees: PayrollEmployeeListItem[]
   recentChangesCount: number | null
 }) {
+  const { t } = useI18n()
+  const emptyFieldLabel = t('common.notSet')
   const activeEmployeesCount = employees.filter((employee) => employee.isActive).length
   const inactiveEmployeesCount = employees.length - activeEmployeesCount
   const contractTypesCount = countDistinctValues(employees, (employee) => employee.typeContrat)
@@ -667,59 +640,61 @@ function PayrollInsightsContent({
     employees,
     (employee) => employee.categorieProfessionnelle,
   )
-  const contractDistribution = buildDistribution(employees, getContractTypeLabel)
+  const contractDistribution = buildDistribution(employees, (employee) =>
+    getContractTypeLabel(employee, emptyFieldLabel),
+  )
   const professionalCategoryDistribution = buildDistribution(
     employees,
-    getProfessionalCategoryLabel,
+    (employee) => getProfessionalCategoryLabel(employee, emptyFieldLabel),
   )
 
   const kpis: KpiCardDefinition[] = [
     {
       key: 'accessible_employees',
-      title: 'Total Accessible Employees',
+      title: t('payroll.dashboard.kpi.accessibleEmployeesTitle'),
       value: employees.length,
-      helper: 'Employees currently visible to payroll.',
+      helper: t('payroll.dashboard.kpi.accessibleEmployeesHelper'),
       icon: Users,
       accentClassName:
         'bg-[linear-gradient(135deg,rgba(255,107,53,0.16),rgba(255,201,71,0.24))] text-[rgb(var(--brand-primary))]',
     },
     {
       key: 'active_employees',
-      title: 'Active Employees',
+      title: t('payroll.dashboard.kpi.activeEmployeesTitle'),
       value: activeEmployeesCount,
-      helper: 'Currently active employee records.',
+      helper: t('payroll.dashboard.kpi.activeEmployeesHelper'),
       icon: UserCheck,
       accentClassName: 'bg-emerald-100 text-emerald-700',
     },
     {
       key: 'inactive_employees',
-      title: 'Inactive Employees',
+      title: t('payroll.dashboard.kpi.inactiveEmployeesTitle'),
       value: inactiveEmployeesCount,
-      helper: 'Inactive records still visible to payroll.',
+      helper: t('payroll.dashboard.kpi.inactiveEmployeesHelper'),
       icon: UserMinus,
       accentClassName: 'bg-slate-100 text-slate-700',
     },
     {
       key: 'contract_types',
-      title: 'Contract Types',
+      title: t('payroll.dashboard.kpi.contractTypesTitle'),
       value: contractTypesCount,
-      helper: 'Distinct contract values currently assigned.',
+      helper: t('payroll.dashboard.kpi.contractTypesHelper'),
       icon: FileText,
       accentClassName: 'bg-sky-100 text-sky-700',
     },
     {
       key: 'professional_categories',
-      title: 'Professional Categories',
+      title: t('payroll.dashboard.kpi.professionalCategoriesTitle'),
       value: professionalCategoriesCount,
-      helper: 'Distinct professional categories in scope.',
+      helper: t('payroll.dashboard.kpi.professionalCategoriesHelper'),
       icon: BriefcaseBusiness,
       accentClassName: 'bg-cyan-100 text-cyan-700',
     },
     {
       key: 'recent_changes',
-      title: 'Recent HR Changes',
+      title: t('payroll.dashboard.kpi.recentChangesTitle'),
       value: recentChangesCount,
-      helper: `Payroll-relevant changes recorded in the last ${DASHBOARD_WINDOW_DAYS} days.`,
+      helper: t('payroll.dashboard.kpi.recentChangesHelper', { days: DASHBOARD_WINDOW_DAYS }),
       icon: Bell,
       accentClassName: 'bg-amber-100 text-amber-700',
     },
@@ -737,24 +712,24 @@ function PayrollInsightsContent({
 
       <div className="mt-6 grid gap-4 xl:grid-cols-3">
         <DistributionWidget
-          title="Employees by Contract Type"
-          description="Current workforce composition by payroll-visible contract type."
+          title={t('payroll.dashboard.distribution.byContractTitle')}
+          description={t('payroll.dashboard.distribution.byContractDescription')}
           icon={FileText}
           total={employees.length}
           items={contractDistribution}
-          emptyTitle="No contract data yet"
-          emptyDescription="Contract type distribution will appear once contract data is available."
+          emptyTitle={t('payroll.dashboard.distribution.noContractTitle')}
+          emptyDescription={t('payroll.dashboard.distribution.noContractDescription')}
           barClassName="bg-gradient-to-r from-[#ff6b35] to-[#ffc947]"
         />
 
         <DistributionWidget
-          title="Employees by Professional Category"
-          description="Current payroll-visible workforce split by professional category."
+          title={t('payroll.dashboard.distribution.byCategoryTitle')}
+          description={t('payroll.dashboard.distribution.byCategoryDescription')}
           icon={BriefcaseBusiness}
           total={employees.length}
           items={professionalCategoryDistribution}
-          emptyTitle="No professional category data yet"
-          emptyDescription="Professional category distribution will appear once category data is available."
+          emptyTitle={t('payroll.dashboard.distribution.noCategoryTitle')}
+          emptyDescription={t('payroll.dashboard.distribution.noCategoryDescription')}
           barClassName="bg-gradient-to-r from-sky-500 to-cyan-500"
         />
 
@@ -770,6 +745,7 @@ function PayrollInsightsContent({
 
 export function PayrollDashboardPage() {
   const { signOut, user } = useAuth()
+  const { t, isRTL } = useI18n()
   const payrollEmployeesQuery = usePayrollEmployeesQuery()
   const payrollNotificationsQuery = useMyPayrollNotificationsQuery(user?.id, { limit: 5 })
   const unreadPayrollNotificationsCountQuery = useUnreadPayrollNotificationsCountQuery(user?.id)
@@ -790,27 +766,25 @@ export function PayrollDashboardPage() {
 
   return (
     <PayrollLayout
-      title="Payroll Dashboard"
-      subtitle="Controlled access to payroll processing foundations and payroll-relevant insights."
+      title={t('payroll.dashboard.title')}
+      subtitle={t('payroll.dashboard.subtitle')}
       onSignOut={signOut}
       userEmail={user?.email ?? null}
     >
       <PageHeader
-        title="Payroll Dashboard"
-        description="Track payroll-visible employee composition, recent HR changes, and the operational shortcuts needed for payroll consultation and controlled payroll processing setup."
+        title={t('payroll.dashboard.headerTitle')}
+        description={t('payroll.dashboard.headerDescription')}
         className="mb-6"
         badges={
           <>
-            <StatusBadge tone="neutral" emphasis="outline">
-              Controlled workflow
-            </StatusBadge>
+            <StatusBadge tone="neutral" emphasis="outline">{t('payroll.dashboard.controlledWorkflow')}</StatusBadge>
             <StatusBadge
               tone={(unreadPayrollChangesCount ?? 0) > 0 ? 'danger' : 'neutral'}
               emphasis={(unreadPayrollChangesCount ?? 0) > 0 ? 'solid' : 'outline'}
             >
               {unreadPayrollChangesCount === null
-                ? 'Unread changes'
-                : `${unreadPayrollChangesCount} unread changes`}
+                ? t('payroll.dashboard.unreadChangesLabel')
+                : t('payroll.dashboard.unreadChanges', { count: unreadPayrollChangesCount })}
             </StatusBadge>
           </>
         }
@@ -818,14 +792,14 @@ export function PayrollDashboardPage() {
           <>
             <Button asChild variant="outline">
               <Link to={ROUTES.PAYROLL_NOTIFICATIONS}>
-                View Notifications
-                <Bell className="ml-2 h-4 w-4" />
+                {t('actions.viewNotifications')}
+                <Bell className={cn('h-4 w-4', isRTL ? 'mr-2' : 'ml-2')} />
               </Link>
             </Button>
             <Button asChild className={BRAND_BUTTON_CLASS_NAME}>
               <Link to={ROUTES.PAYROLL_PROCESSING}>
-                Open Processing
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {t('actions.openProcessing')}
+                <ArrowRight className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')} />
               </Link>
             </Button>
           </>
@@ -849,19 +823,19 @@ export function PayrollDashboardPage() {
       ) : payrollEmployeesQuery.isError && !payrollEmployeesQuery.data ? (
         <ErrorState
           className="mb-6"
-          title="Could not load payroll employee insights"
-          description="We couldn't load payroll employee metrics right now."
+          title={t('payroll.dashboard.loadErrorTitle')}
+          description={t('payroll.dashboard.loadErrorDescription')}
           message={payrollEmployeesQuery.error.message}
           onRetry={() => void payrollEmployeesQuery.refetch()}
         />
       ) : employees.length === 0 ? (
         <EmptyState
           className="mb-6"
-          title="No payroll-relevant employee data yet"
-          description="Employees visible to payroll will appear here once they are available in the payroll-safe directory."
+          title={t('payroll.dashboard.emptyTitle')}
+          description={t('payroll.dashboard.emptyDescription')}
           actions={
             <Button asChild variant="outline">
-              <Link to={ROUTES.PAYROLL_EMPLOYEES}>Open employee directory</Link>
+              <Link to={ROUTES.PAYROLL_EMPLOYEES}>{t('payroll.dashboard.directoryCta')}</Link>
             </Button>
           }
         />

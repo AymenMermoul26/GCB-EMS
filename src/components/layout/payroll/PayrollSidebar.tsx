@@ -20,6 +20,7 @@ import {
 import { Link, useLocation } from 'react-router-dom'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +33,7 @@ import {
 } from '@/components/ui/sheet'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { cn } from '@/lib/utils'
 import { useUnreadPayrollNotificationsCountQuery } from '@/services/payrollNotificationsService'
 
@@ -61,7 +63,7 @@ interface PayrollSidebarMobileProps {
 
 interface PayrollNavItem {
   key: string
-  label: string
+  labelKey: string
   to: string
   icon: IconComponent
 }
@@ -69,49 +71,49 @@ interface PayrollNavItem {
 const PAYROLL_NAV_ITEMS: PayrollNavItem[] = [
   {
     key: 'dashboard',
-    label: 'Dashboard',
+    labelKey: 'sidebar.payroll.nav.dashboard',
     to: ROUTES.PAYROLL_DASHBOARD,
     icon: LayoutDashboard,
   },
   {
     key: 'processing',
-    label: 'Processing',
+    labelKey: 'sidebar.payroll.nav.processing',
     to: ROUTES.PAYROLL_PROCESSING,
     icon: ClipboardList,
   },
   {
     key: 'compensation',
-    label: 'Compensation',
+    labelKey: 'sidebar.payroll.nav.compensation',
     to: ROUTES.PAYROLL_COMPENSATION,
     icon: Banknote,
   },
   {
     key: 'employees',
-    label: 'Employees',
+    labelKey: 'sidebar.payroll.nav.employees',
     to: ROUTES.PAYROLL_EMPLOYEES,
     icon: Users,
   },
   {
     key: 'payslip-requests',
-    label: 'Payslip Requests',
+    labelKey: 'sidebar.payroll.nav.payslipRequests',
     to: ROUTES.PAYROLL_PAYSLIP_REQUESTS,
     icon: FileText,
   },
   {
     key: 'exports',
-    label: 'Exports',
+    labelKey: 'sidebar.payroll.nav.exports',
     to: ROUTES.PAYROLL_EXPORTS,
     icon: FileDown,
   },
   {
     key: 'notifications',
-    label: 'Notifications',
+    labelKey: 'sidebar.payroll.nav.notifications',
     to: ROUTES.PAYROLL_NOTIFICATIONS,
     icon: Bell,
   },
   {
     key: 'security',
-    label: 'Security',
+    labelKey: 'sidebar.payroll.nav.security',
     to: ROUTES.PAYROLL_SECURITY,
     icon: Shield,
   },
@@ -161,6 +163,7 @@ function PayrollSidebarContent({
 }: PayrollSidebarProps) {
   const location = useLocation()
   const { user } = useAuth()
+  const { direction, isRTL, t } = useI18n()
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -268,6 +271,7 @@ function PayrollSidebarContent({
 
   return (
     <aside
+      dir={direction}
       className={cn(
         'flex h-full flex-col rounded-[28px] border border-white/70 bg-white/85 p-4 shadow-[0_28px_65px_-38px_rgba(15,23,42,0.65)] backdrop-blur supports-[backdrop-filter]:bg-white/70',
         'transition-[width] duration-300 ease-out',
@@ -285,7 +289,7 @@ function PayrollSidebarContent({
                   setIsCollapsed((value) => !value)
                 }
           }
-          aria-label={compactMode ? 'Expand payroll sidebar' : 'Collapse payroll sidebar'}
+          aria-label={compactMode ? t('sidebar.payroll.expand') : t('sidebar.payroll.collapse')}
           className={cn(
             'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-colors',
             !isMobile &&
@@ -293,16 +297,19 @@ function PayrollSidebarContent({
           )}
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_12px_30px_-16px_rgba(255,107,53,0.85)]">
-            <img src={gcbLogo} alt="GCB logo" className="h-8 w-8 object-contain" />
+            <img src={gcbLogo} alt={t('common.appSystemName')} className="h-8 w-8 object-contain" />
           </div>
           <div
             className={cn(
-              'min-w-0 overflow-hidden text-left transition-all duration-200',
-              compactMode ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] opacity-100',
+              'min-w-0 overflow-hidden transition-all duration-200',
+              compactMode
+                ? cn('max-w-0 opacity-0', isRTL ? 'translate-x-2' : '-translate-x-2')
+                : 'max-w-[170px] opacity-100',
+              isRTL ? 'text-right' : 'text-left',
             )}
           >
             <p className="truncate text-sm font-semibold text-slate-900">GCB EMS</p>
-            <p className="truncate text-xs text-slate-500">Payroll workspace</p>
+            <p className="truncate text-xs text-slate-500">{t('sidebar.payroll.workspace')}</p>
           </div>
         </button>
       </div>
@@ -339,13 +346,17 @@ function PayrollSidebarContent({
                 compactMode ? 'justify-center px-0' : 'justify-start px-3.5',
                 isActive
                   ? 'text-white'
-                  : 'text-slate-700 hover:translate-x-[2px] hover:bg-slate-100 hover:text-slate-950',
+                  : cn(
+                      'text-slate-700 hover:bg-slate-100 hover:text-slate-950',
+                      isRTL ? 'hover:-translate-x-[2px]' : 'hover:translate-x-[2px]',
+                    ),
               )}
               style={{ transitionTimingFunction: MODERN_EASE }}
             >
               <span
                 className={cn(
                   'absolute left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-white/90 transition-opacity',
+                  isRTL && 'left-auto right-1',
                   compactMode && 'hidden',
                   isActive ? 'opacity-100' : 'opacity-0',
                 )}
@@ -357,12 +368,13 @@ function PayrollSidebarContent({
               <span
                 className={cn(
                   'relative z-10 ml-3 overflow-hidden whitespace-nowrap leading-none transition-all duration-300',
+                  isRTL && 'ml-0 mr-3 text-right',
                   compactMode ? 'max-w-0 opacity-0' : 'max-w-[170px] flex-1 opacity-100',
-                  isActive ? 'text-center font-semibold' : 'text-left',
+                  isActive ? 'text-center font-semibold' : isRTL ? 'text-right' : 'text-left',
                 )}
                 style={{ transitionTimingFunction: MODERN_EASE }}
               >
-                {item.label}
+                {t(item.labelKey)}
               </span>
               {badgeCount > 0 && !compactMode ? (
                 <StatusBadge tone="danger" emphasis="solid" className="relative z-10 ml-2 text-white">
@@ -397,21 +409,25 @@ function PayrollSidebarContent({
             )}
           >
             <p className="truncate text-[11px] font-medium uppercase tracking-wider text-slate-500">
-              Payroll Agent
+              {t('sidebar.payroll.role')}
             </p>
-            <p className="truncate text-sm text-slate-700">{userEmail ?? 'No email'}</p>
+            <p className="truncate text-sm text-slate-700">{userEmail ?? t('common.noEmail')}</p>
           </div>
         </div>
+        <LanguageSwitcher variant="sidebar" compact={compactMode} />
 
         <div className={cn('flex items-center justify-between gap-2', compactMode && 'justify-center')}>
           <StatusBadge tone="neutral" emphasis="outline" className="bg-white">
-            Controlled
+            {t('common.controlled')}
           </StatusBadge>
           {!compactMode ? (
             <span className="text-[11px] text-slate-500">
               {unreadNotificationsCount > 0
-                ? `${unreadNotificationsCount} unread change${unreadNotificationsCount === 1 ? '' : 's'}`
-                : 'Scoped payroll workspace'}
+                ? t('sidebar.payroll.unreadChanges', {
+                    count: unreadNotificationsCount,
+                    suffix: unreadNotificationsCount === 1 ? '' : 's',
+                  })
+                : t('sidebar.payroll.scopedWorkspace')}
             </span>
           ) : null}
         </div>
@@ -427,16 +443,19 @@ function PayrollSidebarContent({
           onClick={() => {
             void handleSignOut()
           }}
-          aria-label="Sign out"
+          aria-label={t('common.logout')}
         >
-          <LogOut className={cn('h-4 w-4 shrink-0', !compactMode && 'mr-2')} aria-hidden="true" />
+          <LogOut
+            className={cn('h-4 w-4 shrink-0', !compactMode && (isRTL ? 'ml-2' : 'mr-2'))}
+            aria-hidden="true"
+          />
           <span
             className={cn(
               'overflow-hidden whitespace-nowrap transition-all duration-200',
               compactMode ? 'max-w-0 opacity-0' : 'max-w-[90px] opacity-100',
             )}
           >
-            Logout
+            {t('common.logout')}
           </span>
         </Button>
       </div>
@@ -454,6 +473,7 @@ export function PayrollSidebarMobile({
   className,
 }: PayrollSidebarMobileProps) {
   const [open, setOpen] = useState(false)
+  const { isRTL, t } = useI18n()
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -463,18 +483,18 @@ export function PayrollSidebarMobile({
           size="icon"
           variant="outline"
           className={cn('border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-100', className)}
-          aria-label="Open payroll sidebar"
+          aria-label={t('sidebar.payroll.open')}
         >
           <Menu className="h-4 w-4" aria-hidden="true" />
         </Button>
       </SheetTrigger>
       <SheetContent
-        side="left"
+        side={isRTL ? 'right' : 'left'}
         className="w-[320px] border-none bg-transparent p-3 shadow-none sm:w-[360px]"
       >
         <SheetHeader className="sr-only">
-          <SheetTitle>Payroll Navigation</SheetTitle>
-          <SheetDescription>Open payroll pages and account actions.</SheetDescription>
+          <SheetTitle>{t('sidebar.payroll.mobileTitle')}</SheetTitle>
+          <SheetDescription>{t('sidebar.payroll.mobileDescription')}</SheetDescription>
         </SheetHeader>
         <PayrollSidebarContent
           onSignOut={onSignOut}

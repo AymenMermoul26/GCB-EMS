@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card'
 import { CompanyLogo } from '@/components/common/company-logo'
 import { env } from '@/config/env'
+import { useI18n } from '@/hooks/use-i18n'
 import { cn } from '@/lib/utils'
 
 type AuthLayoutTheme = 'recovery' | 'reset'
@@ -82,9 +83,13 @@ export function AuthLayout({
   children,
 }: AuthLayoutProps) {
   const themeConfig = AUTH_LAYOUT_THEMES[theme]
+  const { direction, t } = useI18n()
 
   return (
-    <main className="relative min-h-[100dvh] overflow-hidden bg-slate-950">
+    <main
+      className="relative min-h-[100dvh] overflow-hidden bg-slate-950"
+      dir={direction}
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_100%)]" />
       <div className="relative mx-auto flex min-h-[100dvh] max-w-[92rem] box-border items-center px-4 py-4 sm:px-6 lg:px-8 [@media(min-width:1024px)_and_(max-height:860px)]:py-3 [@media(min-width:1024px)_and_(max-height:760px)]:py-2">
         <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,470px)_minmax(0,1fr)] lg:items-center [@media(min-width:1024px)_and_(max-height:860px)]:gap-3 [@media(min-width:1024px)_and_(max-height:760px)]:gap-2.5">
@@ -171,7 +176,7 @@ export function AuthLayout({
                   <div className="space-y-5 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-4 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-3">
                     <div className="space-y-4">
                       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/62">
-                        Account recovery
+                        {t('auth.recovery.accountRecovery')}
                       </p>
                       <h1 className="max-w-2xl text-[1.95rem] font-semibold leading-tight sm:text-[2.2rem] xl:text-[2.6rem] xl:leading-[1.06] [@media(min-width:1024px)_and_(max-height:860px)]:text-[1.75rem] [@media(min-width:1024px)_and_(max-height:760px)]:text-[1.55rem]">
                         {heroTitle}
@@ -205,13 +210,13 @@ export function AuthLayout({
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-3">
                         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/60">
-                          Recovery guidance
+                          {t('auth.recovery.recoveryGuidance')}
                         </p>
                         <h2 className="text-2xl font-semibold text-white [@media(min-width:1024px)_and_(max-height:860px)]:text-xl [@media(min-width:1024px)_and_(max-height:760px)]:text-lg">
-                          Protected flow
+                          {t('common.protectedFlow')}
                         </h2>
                         <p className="text-sm leading-6 text-white/72 [@media(min-width:1024px)_and_(max-height:860px)]:leading-5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-4.5">
-                          Password recovery stays secure, clear, and guided from request to reset.
+                          {t('auth.recovery.summary')}
                         </p>
                       </div>
 
@@ -228,26 +233,26 @@ export function AuthLayout({
                     <div className="mt-3 grid gap-2 sm:grid-cols-3 [@media(min-width:1024px)_and_(max-height:860px)]:mt-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:gap-1.5 [@media(min-width:1024px)_and_(max-height:760px)]:mt-2 [@media(min-width:1024px)_and_(max-height:760px)]:gap-1.5">
                       <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3.5 backdrop-blur-md">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
-                          Request
+                          {t('auth.recovery.requestLabel')}
                         </p>
                         <p className="mt-3 text-sm font-semibold text-white [@media(min-width:1024px)_and_(max-height:860px)]:mt-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:mt-2">
-                          Secure email recovery
+                          {t('auth.recovery.requestTitle')}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3.5 backdrop-blur-md">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
-                          Session
+                          {t('auth.recovery.sessionLabel')}
                         </p>
                         <p className="mt-3 text-sm font-semibold text-white [@media(min-width:1024px)_and_(max-height:860px)]:mt-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:mt-2">
-                          Link validation first
+                          {t('auth.recovery.sessionTitle')}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3.5 backdrop-blur-md">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
-                          Return
+                          {t('auth.recovery.returnLabel')}
                         </p>
                         <p className="mt-3 text-sm font-semibold text-white [@media(min-width:1024px)_and_(max-height:860px)]:mt-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:mt-2">
-                          Back to sign-in after reset
+                          {t('auth.recovery.returnTitle')}
                         </p>
                       </div>
                     </div>

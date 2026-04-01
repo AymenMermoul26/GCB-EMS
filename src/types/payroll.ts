@@ -1,4 +1,5 @@
 import type { NotificationsFilter } from '@/types/notification'
+import type { TranslateFn } from '@/i18n/messages'
 
 export type PayrollEmployeeStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE'
 
@@ -511,26 +512,87 @@ export const PAYROLL_RUN_TYPE_LABELS: Record<string, string> = {
   CORRECTION: 'Correction',
 }
 
-export function getPayrollPeriodStatusMeta(status: PayrollPeriodStatus) {
-  return PAYROLL_PERIOD_STATUS_META[status]
+export function getPayrollPeriodStatusMeta(
+  status: PayrollPeriodStatus,
+  t?: TranslateFn,
+) {
+  const base = PAYROLL_PERIOD_STATUS_META[status]
+  const translated = t?.(`status.payrollPeriod.${status}`)
+
+  return {
+    ...base,
+    label:
+      !translated || translated === `status.payrollPeriod.${status}`
+        ? base.label
+        : translated,
+  }
 }
 
-export function getPayrollProcessingStatusMeta(status: PayrollProcessingStatus) {
-  return PAYROLL_PROCESSING_STATUS_META[status]
+export function getPayrollProcessingStatusMeta(
+  status: PayrollProcessingStatus,
+  t?: TranslateFn,
+) {
+  const base = PAYROLL_PROCESSING_STATUS_META[status]
+  const translated = t?.(`status.payrollProcessing.${status}`)
+
+  return {
+    ...base,
+    label:
+      !translated || translated === `status.payrollProcessing.${status}`
+        ? base.label
+        : translated,
+  }
 }
 
-export function getPayrollCalculationStatusMeta(status: PayrollCalculationStatus) {
-  return PAYROLL_CALCULATION_STATUS_META[status]
+export function getPayrollCalculationStatusMeta(
+  status: PayrollCalculationStatus,
+  t?: TranslateFn,
+) {
+  const base = PAYROLL_CALCULATION_STATUS_META[status]
+  const translated = t?.(`status.payrollCalculation.${status}`)
+
+  return {
+    ...base,
+    label:
+      !translated || translated === `status.payrollCalculation.${status}`
+        ? base.label
+        : translated,
+  }
 }
 
-export function getPayslipRequestStatusMeta(status: PayslipRequestStatus) {
-  return PAYSLIP_REQUEST_STATUS_META[status]
+export function getPayslipRequestStatusMeta(
+  status: PayslipRequestStatus,
+  t?: TranslateFn,
+) {
+  const base = PAYSLIP_REQUEST_STATUS_META[status]
+  const translated = t?.(`status.payslipRequest.${status}`)
+
+  return {
+    ...base,
+    label:
+      !translated || translated === `status.payslipRequest.${status}`
+        ? base.label
+        : translated,
+  }
 }
 
-export function getPayslipDocumentSourceLabel(source: PayslipDocumentSource): string {
-  return PAYSLIP_DOCUMENT_SOURCE_LABELS[source]
+export function getPayslipDocumentSourceLabel(
+  source: PayslipDocumentSource,
+  t?: TranslateFn,
+): string {
+  const translated = t?.(`payroll.documentSource.${source}`)
+  return !translated || translated === `payroll.documentSource.${source}`
+    ? PAYSLIP_DOCUMENT_SOURCE_LABELS[source]
+    : translated
 }
 
-export function getPayrollRunTypeLabel(runType: PayrollRunType): string {
-  return PAYROLL_RUN_TYPE_LABELS[runType] ?? runType.replaceAll('_', ' ')
+export function getPayrollRunTypeLabel(
+  runType: PayrollRunType,
+  t?: TranslateFn,
+): string {
+  const fallback = PAYROLL_RUN_TYPE_LABELS[runType] ?? runType.replaceAll('_', ' ')
+  const translated = t?.(`payroll.runType.${runType}`)
+  return !translated || translated === `payroll.runType.${runType}`
+    ? fallback
+    : translated
 }

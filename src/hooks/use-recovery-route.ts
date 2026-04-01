@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 
 export function useRecoveryRoute() {
   const navigate = useNavigate()
   const { role, user, isLoading } = useAuth()
+  const { t } = useI18n()
 
   const recoveryRoute = useMemo(() => {
     if (isLoading) {
@@ -29,7 +31,9 @@ export function useRecoveryRoute() {
     return ROUTES.LOGIN
   }, [isLoading, role])
 
-  const primaryActionLabel = user ? 'Go to dashboard' : 'Go to login'
+  const primaryActionLabel = user
+    ? t('actions.goToDashboard')
+    : t('actions.goToLogin')
 
   const goBack = () => {
     if (window.history.length > 1) {

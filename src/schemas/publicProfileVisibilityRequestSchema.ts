@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { TranslateFn } from '@/i18n/messages'
 import {
   EMPLOYEE_VISIBILITY_FIELD_KEYS,
   type EmployeeVisibilityFieldKey,
@@ -12,10 +13,19 @@ const visibilityFieldEnum = z.enum(
   ],
 )
 
-export const publicProfileVisibilityRequestSchema = z.object({
-  requestedFieldKeys: z.array(visibilityFieldEnum),
-  requestNote: z.string().trim().max(500, 'Keep the note under 500 characters').optional(),
-})
+export function createPublicProfileVisibilityRequestSchema(t: TranslateFn) {
+  return z.object({
+    requestedFieldKeys: z.array(visibilityFieldEnum),
+    requestNote: z
+      .string()
+      .trim()
+      .max(500, t('validation.qr.noteMax'))
+      .optional(),
+  })
+}
+
+export const publicProfileVisibilityRequestSchema =
+  createPublicProfileVisibilityRequestSchema((key) => key)
 
 export type PublicProfileVisibilityRequestValues = z.infer<
   typeof publicProfileVisibilityRequestSchema

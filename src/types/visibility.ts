@@ -4,6 +4,7 @@ import {
   PUBLIC_QR_VISIBILITY_FIELDS as GOVERNED_PUBLIC_QR_VISIBILITY_FIELDS,
   type PublicQrVisibilityFieldKey,
 } from '@/types/employee-governance'
+import type { TranslateFn } from '@/i18n/messages'
 
 export const EMPLOYEE_VISIBILITY_FIELD_KEYS = [...PUBLIC_QR_VISIBLE_FIELD_KEYS]
 export const PUBLIC_QR_VISIBILITY_FIELDS = [...GOVERNED_PUBLIC_QR_VISIBILITY_FIELDS]
@@ -13,6 +14,20 @@ export type EmployeeVisibilityFieldKey = PublicQrVisibilityFieldKey
 export const EMPLOYEE_VISIBILITY_FIELD_LABELS = {
   ...PUBLIC_QR_VISIBLE_FIELD_LABELS,
 } as Record<EmployeeVisibilityFieldKey, string>
+
+export function getEmployeeVisibilityFieldLabel(
+  fieldKey: EmployeeVisibilityFieldKey,
+  t?: TranslateFn,
+): string {
+  if (!t) {
+    return EMPLOYEE_VISIBILITY_FIELD_LABELS[fieldKey] ?? fieldKey
+  }
+
+  const translated = t(`qr.fields.${fieldKey}`)
+  return translated === `qr.fields.${fieldKey}`
+    ? EMPLOYEE_VISIBILITY_FIELD_LABELS[fieldKey] ?? fieldKey
+    : translated
+}
 
 export function isEmployeeVisibilityFieldKey(
   value: string,
@@ -118,33 +133,46 @@ export function areVisibilityFieldKeyArraysEqual(
 
 export function getPublicProfileVisibilityRequestStatusMeta(
   status: PublicProfileVisibilityRequestStatus,
+  t?: TranslateFn,
 ): {
   label: string
   tone: 'warning' | 'success' | 'danger' | 'neutral'
 } {
   if (status === 'APPROVED') {
     return {
-      label: 'Approved',
+      label:
+        t?.(`status.visibility.${status}`) === `status.visibility.${status}`
+          ? 'Approved'
+          : (t?.(`status.visibility.${status}`) ?? 'Approved'),
       tone: 'success',
     }
   }
 
   if (status === 'REJECTED') {
     return {
-      label: 'Rejected',
+      label:
+        t?.(`status.visibility.${status}`) === `status.visibility.${status}`
+          ? 'Rejected'
+          : (t?.(`status.visibility.${status}`) ?? 'Rejected'),
       tone: 'danger',
     }
   }
 
   if (status === 'IN_REVIEW') {
     return {
-      label: 'In review',
+      label:
+        t?.(`status.visibility.${status}`) === `status.visibility.${status}`
+          ? 'In review'
+          : (t?.(`status.visibility.${status}`) ?? 'In review'),
       tone: 'warning',
     }
   }
 
   return {
-    label: 'Pending',
+    label:
+      t?.(`status.visibility.${status}`) === `status.visibility.${status}`
+        ? 'Pending'
+        : (t?.(`status.visibility.${status}`) ?? 'Pending'),
     tone: 'warning',
   }
 }

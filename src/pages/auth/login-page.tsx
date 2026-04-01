@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,19 +23,17 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { cn } from '@/lib/utils'
-import { loginSchema, type LoginInput } from '@/schemas/auth/login.schema'
+import { createLoginSchema, type LoginInput } from '@/schemas/auth/login.schema'
 
 import {
   DEFAULT_LOGIN_ROLE_ID,
   getLoginRoleConfig,
-  LOGIN_ROLE_CONFIGS,
-  LOGIN_TRUST_MARKERS,
+  getLoginRoleConfigs,
+  getLoginTrustMarkers,
   type LoginExperienceRoleId,
 } from './login-role-config'
-
-const COMPANY_NAME_FULL =
-  'National Civil Engineering & Building Company'
 
 interface LocationState {
   from?: {
@@ -80,16 +79,21 @@ export function LoginPage() {
   const location = useLocation()
   const state = location.state as LocationState | null
   const { user, role, signIn } = useAuth()
+  const { direction, isRTL, t } = useI18n()
   const [showPassword, setShowPassword] = useState(false)
   const [selectedRoleId, setSelectedRoleId] =
     useState<LoginExperienceRoleId>(DEFAULT_LOGIN_ROLE_ID)
   const [displayedRoleId, setDisplayedRoleId] =
     useState<LoginExperienceRoleId>(DEFAULT_LOGIN_ROLE_ID)
   const prefersReducedMotion = usePrefersReducedMotion()
+  const loginRoleConfigs = useMemo(() => getLoginRoleConfigs(t), [t])
+  const loginTrustMarkers = useMemo(() => getLoginTrustMarkers(t), [t])
+  const loginSchema = useMemo(() => createLoginSchema(t), [t])
 
-  const selectedRole = getLoginRoleConfig(selectedRoleId)
+  const selectedRole = getLoginRoleConfig(selectedRoleId, t)
   const displayedRole = getLoginRoleConfig(
     prefersReducedMotion ? selectedRoleId : displayedRoleId,
+    t,
   )
   const isRoleTransitioning = !prefersReducedMotion && selectedRoleId !== displayedRoleId
 
@@ -135,7 +139,7 @@ export function LoginPage() {
 
   useEffect(() => {
     const normalizedCurrentEmail = form.getValues('email').trim().toLowerCase()
-    const presetEmails = LOGIN_ROLE_CONFIGS.map((roleConfig) =>
+    const presetEmails = loginRoleConfigs.map((roleConfig) =>
       roleConfig.defaultEmail?.toLowerCase(),
     ).filter((email): email is string => Boolean(email))
 
@@ -154,7 +158,7 @@ export function LoginPage() {
       form.setValue('email', '', { shouldDirty: true })
       form.clearErrors('email')
     }
-  }, [form, selectedRole])
+  }, [form, loginRoleConfigs, selectedRole])
 
   const signInMutation = useMutation({
     mutationFn: signIn,
@@ -188,9 +192,20 @@ export function LoginPage() {
   const SelectedRoleIcon = selectedRole.roleIcon
 
   return (
-    <main className="relative min-h-[100dvh] overflow-hidden bg-slate-950">
+    <main
+      className="relative min-h-[100dvh] overflow-hidden bg-slate-950"
+      dir={direction}
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_100%)]" />
       <div className="relative mx-auto flex min-h-[100dvh] max-w-[92rem] box-border items-center px-4 py-4 sm:px-6 lg:px-8 [@media(min-width:1024px)_and_(max-height:860px)]:py-3 [@media(min-width:1024px)_and_(max-height:760px)]:py-2">
+        <div
+          className={cn(
+            'absolute top-4 z-20',
+            isRTL ? 'left-4 sm:left-6 lg:left-8' : 'right-4 sm:right-6 lg:right-8',
+          )}
+        >
+          <LanguageSwitcher variant="auth" />
+        </div>
         <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,500px)_minmax(0,1fr)] lg:items-center [@media(min-width:1024px)_and_(max-height:860px)]:gap-3 [@media(min-width:1024px)_and_(max-height:760px)]:gap-2.5">
           <section className="order-1 lg:order-1">
             <div className="relative lg:w-full">
@@ -205,7 +220,7 @@ export function LoginPage() {
                   <div className="flex items-center gap-3">
                     <img
                       src={gcbLogo}
-                      alt="GCB logo"
+                      alt={t('common.appSystemName')}
                       className="h-10 w-10 rounded-xl object-cover [@media(min-width:1024px)_and_(max-height:760px)]:h-9 [@media(min-width:1024px)_and_(max-height:760px)]:w-9"
                     />
                     <div className="space-y-1">
@@ -213,29 +228,31 @@ export function LoginPage() {
                         variant="secondary"
                         className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700 [@media(min-width:1024px)_and_(max-height:760px)]:px-2 [@media(min-width:1024px)_and_(max-height:760px)]:py-0.5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[10px]"
                       >
-                        Secure access
+                        {t('common.secureAccess')}
                       </Badge>
                       <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 [@media(min-width:1024px)_and_(max-height:760px)]:text-[11px]">
-                        GCB Employee Management System
+                        {t('common.appSystemName')}
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <CardTitle className="text-[1.82rem] tracking-tight text-slate-950 sm:text-[2rem] [@media(min-width:1024px)_and_(max-height:860px)]:text-[1.7rem] [@media(min-width:1024px)_and_(max-height:760px)]:text-[1.55rem]">
-                      Sign in to GCB EMS
+                      {t('auth.login.title')}
                     </CardTitle>
                     <CardDescription className="text-sm leading-6 text-slate-600 [@media(min-width:1024px)_and_(max-height:860px)]:leading-5.5 [@media(min-width:1024px)_and_(max-height:760px)]:text-[13px] [@media(min-width:1024px)_and_(max-height:760px)]:leading-5">
-                      Access your workspace with the credentials assigned to your account.
+                      {t('auth.login.description')}
                     </CardDescription>
                   </div>
 
                   <div className="space-y-3 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-2.5 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-2">
                     <div className="flex items-center justify-between gap-3">
                       <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Workspace preview
+                        {t('common.workspacePreview')}
                       </Label>
-                      <span className="text-xs text-slate-500">Role-aware experience</span>
+                      <span className="text-xs text-slate-500">
+                        {t('common.roleAwareExperience')}
+                      </span>
                     </div>
 
                     <Tabs
@@ -243,7 +260,7 @@ export function LoginPage() {
                       onValueChange={(value) => setSelectedRoleId(value as LoginExperienceRoleId)}
                     >
                       <TabsList className="grid h-auto w-full grid-cols-3 rounded-2xl border border-slate-200/90 bg-slate-100/95 p-1 [@media(min-width:1024px)_and_(max-height:760px)]:rounded-xl">
-                        {LOGIN_ROLE_CONFIGS.map((roleConfig) => {
+                        {loginRoleConfigs.map((roleConfig) => {
                           const RoleIcon = roleConfig.roleIcon
 
                           return (
@@ -253,10 +270,16 @@ export function LoginPage() {
                               className={cn(
                                 'h-auto flex-col items-start gap-1 rounded-xl border border-transparent px-3 py-2 text-left text-slate-600 transition-all duration-300 [@media(min-width:1024px)_and_(max-height:860px)]:px-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:py-1.5 [@media(min-width:1024px)_and_(max-height:760px)]:gap-0.5',
                                 'motion-reduce:transition-none',
+                                isRTL && 'items-end text-right',
                                 selectedRole.theme.selectorActiveClass,
                               )}
                             >
-                              <span className="flex items-center gap-2 text-xs font-semibold sm:text-sm">
+                              <span
+                                className={cn(
+                                  'flex items-center gap-2 text-xs font-semibold sm:text-sm',
+                                  isRTL && 'flex-row-reverse',
+                                )}
+                              >
                                 <RoleIcon className="h-4 w-4" />
                                 {roleConfig.label}
                               </span>
@@ -273,7 +296,7 @@ export function LoginPage() {
                       )}
                     >
                       <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-2">
+                        <div className={cn('space-y-2', isRTL && 'text-right')}>
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge
                               className={cn(
@@ -314,8 +337,7 @@ export function LoginPage() {
                       </div>
 
                       <p className="mt-3 text-xs leading-5 text-slate-500 [@media(min-width:1024px)_and_(max-height:860px)]:mt-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:leading-4.5 [@media(min-width:1024px)_and_(max-height:760px)]:hidden">
-                        This selector changes the login presentation only. Access still follows the
-                        role assigned to your account.
+                        {t('auth.login.selectorNotice')}
                       </p>
                     </div>
                   </div>
@@ -344,12 +366,12 @@ export function LoginPage() {
 
                   <form className="space-y-3.5 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-3 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-2.5" onSubmit={onSubmit}>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">{t('common.email')}</Label>
                       <Input
                         id="email"
                         type="email"
                         autoComplete="email"
-                        placeholder="Enter your work email"
+                        placeholder={t('auth.login.emailPlaceholder')}
                         className="h-11 rounded-xl border-slate-200 bg-white/90 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0 [@media(min-width:1024px)_and_(max-height:860px)]:h-10 [@media(min-width:1024px)_and_(max-height:760px)]:h-9"
                         {...form.register('email')}
                       />
@@ -360,29 +382,37 @@ export function LoginPage() {
                       ) : null}
                       {selectedRole.defaultEmail ? (
                         <p className="text-xs text-slate-500 [@media(min-width:1024px)_and_(max-height:760px)]:hidden">
-                          Email prefilled for the selected role: {selectedRole.defaultEmail}
+                          {t('auth.login.selectorPrefill', {
+                            email: selectedRole.defaultEmail,
+                          })}
                         </p>
                       ) : null}
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password">{t('common.password')}</Label>
                       <div className="relative">
                         <Input
                           id="password"
                           type={showPassword ? 'text' : 'password'}
                           autoComplete="current-password"
-                          placeholder="Enter your password"
-                          className="h-11 rounded-xl border-slate-200 bg-white/90 pr-11 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0 [@media(min-width:1024px)_and_(max-height:860px)]:h-10 [@media(min-width:1024px)_and_(max-height:760px)]:h-9"
+                          placeholder={t('auth.login.passwordPlaceholder')}
+                          className={cn(
+                            'h-11 rounded-xl border-slate-200 bg-white/90 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0 [@media(min-width:1024px)_and_(max-height:860px)]:h-10 [@media(min-width:1024px)_and_(max-height:760px)]:h-9',
+                            isRTL ? 'pl-11' : 'pr-11',
+                          )}
                           {...form.register('password')}
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute right-1 top-1 h-9 w-9 text-slate-500 hover:bg-transparent hover:text-slate-800 [@media(min-width:1024px)_and_(max-height:860px)]:h-8 [@media(min-width:1024px)_and_(max-height:860px)]:w-8 [@media(min-width:1024px)_and_(max-height:760px)]:top-0.5 [@media(min-width:1024px)_and_(max-height:760px)]:h-8 [@media(min-width:1024px)_and_(max-height:760px)]:w-8"
+                          className={cn(
+                            'absolute top-1 h-9 w-9 text-slate-500 hover:bg-transparent hover:text-slate-800 [@media(min-width:1024px)_and_(max-height:860px)]:h-8 [@media(min-width:1024px)_and_(max-height:860px)]:w-8 [@media(min-width:1024px)_and_(max-height:760px)]:top-0.5 [@media(min-width:1024px)_and_(max-height:760px)]:h-8 [@media(min-width:1024px)_and_(max-height:760px)]:w-8',
+                            isRTL ? 'left-1' : 'right-1',
+                          )}
                           onClick={() => setShowPassword((previous) => !previous)}
-                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
                         >
                           {showPassword ? (
                             <EyeOff className="h-4 w-4" />
@@ -397,14 +427,14 @@ export function LoginPage() {
                         </p>
                       ) : null}
 
-                      <div className="flex justify-end">
+                      <div className={cn('flex', isRTL ? 'justify-start' : 'justify-end')}>
                         <Button
                           asChild
                           type="button"
                           variant="link"
                           className="h-auto px-0 text-sm font-medium text-[#ff6b35]"
                         >
-                          <Link to={ROUTES.FORGOT_PASSWORD}>Forgot password?</Link>
+                          <Link to={ROUTES.FORGOT_PASSWORD}>{t('auth.login.forgotPassword')}</Link>
                         </Button>
                       </div>
                     </div>
@@ -416,11 +446,11 @@ export function LoginPage() {
                     >
                       {signInMutation.isPending ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Signing in...
+                          <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+                          {t('auth.login.signingIn')}
                         </>
                       ) : (
-                        'Sign in'
+                        t('common.signIn')
                       )}
                     </Button>
                   </form>
@@ -429,11 +459,11 @@ export function LoginPage() {
 
                   <div className="space-y-2.5 [@media(min-width:1024px)_and_(max-height:860px)]:space-y-2 [@media(min-width:1024px)_and_(max-height:760px)]:space-y-1.5">
                     <p className="text-center text-xs leading-5 text-muted-foreground [@media(min-width:1024px)_and_(max-height:760px)]:leading-4">
-                      Roles supported: HR-Admin, Payroll-Agent, and Employee.
+                      {t('auth.login.supportedRoles')}
                     </p>
 
                     <div className="hidden 2xl:flex 2xl:flex-wrap 2xl:justify-center 2xl:gap-2 [@media(min-width:1024px)_and_(max-height:860px)]:hidden">
-                      {LOGIN_TRUST_MARKERS.map((marker) => {
+                      {loginTrustMarkers.map((marker) => {
                         const MarkerIcon = marker.icon
 
                         return (
@@ -473,13 +503,13 @@ export function LoginPage() {
               <div className="relative z-10 flex h-full flex-col gap-5 p-5 text-white sm:p-6 xl:p-7 [@media(min-width:1024px)_and_(max-height:860px)]:gap-4 [@media(min-width:1024px)_and_(max-height:860px)]:p-4 [@media(min-width:1024px)_and_(max-height:760px)]:gap-3 [@media(min-width:1024px)_and_(max-height:760px)]:p-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="inline-flex max-w-[440px] items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-md">
-                    <img src={gcbLogo} alt="GCB logo" className="h-10 w-10 rounded-xl object-cover" />
+                    <img src={gcbLogo} alt={t('common.appSystemName')} className="h-10 w-10 rounded-xl object-cover" />
                     <div className="space-y-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/60">
                         GCB EMS
                       </p>
                       <p className="text-sm font-medium leading-5 text-white/92">
-                        {COMPANY_NAME_FULL}
+                        {t('common.companyNameFull')}
                       </p>
                     </div>
                   </div>
@@ -503,7 +533,7 @@ export function LoginPage() {
                   >
                     <div className="space-y-4">
                       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/62">
-                        Role-aware sign in
+                        {t('auth.login.roleAwareTitle')}
                       </p>
                       <h1 className="max-w-2xl text-[1.95rem] font-semibold leading-tight sm:text-[2.2rem] xl:text-[2.6rem] xl:leading-[1.06] [@media(min-width:1024px)_and_(max-height:860px)]:text-[1.75rem] [@media(min-width:1024px)_and_(max-height:860px)]:leading-tight [@media(min-width:1024px)_and_(max-height:760px)]:text-[1.55rem]">
                         {displayedRole.title}
@@ -659,14 +689,14 @@ export function LoginPage() {
                   </div>
                 </div>
 
-                <div className="hidden xl:flex xl:flex-wrap xl:gap-2 xl:text-xs xl:text-white/70 [@media(min-width:1024px)_and_(max-height:860px)]:hidden">
-                  <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 backdrop-blur-md">
-                    Unified authentication with role-based routing
+                  <div className="hidden xl:flex xl:flex-wrap xl:gap-2 xl:text-xs xl:text-white/70 [@media(min-width:1024px)_and_(max-height:860px)]:hidden">
+                    <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 backdrop-blur-md">
+                      {t('auth.login.unifiedAuth')}
+                    </div>
+                    <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 backdrop-blur-md">
+                      {t('auth.login.secureFlows')}
+                    </div>
                   </div>
-                  <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 backdrop-blur-md">
-                    Secure sign-in for HR, payroll, and employee workflows
-                  </div>
-                </div>
               </div>
             </article>
           </section>

@@ -19,6 +19,7 @@ import {
 import { NavLink, useLocation } from 'react-router-dom'
 
 import gcbLogo from '@/assets/brand/gcb-logo.svg'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +31,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { ROUTES } from '@/constants/routes'
+import { useI18n } from '@/hooks/use-i18n'
 import { cn } from '@/lib/utils'
 import { usePendingRequestsCountQuery } from '@/services/requestsService'
 import { usePendingPublicProfileVisibilityRequestsCountQuery } from '@/services/visibilityService'
@@ -46,7 +48,7 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
 interface AdminNavItem {
   key: string
-  label: string
+  labelKey: string
   to: string
   icon: IconComponent
 }
@@ -54,43 +56,43 @@ interface AdminNavItem {
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
     key: 'dashboard',
-    label: 'Dashboard',
+    labelKey: 'sidebar.admin.nav.dashboard',
     to: ROUTES.ADMIN_DASHBOARD,
     icon: LayoutDashboard,
   },
   {
     key: 'monitoring',
-    label: 'Monitoring',
+    labelKey: 'sidebar.admin.nav.monitoring',
     to: ROUTES.ADMIN_MONITORING,
     icon: Activity,
   },
   {
     key: 'employees',
-    label: 'Employees',
+    labelKey: 'sidebar.admin.nav.employees',
     to: ROUTES.ADMIN_EMPLOYEES,
     icon: Users,
   },
   {
     key: 'departments',
-    label: 'Departments',
+    labelKey: 'sidebar.admin.nav.departments',
     to: ROUTES.ADMIN_DEPARTMENTS,
     icon: Building2,
   },
   {
     key: 'requests',
-    label: 'Requests',
+    labelKey: 'sidebar.admin.nav.requests',
     to: ROUTES.ADMIN_REQUESTS,
     icon: ClipboardList,
   },
   {
     key: 'notifications',
-    label: 'Notifications',
+    labelKey: 'sidebar.admin.nav.notifications',
     to: ROUTES.NOTIFICATIONS,
     icon: Bell,
   },
   {
     key: 'audit',
-    label: 'Audit Log',
+    labelKey: 'sidebar.admin.nav.audit',
     to: ROUTES.ADMIN_AUDIT,
     icon: FileClock,
   },
@@ -153,6 +155,7 @@ function AdminSidebarContent({
   onNavigate,
 }: AdminSidebarProps) {
   const location = useLocation()
+  const { direction, isRTL, t } = useI18n()
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -264,6 +267,7 @@ function AdminSidebarContent({
 
   return (
     <aside
+      dir={direction}
       className={cn(
         'flex h-full flex-col rounded-[28px] border border-white/70 bg-white/85 p-4 shadow-[0_28px_65px_-38px_rgba(15,23,42,0.65)] backdrop-blur supports-[backdrop-filter]:bg-white/70',
         'transition-[width] duration-300 ease-out',
@@ -281,7 +285,7 @@ function AdminSidebarContent({
                   setIsCollapsed((value) => !value)
                 }
           }
-          aria-label={compactMode ? 'Expand admin sidebar' : 'Collapse admin sidebar'}
+          aria-label={compactMode ? t('sidebar.admin.expand') : t('sidebar.admin.collapse')}
           className={cn(
             'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-colors',
             !isMobile &&
@@ -289,16 +293,19 @@ function AdminSidebarContent({
           )}
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_12px_30px_-16px_rgba(255,107,53,0.85)]">
-            <img src={gcbLogo} alt="GCB logo" className="h-8 w-8 object-contain" />
+            <img src={gcbLogo} alt={t('common.appSystemName')} className="h-8 w-8 object-contain" />
           </div>
           <div
             className={cn(
-              'min-w-0 overflow-hidden text-left transition-all duration-200',
-              compactMode ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] opacity-100',
+              'min-w-0 overflow-hidden transition-all duration-200',
+              compactMode
+                ? cn('max-w-0 opacity-0', isRTL ? 'translate-x-2' : '-translate-x-2')
+                : 'max-w-[170px] opacity-100',
+              isRTL ? 'text-right' : 'text-left',
             )}
           >
             <p className="truncate text-sm font-semibold text-slate-900">GCB EMS</p>
-            <p className="truncate text-xs text-slate-500">Admin workspace</p>
+            <p className="truncate text-xs text-slate-500">{t('sidebar.admin.workspace')}</p>
           </div>
         </button>
       </div>
@@ -337,13 +344,17 @@ function AdminSidebarContent({
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-primary))] focus-visible:ring-offset-2',
                 isActive
                   ? 'text-white'
-                  : 'text-slate-700 hover:translate-x-[2px] hover:bg-slate-100 hover:text-slate-950',
+                  : cn(
+                      'text-slate-700 hover:bg-slate-100 hover:text-slate-950',
+                      isRTL ? 'hover:-translate-x-[2px]' : 'hover:translate-x-[2px]',
+                    ),
               )}
               style={{ transitionTimingFunction: MODERN_EASE }}
             >
               <span
                 className={cn(
                   'absolute left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-white/85 transition-opacity',
+                  isRTL && 'left-auto right-1',
                   compactMode && 'hidden',
                   isActive ? 'opacity-100' : 'opacity-0',
                 )}
@@ -355,12 +366,13 @@ function AdminSidebarContent({
               <span
                 className={cn(
                   'relative z-10 ml-3 overflow-hidden whitespace-nowrap leading-none transition-all duration-300',
+                  isRTL && 'ml-0 mr-3 text-right',
                   compactMode ? 'max-w-0 opacity-0' : 'max-w-[170px] flex-1 opacity-100',
-                  isActive ? 'text-center font-semibold' : 'text-left',
+                  isActive ? 'text-center font-semibold' : isRTL ? 'text-right' : 'text-left',
                 )}
                 style={{ transitionTimingFunction: MODERN_EASE }}
               >
-                {item.label}
+                {t(item.labelKey)}
               </span>
               {badgeCount > 0 && !compactMode ? (
                 <StatusBadge tone="danger" className="relative z-10 ml-2 text-white">
@@ -395,11 +407,12 @@ function AdminSidebarContent({
             )}
           >
             <p className="truncate text-[11px] font-medium uppercase tracking-wider text-slate-500">
-              Admin RH
+              {t('sidebar.admin.role')}
             </p>
-            <p className="truncate text-sm text-slate-700">{userEmail ?? 'No email'}</p>
+            <p className="truncate text-sm text-slate-700">{userEmail ?? t('common.noEmail')}</p>
           </div>
         </div>
+        <LanguageSwitcher variant="sidebar" compact={compactMode} />
         <Button
           type="button"
           variant="outline"
@@ -410,16 +423,19 @@ function AdminSidebarContent({
           onClick={() => {
             void handleSignOut()
           }}
-          aria-label="Sign out"
+          aria-label={t('common.logout')}
         >
-          <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <LogOut
+            className={cn('h-4 w-4 shrink-0', !compactMode && (isRTL ? 'ml-2' : 'mr-2'))}
+            aria-hidden="true"
+          />
           <span
             className={cn(
               'overflow-hidden whitespace-nowrap transition-all duration-200',
               compactMode ? 'max-w-0 opacity-0' : 'max-w-[90px] opacity-100',
             )}
           >
-            Logout
+            {t('common.logout')}
           </span>
         </Button>
       </div>
@@ -437,6 +453,7 @@ export function AdminSidebarMobile({
   className,
 }: AdminSidebarMobileProps) {
   const [open, setOpen] = useState(false)
+  const { isRTL, t } = useI18n()
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -449,18 +466,18 @@ export function AdminSidebarMobile({
             'border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-100',
             className,
           )}
-          aria-label="Open admin sidebar"
+          aria-label={t('sidebar.admin.open')}
         >
           <Menu className="h-4 w-4" aria-hidden="true" />
         </Button>
       </SheetTrigger>
       <SheetContent
-        side="left"
+        side={isRTL ? 'right' : 'left'}
         className="w-[320px] border-none bg-transparent p-3 shadow-none sm:w-[360px]"
       >
         <SheetHeader className="sr-only">
-          <SheetTitle>Admin Navigation</SheetTitle>
-          <SheetDescription>Open admin pages and account actions.</SheetDescription>
+          <SheetTitle>{t('sidebar.admin.mobileTitle')}</SheetTitle>
+          <SheetDescription>{t('sidebar.admin.mobileDescription')}</SheetDescription>
         </SheetHeader>
         <AdminSidebarContent
           onSignOut={onSignOut}

@@ -66,6 +66,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { ROUTES, getAdminEmployeeRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { useI18n } from '@/hooks/use-i18n'
+import type { TranslateFn } from '@/i18n/messages'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
 import { auditService } from '@/services/auditService'
@@ -90,14 +92,14 @@ import {
 } from '@/services/visibilityService'
 import type { DemandeStatut, ModificationRequest } from '@/types/modification-request'
 import {
-  EMPLOYEE_VISIBILITY_FIELD_LABELS,
+  getEmployeeVisibilityFieldLabel,
   getPublicProfileVisibilityRequestStatusMeta,
   type AdminPublicProfileVisibilityRequestItem,
   type EmployeeVisibilityFieldKey,
   type PublicProfileVisibilityRequestStatusFilter,
 } from '@/types/visibility'
 import { getDepartmentDisplayName } from '@/types/department'
-import { REQUEST_FIELD_LABELS, toEmployeeUpdatePayload } from '@/utils/modification-requests'
+import { getRequestFieldLabel, toEmployeeUpdatePayload } from '@/utils/modification-requests'
 
 type ModificationStatusFilter = DemandeStatut | 'ALL'
 type VisibilityDecisionStatus = 'IN_REVIEW' | 'APPROVED' | 'REJECTED'
@@ -119,16 +121,8 @@ function getModificationStatusTone(status: DemandeStatut): 'warning' | 'success'
   return 'danger'
 }
 
-function getModificationStatusLabel(status: DemandeStatut): string {
-  if (status === 'EN_ATTENTE') {
-    return 'Pending'
-  }
-
-  if (status === 'ACCEPTEE') {
-    return 'Approved'
-  }
-
-  return 'Rejected'
+function getModificationStatusLabel(status: DemandeStatut, t: TranslateFn): string {
+  return t(`status.modification.${status}`)
 }
 
 function getModificationRequestSurfaceClass(status: DemandeStatut): string {
@@ -163,16 +157,19 @@ function getAttentionNotificationSurfaceClass(isUnread: boolean): string {
     : 'border-slate-200 bg-white'
 }
 
-function fieldLabel(fieldKey: EmployeeVisibilityFieldKey): string {
-  return EMPLOYEE_VISIBILITY_FIELD_LABELS[fieldKey] ?? fieldKey
+function fieldLabel(fieldKey: EmployeeVisibilityFieldKey, t: TranslateFn): string {
+  return getEmployeeVisibilityFieldLabel(fieldKey, t)
 }
 
-function formatVisibilityFieldList(fieldKeys: EmployeeVisibilityFieldKey[]): string {
+function formatVisibilityFieldList(
+  fieldKeys: EmployeeVisibilityFieldKey[],
+  t: TranslateFn,
+): string {
   if (fieldKeys.length === 0) {
-    return 'No public fields selected'
+    return t('employee.qr.noPublicFields')
   }
 
-  return fieldKeys.map((fieldKey) => fieldLabel(fieldKey)).join(', ')
+  return fieldKeys.map((fieldKey) => fieldLabel(fieldKey, t)).join(', ')
 }
 
 function getInitials(request: ModificationRequest): string {
@@ -203,28 +200,35 @@ function formatVisibilityEmployeeName(request: AdminPublicProfileVisibilityReque
   return `${request.employePrenom ?? ''} ${request.employeNom ?? ''}`.replace(/\s+/g, ' ').trim()
 }
 
-function formatRequestSummary(request: ModificationRequest): string {
-  const field = REQUEST_FIELD_LABELS[request.champCible]
+function formatRequestSummary(request: ModificationRequest, t: TranslateFn): string {
+  const field = getRequestFieldLabel(request.champCible, t)
   const previousValue = request.ancienneValeur ?? '-'
   const nextValue = request.nouvelleValeur ?? '-'
-  const motif = request.motif ? ` | Reason: ${request.motif}` : ''
+  const motif = request.motif ? ` • ${request.motif}` : ''
 
   return `${field}: ${previousValue} -> ${nextValue}${motif}`
 }
 
-function formatOptionalDate(value: string | null): string {
+function formatOptionalDate(
+  value: string | null,
+  locale: string,
+  t: TranslateFn,
+): string {
   if (!value) {
-    return 'Not reviewed'
+    return t('common.notReviewed')
   }
 
-  return new Date(value).toLocaleString()
+  return new Date(value).toLocaleString(locale)
 }
 
 function isOpenVisibilityRequest(request: AdminPublicProfileVisibilityRequestItem): boolean {
   return request.status === 'PENDING' || request.status === 'IN_REVIEW'
 }
 
-function getVisibilityDecisionDialogCopy(nextStatus: VisibilityDecisionStatus): {
+function getVisibilityDecisionDialogCopy(
+  nextStatus: VisibilityDecisionStatus,
+  t: TranslateFn,
+): {
   title: string
   description: string
   confirmLabel: string
@@ -234,11 +238,10 @@ function getVisibilityDecisionDialogCopy(nextStatus: VisibilityDecisionStatus): 
 } {
   if (nextStatus === 'IN_REVIEW') {
     return {
-      title: 'Move request to in review',
-      description:
-        'This keeps the live public profile unchanged and records that HR has started reviewing the request.',
-      confirmLabel: 'Confirm review status',
-      noteLabel: 'Review note (optional)',
+      title: t('admin.requests.dialogs.visibilityDecision.inReviewTitle'),
+      description: t('admin.requests.dialogs.visibilityDecision.inReviewDescription'),
+      confirmLabel: t('admin.requests.dialogs.visibilityDecision.inReviewConfirm'),
+      noteLabel: t('admin.requests.dialogs.visibilityDecision.inReviewNoteLabel'),
       noteRequired: false,
       confirmTone: 'default',
     }
@@ -246,22 +249,20 @@ function getVisibilityDecisionDialogCopy(nextStatus: VisibilityDecisionStatus): 
 
   if (nextStatus === 'APPROVED') {
     return {
-      title: 'Approve visibility request',
-      description:
-        'This will apply the requested public profile visibility settings to the live QR profile immediately.',
-      confirmLabel: 'Confirm approval',
-      noteLabel: 'Approval note (optional)',
+      title: t('admin.requests.dialogs.visibilityDecision.approveTitle'),
+      description: t('admin.requests.dialogs.visibilityDecision.approveDescription'),
+      confirmLabel: t('admin.requests.dialogs.visibilityDecision.approveConfirm'),
+      noteLabel: t('admin.requests.dialogs.visibilityDecision.approveNoteLabel'),
       noteRequired: false,
       confirmTone: 'default',
     }
   }
 
   return {
-    title: 'Reject visibility request',
-    description:
-      'Rejection keeps the live public profile unchanged. The review note will be visible to the employee.',
-    confirmLabel: 'Reject request',
-    noteLabel: 'Rejection note',
+    title: t('admin.requests.dialogs.visibilityDecision.rejectTitle'),
+    description: t('admin.requests.dialogs.visibilityDecision.rejectDescription'),
+    confirmLabel: t('admin.requests.dialogs.visibilityDecision.rejectConfirm'),
+    noteLabel: t('admin.requests.dialogs.visibilityDecision.rejectNoteLabel'),
     noteRequired: true,
     confirmTone: 'destructive',
   }
@@ -271,6 +272,7 @@ export function AdminRequestsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t, locale, isRTL } = useI18n()
 
   const [statusFilter, setStatusFilter] = useState<ModificationStatusFilter>('EN_ATTENTE')
   const [visibilityStatusFilter, setVisibilityStatusFilter] =
@@ -350,7 +352,7 @@ export function AdminRequestsPage() {
           await notificationsService.createNotification({
             userId: recipientUserId,
             title: 'Modification request approved',
-            body: `Your request for ${REQUEST_FIELD_LABELS[payload.request.champCible]} has been approved.`,
+            body: `Your request for ${getRequestFieldLabel(payload.request.champCible)} has been approved.`,
             link: ROUTES.EMPLOYEE_PROFILE,
           })
         } catch (error) {
@@ -372,7 +374,7 @@ export function AdminRequestsPage() {
           },
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Unable to write audit log')
+        toast.error(error instanceof Error ? error.message : t('admin.requests.toasts.auditLogError'))
       }
 
       return {
@@ -381,7 +383,7 @@ export function AdminRequestsPage() {
       }
     },
     onSuccess: async (result, variables) => {
-      toast.success('Request approved and employee updated.')
+      toast.success(t('admin.requests.toasts.approveSuccess'))
       setApproveTarget(null)
       setApproveComment('')
       await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
@@ -397,7 +399,7 @@ export function AdminRequestsPage() {
       }
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to approve request')
+      toast.error(error instanceof Error ? error.message : t('admin.requests.toasts.approveError'))
     },
   })
 
@@ -418,7 +420,7 @@ export function AdminRequestsPage() {
           await notificationsService.createNotification({
             userId: recipientUserId,
             title: 'Modification request rejected',
-            body: `Your request for ${REQUEST_FIELD_LABELS[payload.request.champCible]} was rejected.`,
+            body: `Your request for ${getRequestFieldLabel(payload.request.champCible)} was rejected.`,
             link: ROUTES.EMPLOYEE_PROFILE,
           })
         } catch (error) {
@@ -440,7 +442,7 @@ export function AdminRequestsPage() {
           },
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Unable to write audit log')
+        toast.error(error instanceof Error ? error.message : t('admin.requests.toasts.auditLogError'))
       }
 
       return {
@@ -449,7 +451,7 @@ export function AdminRequestsPage() {
       }
     },
     onSuccess: async (result, variables) => {
-      toast.success('Request rejected.')
+      toast.success(t('admin.requests.toasts.rejectSuccess'))
       setRejectTarget(null)
       setRejectComment('')
       await queryClient.invalidateQueries({ queryKey: ['adminRequests'] })
@@ -463,18 +465,18 @@ export function AdminRequestsPage() {
       }
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to reject request')
+      toast.error(error instanceof Error ? error.message : t('admin.requests.toasts.rejectError'))
     },
   })
 
   const visibilityDecisionMutation = useUpdatePublicProfileVisibilityRequestStatusMutation({
     onSuccess: (_data, variables) => {
       if (variables.status === 'IN_REVIEW') {
-        toast.success('Visibility request moved to in review.')
+        toast.success(t('admin.requests.toasts.visibilityInReviewSuccess'))
       } else if (variables.status === 'APPROVED') {
-        toast.success('Visibility request approved and live profile updated.')
+        toast.success(t('admin.requests.toasts.visibilityApproveSuccess'))
       } else {
-        toast.success('Visibility request rejected.')
+        toast.success(t('admin.requests.toasts.visibilityRejectSuccess'))
       }
 
       setVisibilityDecisionTarget(null)
@@ -497,7 +499,7 @@ export function AdminRequestsPage() {
       const searchTarget = [
         formatEmployeeName(request),
         request.employeMatricule ?? '',
-        REQUEST_FIELD_LABELS[request.champCible],
+        getRequestFieldLabel(request.champCible, t),
         request.motif ?? '',
       ]
         .join(' ')
@@ -505,7 +507,7 @@ export function AdminRequestsPage() {
 
       return searchTarget.includes(term)
     })
-  }, [baseItems, debouncedSearch])
+  }, [baseItems, debouncedSearch, t])
 
   const visibilityItems = visibilityRequestsQuery.data ?? []
   const total = requestsQuery.data?.total ?? 0
@@ -548,7 +550,7 @@ export function AdminRequestsPage() {
   }
 
   const visibilityDialogCopy = visibilityDecisionTarget
-    ? getVisibilityDecisionDialogCopy(visibilityDecisionTarget.nextStatus)
+    ? getVisibilityDecisionDialogCopy(visibilityDecisionTarget.nextStatus, t)
     : null
   const visibilityNoteRequired = visibilityDialogCopy?.noteRequired ?? false
   const isVisibilityReviewNoteValid =
@@ -556,38 +558,47 @@ export function AdminRequestsPage() {
 
   return (
     <DashboardLayout
-      title="Requests & Reviews"
-      subtitle="Process employee profile changes and public profile visibility submissions."
+      title={t('admin.requests.title')}
+      subtitle={t('admin.requests.subtitle')}
     >
       <PageHeader
-        title="Requests & Reviews"
-        description="Review employee profile changes and approve public profile visibility requests before anything goes live."
+        title={t('admin.requests.title')}
+        description={t('admin.requests.description')}
         className="sticky top-2 z-20 mb-6"
         badges={
           <>
-            <StatusBadge tone="warning" emphasis="solid">Profile Pending {pendingCount}</StatusBadge>
-            <StatusBadge tone="warning" emphasis="solid">Visibility Pending {pendingVisibilityCount}</StatusBadge>
+            <StatusBadge tone="warning" emphasis="solid">
+              {t('admin.requests.badges.profilePending', { count: pendingCount })}
+            </StatusBadge>
+            <StatusBadge tone="warning" emphasis="solid">
+              {t('admin.requests.badges.visibilityPending', { count: pendingVisibilityCount })}
+            </StatusBadge>
             <StatusBadge
               tone={totalOpenCount > 0 ? 'danger' : 'neutral'}
               emphasis={totalOpenCount > 0 ? 'solid' : 'soft'}
             >
-              Open Total {totalOpenCount}
+              {t('admin.requests.badges.openTotal', { count: totalOpenCount })}
             </StatusBadge>
           </>
         }
         actions={
           <>
             <div className="relative w-full sm:w-72">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search
+                className={cn(
+                  'pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground',
+                  isRTL ? 'right-3' : 'left-3',
+                )}
+              />
               <Input
                 value={searchInput}
                 onChange={(event) => {
                   setSearchInput(event.target.value)
                   setPage(1)
                 }}
-                placeholder="Search by employee name, employee ID, or request note..."
-                className="pl-9"
-                aria-label="Search requests"
+                placeholder={t('admin.requests.searchPlaceholder')}
+                className={cn(isRTL ? 'pr-9' : 'pl-9')}
+                aria-label={t('admin.requests.searchAria')}
               />
             </div>
 
@@ -595,10 +606,10 @@ export function AdminRequestsPage() {
               type="button"
               variant="outline"
               onClick={() => setIsFilterDialogOpen(true)}
-              aria-label="Open request filters"
+              aria-label={t('admin.requests.openFiltersAria')}
             >
-              <Filter className="mr-2 h-4 w-4" />
-              Filters
+              <Filter className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+              {t('actions.filters')}
             </Button>
 
             <Button
@@ -612,13 +623,13 @@ export function AdminRequestsPage() {
               }
             >
               <RefreshCw
-                className={`mr-2 h-4 w-4 ${
+                className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4 ${
                   requestsQuery.isFetching || visibilityRequestsQuery.isFetching
                     ? 'animate-spin'
                     : ''
                 }`}
               />
-              Refresh
+              {t('actions.refresh')}
             </Button>
           </>
         }
@@ -627,17 +638,19 @@ export function AdminRequestsPage() {
       <div className="space-y-4">
         <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-base font-semibold">Employee profile change requests</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              {t('admin.requests.profileQueue.title')}
+            </CardTitle>
             <CardDescription>
-              Focus on pending employee profile update requests first. Open each request for full details before decision.
+              {t('admin.requests.profileQueue.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {requestsQuery.isError ? (
               <ErrorState
                 surface="plain"
-                title="Failed to load profile change requests"
-                description="We couldn't load the employee modification request queue right now."
+                title={t('admin.requests.profileQueue.loadErrorTitle')}
+                description={t('admin.requests.profileQueue.loadErrorDescription')}
                 message={requestsQuery.error.message}
                 icon={ShieldAlert}
                 onRetry={() => void requestsQuery.refetch()}
@@ -649,11 +662,13 @@ export function AdminRequestsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Request Summary</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Submitted</TableHead>
-                      <TableHead className="w-[260px] text-right">Actions</TableHead>
+                      <TableHead>{t('admin.requests.tables.employee')}</TableHead>
+                      <TableHead>{t('admin.requests.tables.requestSummary')}</TableHead>
+                      <TableHead>{t('admin.requests.tables.status')}</TableHead>
+                      <TableHead>{t('admin.requests.tables.submitted')}</TableHead>
+                      <TableHead className={cn('w-[260px]', isRTL ? 'text-left' : 'text-right')}>
+                        {t('admin.requests.tables.actions')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -674,25 +689,25 @@ export function AdminRequestsPage() {
             {!requestsQuery.isPending && !requestsQuery.isError && filteredItems.length === 0 ? (
               <>
                 {hasActiveFilters ? (
-                  <SearchEmptyState
-                    surface="plain"
-                    className="py-8"
-                    title="No profile change requests found"
-                    description="Try changing your search or queue filters."
-                    actions={
-                      <Button type="button" variant="outline" onClick={resetFilters}>
-                        Clear filters
-                      </Button>
-                    }
-                  />
+                    <SearchEmptyState
+                      surface="plain"
+                      className="py-8"
+                      title={t('admin.requests.profileQueue.searchEmptyTitle')}
+                      description={t('admin.requests.profileQueue.searchEmptyDescription')}
+                      actions={
+                        <Button type="button" variant="outline" onClick={resetFilters}>
+                          {t('actions.clearFilters')}
+                        </Button>
+                      }
+                    />
                 ) : (
-                  <EmptyState
-                    surface="plain"
-                    className="py-8"
-                    title="No profile change requests yet"
-                    description="Employee modification requests will appear here once they are submitted."
-                  />
-                )}
+                    <EmptyState
+                      surface="plain"
+                      className="py-8"
+                      title={t('admin.requests.profileQueue.emptyTitle')}
+                      description={t('admin.requests.profileQueue.emptyDescription')}
+                    />
+                  )}
               </>
             ) : null}
 
@@ -702,11 +717,13 @@ export function AdminRequestsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Request Summary</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Submitted</TableHead>
-                        <TableHead className="w-[260px] text-right">Actions</TableHead>
+                        <TableHead>{t('admin.requests.tables.employee')}</TableHead>
+                        <TableHead>{t('admin.requests.tables.requestSummary')}</TableHead>
+                        <TableHead>{t('admin.requests.tables.status')}</TableHead>
+                        <TableHead>{t('admin.requests.tables.submitted')}</TableHead>
+                        <TableHead className={cn('w-[260px]', isRTL ? 'text-left' : 'text-right')}>
+                          {t('admin.requests.tables.actions')}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -734,7 +751,7 @@ export function AdminRequestsPage() {
                           </TableCell>
                           <TableCell>
                             <p className="[display:-webkit-box] overflow-hidden text-sm text-slate-700 [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                              {formatRequestSummary(request)}
+                              {formatRequestSummary(request, t)}
                             </p>
                           </TableCell>
                           <TableCell>
@@ -742,10 +759,10 @@ export function AdminRequestsPage() {
                               tone={getModificationStatusTone(request.statutDemande)}
                               emphasis="solid"
                             >
-                              {getModificationStatusLabel(request.statutDemande)}
+                              {getModificationStatusLabel(request.statutDemande, t)}
                             </StatusBadge>
                           </TableCell>
-                          <TableCell>{new Date(request.createdAt).toLocaleString()}</TableCell>
+                          <TableCell>{new Date(request.createdAt).toLocaleString(locale)}</TableCell>
                           <TableCell onClick={(event) => event.stopPropagation()}>
                             <div className="flex items-center justify-end gap-2">
                               {request.statutDemande === 'EN_ATTENTE' ? (
@@ -759,8 +776,8 @@ export function AdminRequestsPage() {
                                       setApproveComment('')
                                     }}
                                   >
-                                    <CheckCircle2 className="mr-1 h-4 w-4" />
-                                    Approve
+                                    <CheckCircle2 className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                                    {t('actions.approve')}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -772,12 +789,14 @@ export function AdminRequestsPage() {
                                       setRejectComment('')
                                     }}
                                   >
-                                    <XCircle className="mr-1 h-4 w-4" />
-                                    Reject
+                                    <XCircle className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                                    {t('actions.reject')}
                                   </Button>
                                 </>
                               ) : (
-                                <span className="text-xs text-muted-foreground">Processed</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {t('admin.requests.tables.processed')}
+                                </span>
                               )}
 
                               <RequestRowActions
@@ -803,8 +822,17 @@ export function AdminRequestsPage() {
 
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-muted-foreground">
-                    Showing {showingFrom}-{showingTo} of {total}
-                    {isSearching ? ' (search applied on current page)' : ''}
+                    {t(
+                      isSearching
+                        ? 'admin.requests.tables.showingSearch'
+                        : 'admin.requests.tables.showing',
+                      {
+                        from: showingFrom,
+                        to: showingTo,
+                        total,
+                        suffix: t('common.searchAppliedCurrentPage'),
+                      },
+                    )}
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -813,7 +841,7 @@ export function AdminRequestsPage() {
                       disabled={page === 1 || requestsQuery.isFetching}
                       onClick={() => setPage((value) => Math.max(1, value - 1))}
                     >
-                      Prev
+                      {t('actions.previous')}
                     </Button>
                     <Button
                       variant="outline"
@@ -821,7 +849,7 @@ export function AdminRequestsPage() {
                       disabled={showingTo >= total || requestsQuery.isFetching}
                       onClick={() => setPage((value) => value + 1)}
                     >
-                      Next
+                      {t('actions.next')}
                     </Button>
                   </div>
                 </div>
@@ -832,17 +860,19 @@ export function AdminRequestsPage() {
 
         <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-base font-semibold">Public profile visibility requests</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              {t('admin.requests.visibilityQueue.title')}
+            </CardTitle>
             <CardDescription>
-              Employees now propose their own QR visibility settings. Only approved requests update the live public profile.
+              {t('admin.requests.visibilityQueue.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {visibilityRequestsQuery.isError ? (
               <ErrorState
                 surface="plain"
-                title="Failed to load visibility requests"
-                description="We couldn't load the public profile visibility review queue right now."
+                title={t('admin.requests.visibilityQueue.loadErrorTitle')}
+                description={t('admin.requests.visibilityQueue.loadErrorDescription')}
                 message={visibilityRequestsQuery.error.message}
                 icon={ShieldAlert}
                 onRetry={() => void visibilityRequestsQuery.refetch()}
@@ -854,12 +884,14 @@ export function AdminRequestsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Live Public Profile</TableHead>
-                      <TableHead>Requested Visibility</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Submitted</TableHead>
-                      <TableHead className="w-[320px] text-right">Actions</TableHead>
+                      <TableHead>{t('admin.requests.tables.employee')}</TableHead>
+                      <TableHead>{t('admin.requests.tables.livePublicProfile')}</TableHead>
+                      <TableHead>{t('admin.requests.tables.requestedVisibility')}</TableHead>
+                      <TableHead>{t('admin.requests.tables.status')}</TableHead>
+                      <TableHead>{t('admin.requests.tables.submitted')}</TableHead>
+                      <TableHead className={cn('w-[320px]', isRTL ? 'text-left' : 'text-right')}>
+                        {t('admin.requests.tables.actions')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -884,17 +916,19 @@ export function AdminRequestsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Live Public Profile</TableHead>
-                        <TableHead>Requested Visibility</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Submitted</TableHead>
-                        <TableHead className="w-[320px] text-right">Actions</TableHead>
+                        <TableHead>{t('admin.requests.tables.employee')}</TableHead>
+                        <TableHead>{t('admin.requests.tables.livePublicProfile')}</TableHead>
+                        <TableHead>{t('admin.requests.tables.requestedVisibility')}</TableHead>
+                        <TableHead>{t('admin.requests.tables.status')}</TableHead>
+                        <TableHead>{t('admin.requests.tables.submitted')}</TableHead>
+                        <TableHead className={cn('w-[320px]', isRTL ? 'text-left' : 'text-right')}>
+                          {t('admin.requests.tables.actions')}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {visibilityItems.map((request) => {
-                        const statusMeta = getPublicProfileVisibilityRequestStatusMeta(request.status)
+                        const statusMeta = getPublicProfileVisibilityRequestStatusMeta(request.status, t)
                         const requestIsOpen = isOpenVisibilityRequest(request)
 
                         return (
@@ -924,12 +958,12 @@ export function AdminRequestsPage() {
                             </TableCell>
                             <TableCell>
                               <p className="[display:-webkit-box] overflow-hidden text-sm text-slate-700 [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                                {formatVisibilityFieldList(request.liveFieldKeys)}
+                                {formatVisibilityFieldList(request.liveFieldKeys, t)}
                               </p>
                             </TableCell>
                             <TableCell>
                               <p className="[display:-webkit-box] overflow-hidden text-sm text-slate-700 [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                                {formatVisibilityFieldList(request.requestedFieldKeys)}
+                                {formatVisibilityFieldList(request.requestedFieldKeys, t)}
                               </p>
                             </TableCell>
                             <TableCell>
@@ -937,7 +971,7 @@ export function AdminRequestsPage() {
                                 {statusMeta.label}
                               </StatusBadge>
                             </TableCell>
-                            <TableCell>{new Date(request.createdAt).toLocaleString()}</TableCell>
+                            <TableCell>{new Date(request.createdAt).toLocaleString(locale)}</TableCell>
                             <TableCell onClick={(event) => event.stopPropagation()}>
                               <div className="flex items-center justify-end gap-2">
                                 {requestIsOpen ? (
@@ -955,44 +989,46 @@ export function AdminRequestsPage() {
                                           setVisibilityReviewNote('')
                                         }}
                                       >
-                                        <Clock3 className="mr-1 h-4 w-4" />
-                                        In review
+                                        <Clock3 className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                                        {t('actions.markInReview')}
                                       </Button>
                                     ) : null}
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       disabled={visibilityDecisionMutation.isPending}
-                                      onClick={() => {
-                                        setVisibilityDecisionTarget({
-                                          request,
-                                          nextStatus: 'APPROVED',
-                                        })
-                                        setVisibilityReviewNote('')
-                                      }}
-                                    >
-                                      <CheckCircle2 className="mr-1 h-4 w-4" />
-                                      Approve
+                                        onClick={() => {
+                                          setVisibilityDecisionTarget({
+                                            request,
+                                            nextStatus: 'APPROVED',
+                                          })
+                                          setVisibilityReviewNote('')
+                                        }}
+                                      >
+                                      <CheckCircle2 className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                                      {t('actions.approve')}
                                     </Button>
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       className="border-destructive text-destructive hover:bg-destructive/10"
                                       disabled={visibilityDecisionMutation.isPending}
-                                      onClick={() => {
-                                        setVisibilityDecisionTarget({
-                                          request,
-                                          nextStatus: 'REJECTED',
-                                        })
-                                        setVisibilityReviewNote('')
-                                      }}
-                                    >
-                                      <XCircle className="mr-1 h-4 w-4" />
-                                      Reject
+                                        onClick={() => {
+                                          setVisibilityDecisionTarget({
+                                            request,
+                                            nextStatus: 'REJECTED',
+                                          })
+                                          setVisibilityReviewNote('')
+                                        }}
+                                      >
+                                      <XCircle className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                                      {t('actions.reject')}
                                     </Button>
                                   </>
                                 ) : (
-                                  <span className="text-xs text-muted-foreground">Processed</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {t('admin.requests.tables.processed')}
+                                  </span>
                                 )}
 
                                 <VisibilityRequestRowActions
@@ -1035,11 +1071,11 @@ export function AdminRequestsPage() {
                     <SearchEmptyState
                       surface="plain"
                       className="py-8"
-                      title="No visibility requests found"
-                      description="Try changing your search or review filters."
+                      title={t('admin.requests.visibilityQueue.searchEmptyTitle')}
+                      description={t('admin.requests.visibilityQueue.searchEmptyDescription')}
                       actions={
                         <Button type="button" variant="outline" onClick={resetFilters}>
-                          Clear filters
+                          {t('actions.clearFilters')}
                         </Button>
                       }
                     />
@@ -1047,8 +1083,8 @@ export function AdminRequestsPage() {
                     <EmptyState
                       surface="plain"
                       className="py-8"
-                      title="No visibility requests yet"
-                      description="Employee-submitted public profile visibility requests will appear here once they are sent."
+                      title={t('admin.requests.visibilityQueue.emptyTitle')}
+                      description={t('admin.requests.visibilityQueue.emptyDescription')}
                     />
                   )}
                 </>
@@ -1061,7 +1097,7 @@ export function AdminRequestsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <Bell className="h-4 w-4" />
-              My Notifications
+              {t('admin.requests.notifications.title')}
               {(unreadNotificationsCountQuery.data ?? 0) > 0 ? (
                 <StatusBadge tone="danger" emphasis="solid">
                   {unreadNotificationsCountQuery.data}
@@ -1080,8 +1116,8 @@ export function AdminRequestsPage() {
             {notificationsQuery.isError ? (
               <ErrorState
                 surface="plain"
-                title="Could not load notifications"
-                description="We couldn't load your latest admin notifications."
+                title={t('admin.requests.notifications.loadErrorTitle')}
+                description={t('admin.requests.notifications.loadErrorDescription')}
                 message={notificationsQuery.error.message}
                 onRetry={() => void notificationsQuery.refetch()}
               />
@@ -1120,10 +1156,10 @@ export function AdminRequestsPage() {
                             disabled={markNotificationReadMutation.isPending}
                             onClick={() => void markNotificationReadMutation.mutateAsync(item.id)}
                           >
-                            Mark read
+                            {t('actions.markRead')}
                           </Button>
                         ) : (
-                          <StatusBadge tone="neutral" emphasis="soft">Read</StatusBadge>
+                          <StatusBadge tone="neutral" emphasis="soft">{t('common.read')}</StatusBadge>
                         )}
                       </div>
                     </div>
@@ -1132,8 +1168,8 @@ export function AdminRequestsPage() {
               ) : (
                 <EmptyState
                   surface="plain"
-                  title="No notifications yet"
-                  description="New workflow and system alerts will appear here."
+                  title={t('admin.requests.notifications.emptyTitle')}
+                  description={t('admin.requests.notifications.emptyDescription')}
                 />
               )
             ) : null}
@@ -1144,15 +1180,15 @@ export function AdminRequestsPage() {
       <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Filter requests</DialogTitle>
+            <DialogTitle>{t('admin.requests.filters.title')}</DialogTitle>
             <DialogDescription>
-              Adjust queue filters for employee profile changes and public visibility reviews.
+              {t('admin.requests.filters.description')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
             <div className="space-y-2">
-              <Label htmlFor="requests-status-filter">Profile change status</Label>
+              <Label htmlFor="requests-status-filter">{t('admin.requests.filters.profileStatus')}</Label>
               <Select
                 value={statusFilter}
                 onValueChange={(value: ModificationStatusFilter) => {
@@ -1161,19 +1197,21 @@ export function AdminRequestsPage() {
                 }}
               >
                 <SelectTrigger id="requests-status-filter">
-                  <SelectValue placeholder="Status" />
+                  <SelectValue placeholder={t('admin.requests.filters.statusPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All statuses</SelectItem>
-                  <SelectItem value="EN_ATTENTE">Pending</SelectItem>
-                  <SelectItem value="ACCEPTEE">Approved</SelectItem>
-                  <SelectItem value="REJETEE">Rejected</SelectItem>
+                  <SelectItem value="ALL">{t('common.allStatuses')}</SelectItem>
+                  <SelectItem value="EN_ATTENTE">{t('status.modification.EN_ATTENTE')}</SelectItem>
+                  <SelectItem value="ACCEPTEE">{t('status.modification.ACCEPTEE')}</SelectItem>
+                  <SelectItem value="REJETEE">{t('status.modification.REJETEE')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="visibility-requests-status-filter">Visibility request status</Label>
+              <Label htmlFor="visibility-requests-status-filter">
+                {t('admin.requests.filters.visibilityStatus')}
+              </Label>
               <Select
                 value={visibilityStatusFilter}
                 onValueChange={(value: PublicProfileVisibilityRequestStatusFilter) => {
@@ -1182,20 +1220,20 @@ export function AdminRequestsPage() {
                 }}
               >
                 <SelectTrigger id="visibility-requests-status-filter">
-                  <SelectValue placeholder="Visibility request status" />
+                  <SelectValue placeholder={t('admin.requests.filters.visibilityPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All statuses</SelectItem>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="IN_REVIEW">In review</SelectItem>
-                  <SelectItem value="APPROVED">Approved</SelectItem>
-                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                  <SelectItem value="ALL">{t('common.allStatuses')}</SelectItem>
+                  <SelectItem value="PENDING">{t('status.visibility.PENDING')}</SelectItem>
+                  <SelectItem value="IN_REVIEW">{t('status.visibility.IN_REVIEW')}</SelectItem>
+                  <SelectItem value="APPROVED">{t('status.visibility.APPROVED')}</SelectItem>
+                  <SelectItem value="REJECTED">{t('status.visibility.REJECTED')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="requests-department-filter">Department</Label>
+              <Label htmlFor="requests-department-filter">{t('admin.requests.filters.department')}</Label>
               <Select
                 value={departmentFilter}
                 onValueChange={(value) => {
@@ -1204,10 +1242,10 @@ export function AdminRequestsPage() {
                 }}
               >
                 <SelectTrigger id="requests-department-filter">
-                  <SelectValue placeholder="Department" />
+                  <SelectValue placeholder={t('admin.requests.filters.departmentPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All departments</SelectItem>
+                  <SelectItem value="all">{t('common.allDepartments')}</SelectItem>
                     {(departmentsQuery.data ?? []).map((department) => (
                       <SelectItem key={department.id} value={department.id}>
                         {getDepartmentDisplayName(department.nom) ?? department.nom}
@@ -1218,7 +1256,7 @@ export function AdminRequestsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="requests-page-size-filter">Profile queue page size</Label>
+              <Label htmlFor="requests-page-size-filter">{t('admin.requests.filters.profilePageSize')}</Label>
               <Select
                 value={String(pageSize)}
                 onValueChange={(value) => {
@@ -1227,7 +1265,7 @@ export function AdminRequestsPage() {
                 }}
               >
                 <SelectTrigger id="requests-page-size-filter">
-                  <SelectValue placeholder="Page size" />
+                  <SelectValue placeholder={t('admin.requests.filters.pageSizePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="10">10</SelectItem>
@@ -1240,10 +1278,10 @@ export function AdminRequestsPage() {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={resetFilters}>
-              Clear filters
+              {t('actions.clearFilters')}
             </Button>
             <Button type="button" onClick={() => setIsFilterDialogOpen(false)}>
-              Apply
+              {t('actions.apply')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1264,46 +1302,52 @@ export function AdminRequestsPage() {
                     tone={getModificationStatusTone(selectedRequest.statutDemande)}
                     emphasis="solid"
                   >
-                    {getModificationStatusLabel(selectedRequest.statutDemande)}
+                    {getModificationStatusLabel(selectedRequest.statutDemande, t)}
                   </StatusBadge>
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4">
                 <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium">Request details</p>
+                  <p className="text-sm font-medium">{t('admin.requests.detail.requestDetails')}</p>
                   <p className="mt-2 text-sm text-slate-700">
-                    Field: {REQUEST_FIELD_LABELS[selectedRequest.champCible]}
+                    {t('employee.requests.targetField')}: {getRequestFieldLabel(selectedRequest.champCible, t)}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    Previous value: {selectedRequest.ancienneValeur ?? '-'}
+                    {t('admin.requests.dialogs.request.previousValue')}: {selectedRequest.ancienneValeur ?? '-'}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    New value: {selectedRequest.nouvelleValeur ?? '-'}
+                    {t('admin.requests.dialogs.request.newValue')}: {selectedRequest.nouvelleValeur ?? '-'}
                   </p>
                   {selectedRequest.motif ? (
                     <p className="mt-1 text-sm text-slate-700">
-                      Employee reason: {selectedRequest.motif}
+                      {t('admin.requests.dialogs.request.employeeReason')}: {selectedRequest.motif}
                     </p>
                   ) : null}
                 </div>
 
                 <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium">Metadata</p>
+                  <p className="text-sm font-medium">{t('admin.requests.detail.metadata')}</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Submitted: {new Date(selectedRequest.createdAt).toLocaleString()}
+                    {t('admin.requests.dialogs.request.submitted', {
+                      value: new Date(selectedRequest.createdAt).toLocaleString(locale),
+                    })}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Reviewed: {formatOptionalDate(selectedRequest.traiteAt)}
+                    {t('admin.requests.dialogs.request.reviewed', {
+                      value: formatOptionalDate(selectedRequest.traiteAt, locale, t),
+                    })}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Reviewed by: {selectedRequest.traiteParUserId ?? 'Not assigned'}
+                    {t('admin.requests.dialogs.request.reviewedBy', {
+                      value: selectedRequest.traiteParUserId ?? t('common.notAssigned'),
+                    })}
                   </p>
                 </div>
 
                 {selectedRequest.commentaireTraitement ? (
                   <div className="rounded-xl border p-3">
-                    <p className="text-sm font-medium">Decision reason</p>
+                    <p className="text-sm font-medium">{t('admin.requests.detail.decisionReason')}</p>
                     <p className="mt-2 text-sm text-slate-700">{selectedRequest.commentaireTraitement}</p>
                   </div>
                 ) : null}
@@ -1315,8 +1359,8 @@ export function AdminRequestsPage() {
                   variant="outline"
                   onClick={() => navigate(getAdminEmployeeRoute(selectedRequest.employeId))}
                 >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open employee profile
+                  <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                  {t('actions.openEmployeeProfile')}
                 </Button>
 
                 {selectedRequest.statutDemande === 'EN_ATTENTE' ? (
@@ -1330,7 +1374,7 @@ export function AdminRequestsPage() {
                         setRejectComment('')
                       }}
                     >
-                      Reject
+                      {t('actions.reject')}
                     </Button>
                     <Button
                       type="button"
@@ -1340,11 +1384,13 @@ export function AdminRequestsPage() {
                         setApproveComment('')
                       }}
                     >
-                      Approve
+                      {t('actions.approve')}
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Request already processed.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('admin.requests.dialogs.request.alreadyProcessed')}
+                  </p>
                 )}
               </DialogFooter>
             </>
@@ -1373,10 +1419,10 @@ export function AdminRequestsPage() {
                       </span>
                     ) : null}
                   <StatusBadge
-                    tone={getPublicProfileVisibilityRequestStatusMeta(selectedVisibilityRequest.status).tone}
+                    tone={getPublicProfileVisibilityRequestStatusMeta(selectedVisibilityRequest.status, t).tone}
                     emphasis="solid"
                   >
-                    {getPublicProfileVisibilityRequestStatusMeta(selectedVisibilityRequest.status).label}
+                    {getPublicProfileVisibilityRequestStatusMeta(selectedVisibilityRequest.status, t).label}
                   </StatusBadge>
                 </DialogDescription>
               </DialogHeader>
@@ -1384,49 +1430,65 @@ export function AdminRequestsPage() {
               <div className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="rounded-xl border p-3">
-                    <p className="text-sm font-medium">Published when requested</p>
+                    <p className="text-sm font-medium">
+                      {t('admin.requests.dialogs.visibility.publishedWhenRequested')}
+                    </p>
                     <p className="mt-2 text-sm text-slate-700">
-                      {formatVisibilityFieldList(selectedVisibilityRequest.currentFieldKeys)}
+                      {formatVisibilityFieldList(selectedVisibilityRequest.currentFieldKeys, t)}
                     </p>
                   </div>
                   <div className="rounded-xl border p-3">
-                    <p className="text-sm font-medium">Current live public profile</p>
+                    <p className="text-sm font-medium">
+                      {t('admin.requests.dialogs.visibility.currentLivePublicProfile')}
+                    </p>
                     <p className="mt-2 text-sm text-slate-700">
-                      {formatVisibilityFieldList(selectedVisibilityRequest.liveFieldKeys)}
+                      {formatVisibilityFieldList(selectedVisibilityRequest.liveFieldKeys, t)}
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium">Requested public visibility</p>
+                  <p className="text-sm font-medium">
+                    {t('admin.requests.dialogs.visibility.requestedPublicVisibility')}
+                  </p>
                   <p className="mt-2 text-sm text-slate-700">
-                    {formatVisibilityFieldList(selectedVisibilityRequest.requestedFieldKeys)}
+                    {formatVisibilityFieldList(selectedVisibilityRequest.requestedFieldKeys, t)}
                   </p>
                 </div>
 
                 {selectedVisibilityRequest.requestNote ? (
                   <div className="rounded-xl border p-3">
-                    <p className="text-sm font-medium">Employee note</p>
+                    <p className="text-sm font-medium">
+                      {t('admin.requests.dialogs.visibility.employeeNote')}
+                    </p>
                     <p className="mt-2 text-sm text-slate-700">{selectedVisibilityRequest.requestNote}</p>
                   </div>
                 ) : null}
 
                 <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium">Metadata</p>
+                  <p className="text-sm font-medium">{t('admin.requests.detail.metadata')}</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Submitted: {new Date(selectedVisibilityRequest.createdAt).toLocaleString()}
+                    {t('admin.requests.dialogs.visibility.submitted', {
+                      value: new Date(selectedVisibilityRequest.createdAt).toLocaleString(locale),
+                    })}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Reviewed: {formatOptionalDate(selectedVisibilityRequest.reviewedAt)}
+                    {t('admin.requests.dialogs.visibility.reviewed', {
+                      value: formatOptionalDate(selectedVisibilityRequest.reviewedAt, locale, t),
+                    })}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Reviewed by: {selectedVisibilityRequest.reviewedByUserId ?? 'Not assigned'}
+                    {t('admin.requests.dialogs.visibility.reviewedBy', {
+                      value: selectedVisibilityRequest.reviewedByUserId ?? t('common.notAssigned'),
+                    })}
                   </p>
                 </div>
 
                 {selectedVisibilityRequest.reviewNote ? (
                   <div className="rounded-xl border p-3">
-                    <p className="text-sm font-medium">HR review note</p>
+                    <p className="text-sm font-medium">
+                      {t('admin.requests.dialogs.visibility.hrReviewNote')}
+                    </p>
                     <p className="mt-2 text-sm text-slate-700">{selectedVisibilityRequest.reviewNote}</p>
                   </div>
                 ) : null}
@@ -1438,8 +1500,8 @@ export function AdminRequestsPage() {
                   variant="outline"
                   onClick={() => navigate(getAdminEmployeeRoute(selectedVisibilityRequest.employeId))}
                 >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open employee profile
+                  <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                  {t('actions.openEmployeeProfile')}
                 </Button>
 
                 {isOpenVisibilityRequest(selectedVisibilityRequest) ? (
@@ -1456,7 +1518,7 @@ export function AdminRequestsPage() {
                           setVisibilityReviewNote('')
                         }}
                       >
-                        In review
+                        {t('actions.markInReview')}
                       </Button>
                     ) : null}
                     <Button
@@ -1470,8 +1532,8 @@ export function AdminRequestsPage() {
                         })
                         setVisibilityReviewNote('')
                       }}
-                    >
-                      Reject
+                      >
+                      {t('actions.reject')}
                     </Button>
                     <Button
                       type="button"
@@ -1483,12 +1545,14 @@ export function AdminRequestsPage() {
                         })
                         setVisibilityReviewNote('')
                       }}
-                    >
-                      Approve
+                      >
+                      {t('actions.approve')}
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Request already processed.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('admin.requests.dialogs.visibility.alreadyProcessed')}
+                  </p>
                 )}
               </DialogFooter>
             </>
@@ -1499,13 +1563,13 @@ export function AdminRequestsPage() {
       <AlertDialog open={Boolean(approveTarget)} onOpenChange={(open) => !open && setApproveTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Approve request</AlertDialogTitle>
+            <AlertDialogTitle>{t('admin.requests.dialogs.approve.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will apply the new value directly to the employee profile.
+              {t('admin.requests.dialogs.approve.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="approve-comment">Comment (optional)</Label>
+            <Label htmlFor="approve-comment">{t('admin.requests.dialogs.approve.commentOptional')}</Label>
             <Textarea
               id="approve-comment"
               rows={3}
@@ -1514,7 +1578,9 @@ export function AdminRequestsPage() {
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={approveMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={approveMutation.isPending}>
+              {t('actions.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={approveMutation.isPending || !approveTarget}
               onClick={(event) => {
@@ -1530,9 +1596,11 @@ export function AdminRequestsPage() {
               }}
             >
               {approveMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : null}
-              {approveMutation.isPending ? 'Approving...' : 'Confirm approval'}
+              {approveMutation.isPending
+                ? t('admin.requests.dialogs.approve.confirming')
+                : t('admin.requests.dialogs.approve.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1541,14 +1609,14 @@ export function AdminRequestsPage() {
       <Dialog open={Boolean(rejectTarget)} onOpenChange={(open) => !open && setRejectTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject request</DialogTitle>
+            <DialogTitle>{t('admin.requests.dialogs.reject.title')}</DialogTitle>
             <DialogDescription>
-              Rejection comment is required and will be visible to the employee.
+              {t('admin.requests.dialogs.reject.description')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-2">
-            <Label htmlFor="reject-comment">Rejection comment</Label>
+            <Label htmlFor="reject-comment">{t('admin.requests.dialogs.reject.commentLabel')}</Label>
             <Textarea
               id="reject-comment"
               rows={4}
@@ -1556,13 +1624,15 @@ export function AdminRequestsPage() {
               onChange={(event) => setRejectComment(event.target.value)}
             />
             {rejectComment.trim().length === 0 ? (
-              <p className="text-xs text-destructive">Comment is required.</p>
+              <p className="text-xs text-destructive">
+                {t('admin.requests.dialogs.reject.commentRequired')}
+              </p>
             ) : null}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={rejectMutation.isPending}>
-              Cancel
+              {t('actions.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -1578,8 +1648,12 @@ export function AdminRequestsPage() {
                 })
               }}
             >
-              {rejectMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {rejectMutation.isPending ? 'Rejecting...' : 'Reject request'}
+              {rejectMutation.isPending ? (
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+              ) : null}
+              {rejectMutation.isPending
+                ? t('admin.requests.dialogs.reject.rejecting')
+                : t('admin.requests.dialogs.reject.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1600,19 +1674,19 @@ export function AdminRequestsPage() {
               <div className="space-y-4">
                 <div className="rounded-xl border p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Current live public profile
+                    {t('admin.requests.dialogs.visibilityDecision.currentLivePublicProfile')}
                   </p>
                   <p className="mt-2 text-sm text-slate-700">
-                    {formatVisibilityFieldList(visibilityDecisionTarget.request.liveFieldKeys)}
+                    {formatVisibilityFieldList(visibilityDecisionTarget.request.liveFieldKeys, t)}
                   </p>
                 </div>
 
                 <div className="rounded-xl border p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Requested public profile
+                    {t('admin.requests.dialogs.visibilityDecision.requestedPublicProfile')}
                   </p>
                   <p className="mt-2 text-sm text-slate-700">
-                    {formatVisibilityFieldList(visibilityDecisionTarget.request.requestedFieldKeys)}
+                    {formatVisibilityFieldList(visibilityDecisionTarget.request.requestedFieldKeys, t)}
                   </p>
                 </div>
 
@@ -1625,7 +1699,9 @@ export function AdminRequestsPage() {
                     onChange={(event) => setVisibilityReviewNote(event.target.value)}
                   />
                   {visibilityNoteRequired && visibilityReviewNote.trim().length === 0 ? (
-                    <p className="text-xs text-destructive">A review note is required.</p>
+                    <p className="text-xs text-destructive">
+                      {t('admin.requests.dialogs.visibilityDecision.reviewNoteRequired')}
+                    </p>
                   ) : null}
                 </div>
               </div>
@@ -1637,7 +1713,7 @@ export function AdminRequestsPage() {
                   disabled={visibilityDecisionMutation.isPending}
                   onClick={() => setVisibilityDecisionTarget(null)}
                 >
-                  Cancel
+                  {t('actions.cancel')}
                 </Button>
                 <Button
                   type="button"
@@ -1656,10 +1732,10 @@ export function AdminRequestsPage() {
                   }}
                 >
                   {visibilityDecisionMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                   ) : null}
                   {visibilityDecisionMutation.isPending
-                    ? 'Saving...'
+                    ? t('admin.requests.dialogs.visibilityDecision.saving')
                     : visibilityDialogCopy.confirmLabel}
                 </Button>
               </DialogFooter>
@@ -1686,6 +1762,7 @@ function RequestRowActions({
   onApprove,
   onReject,
 }: RequestRowActionsProps) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
@@ -1712,7 +1789,7 @@ function RequestRowActions({
         type="button"
         size="icon"
         variant="ghost"
-        aria-label={`Actions for request ${request.id}`}
+        aria-label={`${t('admin.requests.tables.actions')} ${request.id}`}
         onClick={() => setIsOpen((current) => !current)}
       >
         <MoreHorizontal className="h-4 w-4" />
@@ -1726,7 +1803,7 @@ function RequestRowActions({
               onViewDetails()
             }}
           >
-            View details
+            {t('actions.viewDetails')}
           </ActionMenuItem>
           <ActionMenuItem
             onClick={() => {
@@ -1734,7 +1811,7 @@ function RequestRowActions({
               onOpenEmployee()
             }}
           >
-            Open employee profile
+            {t('actions.openEmployeeProfile')}
           </ActionMenuItem>
           {request.statutDemande === 'EN_ATTENTE' ? (
             <>
@@ -1744,7 +1821,7 @@ function RequestRowActions({
                   onApprove()
                 }}
               >
-                Approve
+                {t('actions.approve')}
               </ActionMenuItem>
               <ActionMenuItem
                 className="text-destructive hover:bg-destructive/10"
@@ -1753,7 +1830,7 @@ function RequestRowActions({
                   onReject()
                 }}
               >
-                Reject
+                {t('actions.reject')}
               </ActionMenuItem>
             </>
           ) : null}
@@ -1780,6 +1857,7 @@ function VisibilityRequestRowActions({
   onApprove,
   onReject,
 }: VisibilityRequestRowActionsProps) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
@@ -1806,7 +1884,7 @@ function VisibilityRequestRowActions({
         type="button"
         size="icon"
         variant="ghost"
-        aria-label={`Actions for visibility request ${request.id}`}
+        aria-label={`${t('admin.requests.tables.actions')} ${request.id}`}
         onClick={() => setIsOpen((current) => !current)}
       >
         <MoreHorizontal className="h-4 w-4" />
@@ -1820,7 +1898,7 @@ function VisibilityRequestRowActions({
               onViewDetails()
             }}
           >
-            View details
+            {t('actions.viewDetails')}
           </ActionMenuItem>
           <ActionMenuItem
             onClick={() => {
@@ -1828,7 +1906,7 @@ function VisibilityRequestRowActions({
               onOpenEmployee()
             }}
           >
-            Open employee profile
+            {t('actions.openEmployeeProfile')}
           </ActionMenuItem>
           {isOpenVisibilityRequest(request) ? (
             <>
@@ -1839,7 +1917,7 @@ function VisibilityRequestRowActions({
                     onMarkInReview()
                   }}
                 >
-                  Move to in review
+                  {t('actions.markInReview')}
                 </ActionMenuItem>
               ) : null}
               <ActionMenuItem
@@ -1848,7 +1926,7 @@ function VisibilityRequestRowActions({
                   onApprove()
                 }}
               >
-                Approve
+                {t('actions.approve')}
               </ActionMenuItem>
               <ActionMenuItem
                 className="text-destructive hover:bg-destructive/10"
@@ -1857,7 +1935,7 @@ function VisibilityRequestRowActions({
                   onReject()
                 }}
               >
-                Reject
+                {t('actions.reject')}
               </ActionMenuItem>
             </>
           ) : null}

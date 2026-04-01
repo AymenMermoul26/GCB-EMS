@@ -6,6 +6,7 @@ import {
 } from '@/components/layout/employee/EmployeeSidebar'
 import { NotificationsMenu } from '@/components/navigation/notifications-menu'
 import { env } from '@/config/env'
+import { useI18n } from '@/hooks/use-i18n'
 
 interface EmployeeLayoutProps extends PropsWithChildren {
   title: string
@@ -21,8 +22,10 @@ export function EmployeeLayout({
   userEmail,
   children,
 }: EmployeeLayoutProps) {
+  const { direction, t } = useI18n()
+
   return (
-    <div className="min-h-screen bg-slate-100/70">
+    <div className="min-h-screen bg-slate-100/70" dir={direction}>
       <div className="mx-auto flex max-w-[1700px] gap-3 p-3 lg:gap-4 lg:p-4">
         <EmployeeSidebar
           onSignOut={onSignOut}
@@ -41,7 +44,7 @@ export function EmployeeLayout({
                 />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-900">{env.VITE_APP_NAME}</p>
-                  <p className="truncate text-xs text-muted-foreground">Employee workspace</p>
+                  <p className="truncate text-xs text-muted-foreground">{t('shell.employeeWorkspace')}</p>
                 </div>
               </div>
               <NotificationsMenu />

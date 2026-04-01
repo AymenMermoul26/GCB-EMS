@@ -1,5 +1,6 @@
 import type { Employee, UpdateEmployeePayload } from '@/types/employee'
 import type { ModificationRequestField } from '@/types/modification-request'
+import type { TranslateFn } from '@/i18n/messages'
 
 export const REQUEST_FIELD_LABELS: Record<ModificationRequestField, string> = {
   poste: 'Job Title',
@@ -8,6 +9,20 @@ export const REQUEST_FIELD_LABELS: Record<ModificationRequestField, string> = {
   photo_url: 'Photo URL',
   nom: 'Last Name',
   prenom: 'First Name',
+}
+
+export function getRequestFieldLabel(
+  field: ModificationRequestField,
+  t?: TranslateFn,
+): string {
+  if (!t) {
+    return REQUEST_FIELD_LABELS[field]
+  }
+
+  const translated = t(`requests.fields.${field}`)
+  return translated === `requests.fields.${field}`
+    ? REQUEST_FIELD_LABELS[field]
+    : translated
 }
 
 export function getEmployeeFieldValue(

@@ -11,6 +11,7 @@ import { RoleRoute } from '@/components/guards/role-route'
 import { APP_ROLES } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { AuditLogPage } from '@/pages/admin/AuditLogPage'
 import { AdminDashboardPage } from '@/pages/admin/admin-dashboard-page'
 import { AdminEmployeeCreatePage } from '@/pages/admin/admin-employee-create-page'
@@ -48,9 +49,10 @@ import { ServerErrorPage } from '@/pages/server-error-page'
 
 function HomeRedirect() {
   const { user, role, isLoading } = useAuth()
+  const { t } = useI18n()
 
   if (isLoading) {
-    return <FullScreenLoader label="Initializing..." />
+    return <FullScreenLoader label={t('shell.initializing')} />
   }
 
   if (!user) {

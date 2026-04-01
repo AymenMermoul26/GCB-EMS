@@ -12,9 +12,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { useRecoveryRoute } from '@/hooks/use-recovery-route'
+import { cn } from '@/lib/utils'
 import {
-  firstLoginSetPasswordSchema,
+  createFirstLoginSetPasswordSchema,
   type FirstLoginSetPasswordFormValues,
 } from '@/schemas/changePasswordSchema'
 import { authService } from '@/services/auth'
@@ -70,6 +72,7 @@ export function ResetPasswordPage() {
   const navigate = useNavigate()
   const { goBack, primaryActionLabel, recoveryRoute } = useRecoveryRoute()
   const { isLoading, passwordRecoveryActive, user } = useAuth()
+  const { isRTL, t } = useI18n()
   const [submitFeedback, setSubmitFeedback] = useState<{
     type: 'success' | 'error'
     message: string
@@ -93,6 +96,10 @@ export function ResetPasswordPage() {
   const hasUrlRecoveryHint = useMemo(
     () => hasRecoveryHintInUrl(location.search, location.hash),
     [location.hash, location.search],
+  )
+  const firstLoginSetPasswordSchema = useMemo(
+    () => createFirstLoginSetPasswordSchema(t),
+    [t],
   )
 
   const form = useForm<FirstLoginSetPasswordFormValues>({
@@ -173,20 +180,20 @@ export function ResetPasswordPage() {
 
       clearRecoveryFlag()
       await authService.signOut()
-      toast.success('Your password has been reset. Sign in with your new password.')
+      toast.success(t('auth.reset.successMessage'))
 
       navigate(ROUTES.LOGIN, {
         replace: true,
         state: {
           authNotice: {
             type: 'success',
-            message: 'Your password has been reset. Sign in with your new password.',
+            message: t('auth.reset.successMessage'),
           },
         },
       })
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unable to reset your password right now.'
+        error instanceof Error ? error.message : t('auth.reset.genericError')
       toast.error(message)
       setSubmitFeedback({ type: 'error', message })
     }
@@ -204,23 +211,23 @@ export function ResetPasswordPage() {
   if (recoveryStatus === 'checking') {
     return (
       <AuthLayout
-        badge="Validating link"
-        title="Reset Password"
-        description="Validating your password reset link."
-        heroBadge="Reset session"
-        heroTitle="We are verifying your reset session securely."
-        heroDescription="Use the latest reset link from your email. Once the recovery session is confirmed, you can set a new password."
+        badge={t('auth.reset.validatingBadge')}
+        title={t('auth.reset.title')}
+        description={t('auth.reset.validatingDescription')}
+        heroBadge={t('auth.reset.validatingHeroBadge')}
+        heroTitle={t('auth.reset.validatingHeroTitle')}
+        heroDescription={t('auth.reset.validatingHeroDescription')}
         heroHighlights={[
-          'Recovery links are checked before password updates are allowed.',
-          'Only the latest valid reset session should be used.',
-          'You will return to sign-in after the password is updated.',
+          t('auth.reset.validatingHighlights.one'),
+          t('auth.reset.validatingHighlights.two'),
+          t('auth.reset.validatingHighlights.three'),
         ]}
         heroIcon={KeyRound}
         theme="reset"
       >
         <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-700">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Checking your reset session...
+          {t('auth.reset.checking')}
         </div>
       </AuthLayout>
     )
@@ -229,26 +236,24 @@ export function ResetPasswordPage() {
   if (recoveryStatus === 'invalid') {
     return (
       <AuthLayout
-        badge="Recovery expired"
-        title="Reset Password"
-        description="This password reset link is invalid, expired, or no longer active."
-        heroBadge="Reset unavailable"
-        heroTitle="Request a new password reset email and use the latest link."
-        heroDescription="Expired or reused links should not be trusted. Start a new recovery request and continue with the newest email you receive."
+        badge={t('auth.reset.invalidBadge')}
+        title={t('auth.reset.title')}
+        description={t('auth.reset.invalidDescription')}
+        heroBadge={t('auth.reset.invalidHeroBadge')}
+        heroTitle={t('auth.reset.invalidHeroTitle')}
+        heroDescription={t('auth.reset.invalidHeroDescription')}
         heroHighlights={[
-          'Use only the most recent reset email in your inbox.',
-          'Expired or invalid links cannot update your password.',
-          'You can request a fresh recovery link at any time.',
+          t('auth.reset.invalidHighlights.one'),
+          t('auth.reset.invalidHighlights.two'),
+          t('auth.reset.invalidHighlights.three'),
         ]}
         heroIcon={AlertTriangle}
         theme="reset"
       >
         <Alert variant="destructive" className="rounded-2xl">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Invalid reset session</AlertTitle>
-          <AlertDescription>
-            Request a new password reset email and use the latest link from your inbox.
-          </AlertDescription>
+          <AlertTitle>{t('auth.reset.invalidTitle')}</AlertTitle>
+          <AlertDescription>{t('auth.reset.invalidMessage')}</AlertDescription>
         </Alert>
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -256,7 +261,7 @@ export function ResetPasswordPage() {
             asChild
             className="h-11 flex-1 rounded-xl bg-gradient-to-r from-[#f97316] via-[#ea580c] to-[#d97706] font-semibold text-white shadow-lg shadow-orange-400/35 hover:opacity-95"
           >
-            <Link to={ROUTES.FORGOT_PASSWORD}>Request a new reset link</Link>
+            <Link to={ROUTES.FORGOT_PASSWORD}>{t('actions.requestNewResetLink')}</Link>
           </Button>
           <Button
             type="button"
@@ -270,8 +275,8 @@ export function ResetPasswordPage() {
 
         <Button asChild variant="ghost" className="h-11 w-full rounded-xl">
           <Link to={recoveryRoute}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            <ArrowLeft className={cn(isRTL ? 'ml-2 h-4 w-4 rotate-180' : 'mr-2 h-4 w-4')} />
+            {t('common.back')}
           </Link>
         </Button>
       </AuthLayout>
@@ -280,16 +285,16 @@ export function ResetPasswordPage() {
 
   return (
     <AuthLayout
-      badge="Create new password"
-      title="Set a New Password"
-      description="Choose a strong password with at least 8 characters."
-      heroBadge="Secure reset"
-      heroTitle="Set a new password and return to your secure sign-in flow."
-      heroDescription="Once the recovery session is valid, choose a strong password and continue with the updated credentials on the login page."
+      badge={t('auth.reset.createBadge')}
+      title={t('auth.reset.title')}
+      description={t('auth.reset.createDescription')}
+      heroBadge={t('auth.reset.createHeroBadge')}
+      heroTitle={t('auth.reset.createHeroTitle')}
+      heroDescription={t('auth.reset.createHeroDescription')}
       heroHighlights={[
-        'Use a strong password with at least eight characters.',
-        'Confirm the new password before the update is applied.',
-        'After the reset, sign in again with the new credentials.',
+        t('auth.reset.createHighlights.one'),
+        t('auth.reset.createHighlights.two'),
+        t('auth.reset.createHighlights.three'),
       ]}
       heroIcon={KeyRound}
       theme="reset"
@@ -300,7 +305,9 @@ export function ResetPasswordPage() {
           className="rounded-2xl"
         >
           <AlertTitle>
-            {submitFeedback.type === 'success' ? 'Success' : 'Unable to reset password'}
+            {submitFeedback.type === 'success'
+              ? t('common.success')
+              : t('auth.reset.alertErrorTitle')}
           </AlertTitle>
           <AlertDescription>{submitFeedback.message}</AlertDescription>
         </Alert>
@@ -309,7 +316,7 @@ export function ResetPasswordPage() {
       <form className="space-y-4" onSubmit={onSubmit}>
         <PasswordField
           id="newPassword"
-          label="New password"
+          label={t('auth.reset.newPassword')}
           error={form.formState.errors.newPassword?.message}
           inputType={showPassword.newPassword ? 'text' : 'password'}
           isSubmitting={form.formState.isSubmitting}
@@ -320,7 +327,7 @@ export function ResetPasswordPage() {
 
         <PasswordField
           id="confirmNewPassword"
-          label="Confirm new password"
+          label={t('auth.reset.confirmNewPassword')}
           error={form.formState.errors.confirmNewPassword?.message}
           inputType={showPassword.confirmNewPassword ? 'text' : 'password'}
           isSubmitting={form.formState.isSubmitting}
@@ -330,7 +337,7 @@ export function ResetPasswordPage() {
         />
 
         <p className="text-xs text-slate-600">
-          After resetting your password, you will be returned to the login screen.
+          {t('auth.reset.afterResetHint')}
         </p>
 
         <Button
@@ -340,13 +347,13 @@ export function ResetPasswordPage() {
         >
           {form.formState.isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Updating password...
+              <Loader2 className={cn(isRTL ? 'ml-2 h-4 w-4 animate-spin' : 'mr-2 h-4 w-4 animate-spin')} />
+              {t('auth.reset.updating')}
             </>
           ) : (
             <>
-              <KeyRound className="mr-2 h-4 w-4" />
-              Reset password
+              <KeyRound className={cn(isRTL ? 'ml-2 h-4 w-4' : 'mr-2 h-4 w-4')} />
+              {t('actions.resetPassword')}
             </>
           )}
         </Button>
@@ -376,6 +383,8 @@ function PasswordField({
   onToggleVisibility,
   registration,
 }: PasswordFieldProps) {
+  const { isRTL, t } = useI18n()
+
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -384,17 +393,23 @@ function PasswordField({
           id={id}
           type={inputType}
           disabled={isSubmitting}
-          className="h-11 rounded-xl border-slate-200 bg-white/90 pr-11 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0"
+          className={cn(
+            'h-11 rounded-xl border-slate-200 bg-white/90 focus-visible:ring-[rgb(var(--brand-primary))/0.4] focus-visible:ring-offset-0',
+            isRTL ? 'pl-11' : 'pr-11',
+          )}
           {...registration}
         />
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-1 top-1 h-9 w-9 text-slate-500 hover:bg-transparent hover:text-slate-800"
+          className={cn(
+            'absolute top-1 h-9 w-9 text-slate-500 hover:bg-transparent hover:text-slate-800',
+            isRTL ? 'left-1' : 'right-1',
+          )}
           disabled={isSubmitting}
           onClick={onToggleVisibility}
-          aria-label={isVisible ? 'Hide password' : 'Show password'}
+          aria-label={isVisible ? t('common.hidePassword') : t('common.showPassword')}
         >
           {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>

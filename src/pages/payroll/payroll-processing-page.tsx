@@ -51,7 +51,9 @@ import {
   getPayrollRunRoute,
 } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import { cn } from '@/lib/utils'
 import {
   useCalculatePayrollRunMutation,
   useCreatePayrollPeriodMutation,
@@ -89,28 +91,29 @@ function formatSummaryValue(value: number | null): string {
   return value === null ? '\u2014' : String(value)
 }
 
-function formatDateRange(start: string, end: string): string {
-  return `${new Date(`${start}T00:00:00`).toLocaleDateString()} - ${new Date(`${end}T00:00:00`).toLocaleDateString()}`
+function formatDateRange(start: string, end: string, locale: string): string {
+  return `${new Date(`${start}T00:00:00`).toLocaleDateString(locale)} - ${new Date(`${end}T00:00:00`).toLocaleDateString(locale)}`
 }
 
-function formatTimestamp(value: string | null | undefined): string {
+function formatTimestamp(value: string | null | undefined, locale: string): string {
   if (!value) {
     return '\u2014'
   }
 
-  return new Date(value).toLocaleString()
+  return new Date(value).toLocaleString(locale)
 }
 
 function buildNextPeriodAction(
   status: PayrollPeriodStatus,
+  t: ReturnType<typeof useI18n>['t'],
 ): { label: string; nextStatus: PayrollPeriodStatus } | null {
   switch (status) {
     case 'DRAFT':
-      return { label: 'Open period', nextStatus: 'OPEN' }
+      return { label: t('payroll.processing.periodActions.open'), nextStatus: 'OPEN' }
     case 'OPEN':
-      return { label: 'Close period', nextStatus: 'CLOSED' }
+      return { label: t('payroll.processing.periodActions.close'), nextStatus: 'CLOSED' }
     case 'CLOSED':
-      return { label: 'Archive period', nextStatus: 'ARCHIVED' }
+      return { label: t('payroll.processing.periodActions.archive'), nextStatus: 'ARCHIVED' }
     default:
       return null
   }
@@ -118,18 +121,19 @@ function buildNextPeriodAction(
 
 function buildNextRunAction(
   status: PayrollProcessingStatus,
+  t: ReturnType<typeof useI18n>['t'],
 ): { label: string; nextStatus: PayrollProcessingStatus } | null {
   switch (status) {
     case 'DRAFT':
-      return { label: 'Calculate run', nextStatus: 'CALCULATED' }
+      return { label: t('payroll.processing.runActions.calculate'), nextStatus: 'CALCULATED' }
     case 'CALCULATED':
-      return { label: 'Send to review', nextStatus: 'UNDER_REVIEW' }
+      return { label: t('payroll.processing.runActions.review'), nextStatus: 'UNDER_REVIEW' }
     case 'UNDER_REVIEW':
-      return { label: 'Finalize run', nextStatus: 'FINALIZED' }
+      return { label: t('payroll.processing.runActions.finalize'), nextStatus: 'FINALIZED' }
     case 'FINALIZED':
-      return { label: 'Publish payslips', nextStatus: 'PUBLISHED' }
+      return { label: t('payroll.processing.runActions.publish'), nextStatus: 'PUBLISHED' }
     case 'PUBLISHED':
-      return { label: 'Archive run', nextStatus: 'ARCHIVED' }
+      return { label: t('payroll.processing.runActions.archive'), nextStatus: 'ARCHIVED' }
     default:
       return null
   }
@@ -179,8 +183,9 @@ function PeriodRow({
   isMutating: boolean
   onAdvance: (period: PayrollPeriod, nextStatus: PayrollPeriodStatus) => void
 }) {
-  const statusMeta = getPayrollPeriodStatusMeta(period.status)
-  const nextAction = buildNextPeriodAction(period.status)
+  const { t, locale } = useI18n()
+  const statusMeta = getPayrollPeriodStatusMeta(period.status, t)
+  const nextAction = buildNextPeriodAction(period.status, t)
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
@@ -194,12 +199,20 @@ function PeriodRow({
             </StatusBadge>
           </div>
           <p className="mt-2 text-sm text-slate-600">
-            {formatDateRange(period.periodStart, period.periodEnd)}
+            {formatDateRange(period.periodStart, period.periodEnd, locale)}
           </p>
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span>{period.runCount} run(s)</span>
-            <span>{period.publishedPayslipCount} published payslip(s)</span>
-            <span>Updated {formatTimestamp(period.updatedAt)}</span>
+            <span>{t('payroll.processing.runCount', { count: period.runCount })}</span>
+            <span>
+              {t('payroll.processing.publishedPayslipsCount', {
+                count: period.publishedPayslipCount,
+              })}
+            </span>
+            <span>
+              {t('payroll.processing.updatedAt', {
+                value: formatTimestamp(period.updatedAt, locale),
+              })}
+            </span>
           </div>
           {period.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{period.notes}</p> : null}
         </div>
@@ -231,8 +244,9 @@ function RunRow({
   isCalculating: boolean
   onAdvance: (run: PayrollRunSummary, nextStatus: PayrollProcessingStatus) => void
 }) {
-  const statusMeta = getPayrollProcessingStatusMeta(run.status)
-  const nextAction = buildNextRunAction(run.status)
+  const { t, locale, isRTL } = useI18n()
+  const statusMeta = getPayrollProcessingStatusMeta(run.status, t)
+  const nextAction = buildNextRunAction(run.status, t)
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
@@ -242,7 +256,7 @@ function RunRow({
             <p className="text-sm font-semibold text-slate-950">{run.code}</p>
             <StatusBadge tone={statusMeta.tone}>{statusMeta.label}</StatusBadge>
             <StatusBadge tone="neutral" emphasis="outline">
-              {getPayrollRunTypeLabel(run.runType)}
+              {getPayrollRunTypeLabel(run.runType, t)}
             </StatusBadge>
             <StatusBadge tone="neutral" emphasis="outline">
               {run.periodCode}
@@ -250,17 +264,38 @@ function RunRow({
           </div>
           <p className="mt-2 text-sm text-slate-600">{run.periodLabel}</p>
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span>{run.employeeCount} employee entry(ies)</span>
-            <span>{run.calculatedEmployeeCount} calculated</span>
-            <span>{run.excludedEmployeeCount} excluded</span>
-            <span>{run.publishedPayslipCount} published payslip(s)</span>
-            <span>Created {formatTimestamp(run.createdAt)}</span>
+            <span>{t('payroll.processing.employeeEntries', { count: run.employeeCount })}</span>
+            <span>{t('payroll.processing.calculatedCount', { count: run.calculatedEmployeeCount })}</span>
+            <span>{t('payroll.processing.excludedCount', { count: run.excludedEmployeeCount })}</span>
+            <span>{t('payroll.processing.publishedPayslipsCount', { count: run.publishedPayslipCount })}</span>
+            <span>{t('payroll.processing.createdAt', { value: formatTimestamp(run.createdAt, locale) })}</span>
           </div>
           {run.status !== 'DRAFT' ? (
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-              <span>Gross {run.totalGrossPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span>Deductions {run.totalDeductionsAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span>Net {run.totalNetPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span>
+                {t('payroll.processing.gross', {
+                  value: run.totalGrossPay.toLocaleString(locale, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }),
+                })}
+              </span>
+              <span>
+                {t('payroll.processing.deductions', {
+                  value: run.totalDeductionsAmount.toLocaleString(locale, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }),
+                })}
+              </span>
+              <span>
+                {t('payroll.processing.net', {
+                  value: run.totalNetPay.toLocaleString(locale, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }),
+                })}
+              </span>
             </div>
           ) : null}
           {run.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{run.notes}</p> : null}
@@ -269,8 +304,8 @@ function RunRow({
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">
             <Link to={getPayrollRunRoute(run.id)}>
-              Open run
-              <ArrowRight className="ml-2 h-4 w-4" />
+              {t('payroll.processing.openRun')}
+              <ArrowRight className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')} />
             </Link>
           </Button>
           {nextAction ? (
@@ -281,7 +316,7 @@ function RunRow({
               onClick={() => onAdvance(run, nextAction.nextStatus)}
             >
               {nextAction.nextStatus === 'CALCULATED' && isCalculating
-                ? 'Calculating...'
+                ? t('payroll.processing.calculating')
                 : nextAction.label}
             </Button>
           ) : null}
@@ -292,33 +327,29 @@ function RunRow({
 }
 
 function LifecycleReferenceCard() {
+  const { t } = useI18n()
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
           <ShieldCheck className="h-4 w-4 text-slate-600" />
-          Processing lifecycle reference
+          {t('payroll.processing.lifecycleTitle')}
         </CardTitle>
         <CardDescription>
-          Payroll runs now use a simplified fixed-input calculation model while preserving the
-          controlled review and publication lifecycle.
+          {t('payroll.processing.lifecycleDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
         <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-          <p className="font-medium text-slate-900">Payroll periods</p>
-          <p className="mt-1">Draft -&gt; Open -&gt; Closed -&gt; Archived</p>
+          <p className="font-medium text-slate-900">{t('payroll.processing.lifecyclePeriods')}</p>
+          <p className="mt-1">{t('payroll.processing.lifecyclePeriodsFlow')}</p>
         </div>
         <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-          <p className="font-medium text-slate-900">Payroll runs</p>
-          <p className="mt-1">
-            Draft -&gt; Calculated -&gt; Under review -&gt; Finalized -&gt; Published -&gt; Archived
-          </p>
+          <p className="font-medium text-slate-900">{t('payroll.processing.lifecycleRuns')}</p>
+          <p className="mt-1">{t('payroll.processing.lifecycleRunsFlow')}</p>
         </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          Simplified run calculation uses fixed base salary, fixed allowances, and fixed
-          deductions. Advanced statutory payroll rules remain intentionally out of scope in this
-          phase.
+          {t('payroll.processing.lifecycleWarning')}
         </div>
       </CardContent>
     </Card>
@@ -327,6 +358,7 @@ function LifecycleReferenceCard() {
 
 export function PayrollProcessingPage() {
   const { signOut, user } = useAuth()
+  const { t, isRTL } = useI18n()
   const [selectedPeriodId, setSelectedPeriodId] = useState('all')
   const [isCreatePeriodDialogOpen, setIsCreatePeriodDialogOpen] = useState(false)
   const [isCreateRunDialogOpen, setIsCreateRunDialogOpen] = useState(false)
@@ -354,19 +386,23 @@ export function PayrollProcessingPage() {
 
   const createPeriodMutation = useCreatePayrollPeriodMutation(user?.id, {
     onSuccess: () => {
-      toast.success('Payroll period created.')
+      toast.success(t('payroll.processing.createPeriodSuccess'))
       setIsCreatePeriodDialogOpen(false)
       setPeriodForm({ code: '', label: '', periodStart: '', periodEnd: '', notes: '' })
     },
   })
   const updatePeriodStatusMutation = useUpdatePayrollPeriodStatusMutation(user?.id, {
     onSuccess: (_, variables) => {
-      toast.success(`Payroll period moved to ${variables.status.toLowerCase().replaceAll('_', ' ')}.`)
+      toast.success(
+        t('payroll.processing.movePeriodSuccess', {
+          status: getPayrollPeriodStatusMeta(variables.status, t).label,
+        }),
+      )
     },
   })
   const createRunMutation = useCreatePayrollRunMutation(user?.id, {
     onSuccess: () => {
-      toast.success('Payroll run created and seeded with active payroll-visible employees.')
+      toast.success(t('payroll.processing.createRunSuccess'))
       setIsCreateRunDialogOpen(false)
       setRunForm({ payrollPeriodId: '', code: '', runType: 'REGULAR', notes: '' })
     },
@@ -374,14 +410,20 @@ export function PayrollProcessingPage() {
   const calculateRunMutation = useCalculatePayrollRunMutation(user?.id, {
     onSuccess: (result) => {
       toast.success(
-        `Payroll calculation completed: ${result.calculatedEmployeeCount} calculated, ${result.excludedEmployeeCount} excluded.`,
+        t('payroll.processing.calculationSuccess', {
+          calculated: result.calculatedEmployeeCount,
+          excluded: result.excludedEmployeeCount,
+        }),
       )
     },
   })
   const updateRunStatusMutation = useUpdatePayrollRunStatusMutation(user?.id, {
     onSuccess: (_, variables) => {
-      const label = variables.status.toLowerCase().replaceAll('_', ' ')
-      toast.success(`Payroll run moved to ${label}.`)
+      toast.success(
+        t('payroll.processing.moveRunSuccess', {
+          status: getPayrollProcessingStatusMeta(variables.status, t).label,
+        }),
+      )
     },
   })
 
@@ -402,7 +444,7 @@ export function PayrollProcessingPage() {
     try {
       await createPeriodMutation.mutateAsync(periodForm)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create payroll period')
+      toast.error(error instanceof Error ? error.message : t('payroll.processing.createPeriodError'))
     }
   }
 
@@ -410,7 +452,7 @@ export function PayrollProcessingPage() {
     try {
       await createRunMutation.mutateAsync(runForm)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create payroll run')
+      toast.error(error instanceof Error ? error.message : t('payroll.processing.createRunError'))
     }
   }
 
@@ -442,7 +484,7 @@ export function PayrollProcessingPage() {
       })
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to update payroll period status',
+        error instanceof Error ? error.message : t('payroll.processing.updatePeriodError'),
       )
     }
   }
@@ -466,28 +508,28 @@ export function PayrollProcessingPage() {
         error instanceof Error
           ? error.message
           : nextStatus === 'CALCULATED'
-            ? 'Failed to calculate payroll run'
-            : 'Failed to update payroll run status',
+            ? t('payroll.processing.calculateRunError')
+            : t('payroll.processing.updateRunError'),
       )
     }
   }
 
   return (
     <PayrollLayout
-      title="Payroll Processing"
-      subtitle="Controlled payroll processing foundation and lifecycle preparation."
+      title={t('payroll.processing.title')}
+      subtitle={t('payroll.processing.subtitle')}
       onSignOut={signOut}
       userEmail={user?.email ?? null}
     >
       <PageHeader
-        title="Payroll Processing"
-        description="Create payroll periods and seeded payroll runs, calculate simplified payroll results from fixed compensation inputs, and move payroll runs through review, finalization, and publication."
+        title={t('payroll.processing.headerTitle')}
+        description={t('payroll.processing.headerDescription')}
         className="mb-6"
         badges={
           <>
-            <StatusBadge tone="brand">Simplified engine</StatusBadge>
+            <StatusBadge tone="brand">{t('payroll.processing.simplifiedEngine')}</StatusBadge>
             <StatusBadge tone="neutral" emphasis="outline">
-              Fixed inputs only
+              {t('payroll.processing.fixedInputsOnly')}
             </StatusBadge>
           </>
         }
@@ -495,14 +537,14 @@ export function PayrollProcessingPage() {
           <>
             <Button asChild variant="outline">
               <Link to={ROUTES.PAYROLL_EMPLOYEES}>
-                View payroll employees
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {t('payroll.processing.viewPayrollEmployees')}
+                <ArrowRight className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')} />
               </Link>
             </Button>
             <Button asChild variant="outline">
               <Link to={ROUTES.PAYROLL_COMPENSATION}>
-                Configure compensation
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {t('payroll.processing.configureCompensation')}
+                <ArrowRight className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')} />
               </Link>
             </Button>
           </>
@@ -529,24 +571,24 @@ export function PayrollProcessingPage() {
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
-              title="Payroll periods"
+              title={t('payroll.processing.summaries.periods')}
               value={periodsQuery.isPending ? null : periods.length}
-              helper="Configured payroll periods ready for lifecycle control."
+              helper={t('payroll.processing.summaries.periodsHelper')}
             />
             <SummaryCard
-              title="Open periods"
+              title={t('payroll.processing.summaries.openPeriods')}
               value={periodsQuery.isPending ? null : openPeriodsCount}
-              helper="Periods currently available for active payroll processing."
+              helper={t('payroll.processing.summaries.openPeriodsHelper')}
             />
             <SummaryCard
-              title="Payroll runs"
+              title={t('payroll.processing.summaries.runs')}
               value={runsQuery.isPending ? null : runs.length}
-              helper="Runs visible in the current payroll period filter."
+              helper={t('payroll.processing.summaries.runsHelper')}
             />
             <SummaryCard
-              title="Published payslips"
+              title={t('payroll.processing.summaries.publishedPayslips')}
               value={periodsQuery.isPending ? null : publishedPayslipsCount}
-              helper="Payslip metadata rows already published after payroll run publication."
+              helper={t('payroll.processing.summaries.publishedPayslipsHelper')}
             />
           </div>
 
@@ -556,33 +598,33 @@ export function PayrollProcessingPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
                     <CalendarDays className="h-4 w-4 text-slate-600" />
-                    Payroll periods
+                    {t('payroll.processing.periodsTitle')}
                   </CardTitle>
                   <CardDescription>
-                    Create payroll periods first, then advance them through the controlled period lifecycle.
+                    {t('payroll.processing.periodsDescription')}
                   </CardDescription>
                 </div>
                 <Button type="button" onClick={() => setIsCreatePeriodDialogOpen(true)}>
-                  New period
+                  {t('payroll.processing.newPeriod')}
                 </Button>
               </CardHeader>
               <CardContent>
                 {periodsQuery.isError ? (
-                  <ErrorState
-                    surface="plain"
-                    align="left"
-                    title="Could not load payroll periods"
-                    description="We couldn't load payroll periods right now."
-                    message={periodsQuery.error.message}
+                <ErrorState
+                  surface="plain"
+                  align="left"
+                  title={t('payroll.processing.periodsLoadErrorTitle')}
+                  description={t('payroll.processing.periodsLoadErrorDescription')}
+                  message={periodsQuery.error.message}
                     onRetry={() => void periodsQuery.refetch()}
                   />
                 ) : periods.length === 0 ? (
-                  <EmptyState
-                    surface="plain"
-                    align="left"
-                    title="No payroll periods yet"
-                    description="Create the first payroll period to start controlled payroll calculation and publication."
-                  />
+                <EmptyState
+                  surface="plain"
+                  align="left"
+                  title={t('payroll.processing.noPeriodsTitle')}
+                  description={t('payroll.processing.noPeriodsDescription')}
+                />
                 ) : (
                   <div className="space-y-3">
                     {periods.map((period) => (
@@ -606,20 +648,20 @@ export function PayrollProcessingPage() {
               <div>
                 <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
                   <ClipboardList className="h-4 w-4 text-slate-600" />
-                  Payroll runs
+                  {t('payroll.processing.runsTitle')}
                 </CardTitle>
                 <CardDescription>
-                  Seed payroll runs from the current active payroll-visible employee scope, calculate fixed-input payroll results, then move them through review and publication.
+                  {t('payroll.processing.runsDescription')}
                 </CardDescription>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-                  <SelectTrigger className="min-w-[220px]" aria-label="Filter runs by payroll period">
-                    <SelectValue placeholder="All periods" />
+                  <SelectTrigger className="min-w-[220px]" aria-label={t('payroll.processing.payrollPeriod')}>
+                    <SelectValue placeholder={t('payroll.processing.allPeriods')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All periods</SelectItem>
+                    <SelectItem value="all">{t('payroll.processing.allPeriods')}</SelectItem>
                     {periods.map((period) => (
                       <SelectItem key={period.id} value={period.id}>
                         {period.label}
@@ -632,7 +674,7 @@ export function PayrollProcessingPage() {
                   onClick={handleOpenCreateRunDialog}
                   disabled={nonArchivedPeriods.length === 0}
                 >
-                  New run
+                  {t('payroll.processing.newRun')}
                 </Button>
               </div>
             </CardHeader>
@@ -641,8 +683,8 @@ export function PayrollProcessingPage() {
                 <ErrorState
                   surface="plain"
                   align="left"
-                  title="Could not load payroll runs"
-                  description="We couldn't load payroll runs right now."
+                  title={t('payroll.processing.runsLoadErrorTitle')}
+                  description={t('payroll.processing.runsLoadErrorDescription')}
                   message={runsQuery.error.message}
                   onRetry={() => void runsQuery.refetch()}
                 />
@@ -652,8 +694,8 @@ export function PayrollProcessingPage() {
                 <EmptyState
                   surface="plain"
                   align="left"
-                  title="No payroll runs yet"
-                  description="Create a payroll run to seed employee entries for a payroll period."
+                  title={t('payroll.processing.noRunsTitle')}
+                  description={t('payroll.processing.noRunsDescription')}
                 />
               ) : (
                 <div className="space-y-3">
@@ -675,10 +717,10 @@ export function PayrollProcessingPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
                 <Activity className="h-4 w-4 text-slate-600" />
-                Recent payroll processing activity
+                {t('payroll.processing.activityTitle')}
               </CardTitle>
                 <CardDescription>
-                  Calculation, lifecycle, and publication actions recorded for this payroll account.
+                  {t('payroll.processing.activityDescription')}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -686,8 +728,8 @@ export function PayrollProcessingPage() {
                 <ErrorState
                   surface="plain"
                   align="left"
-                  title="Could not load payroll processing activity"
-                  description="We couldn't load payroll processing activity right now."
+                  title={t('payroll.processing.activityLoadErrorTitle')}
+                  description={t('payroll.processing.activityLoadErrorDescription')}
                   message={activityQuery.error.message}
                   onRetry={() => void activityQuery.refetch()}
                 />
@@ -697,8 +739,8 @@ export function PayrollProcessingPage() {
                 <EmptyState
                   surface="plain"
                   align="left"
-                  title="No payroll processing activity yet"
-                  description="Created periods, calculated runs, lifecycle changes, and published payslip metadata will appear here."
+                  title={t('payroll.processing.activityEmptyTitle')}
+                  description={t('payroll.processing.activityEmptyDescription')}
                 />
               ) : (
                 <div className="space-y-3">
@@ -715,37 +757,37 @@ export function PayrollProcessingPage() {
       <Dialog open={isCreatePeriodDialogOpen} onOpenChange={setIsCreatePeriodDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Create payroll period</DialogTitle>
+            <DialogTitle>{t('payroll.processing.createPeriodTitle')}</DialogTitle>
             <DialogDescription>
-              Define the payroll period window and create the lifecycle anchor for future payroll runs.
+              {t('payroll.processing.createPeriodDescription')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="payroll-period-code">Code</Label>
+              <Label htmlFor="payroll-period-code">{t('payroll.processing.periodCode')}</Label>
               <Input
                 id="payroll-period-code"
                 value={periodForm.code}
                 onChange={(event) =>
                   setPeriodForm((current) => ({ ...current, code: event.target.value }))
                 }
-                placeholder="e.g. 2026-03"
+                placeholder={t('payroll.processing.periodCodePlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="payroll-period-label">Label</Label>
+              <Label htmlFor="payroll-period-label">{t('payroll.processing.periodLabel')}</Label>
               <Input
                 id="payroll-period-label"
                 value={periodForm.label}
                 onChange={(event) =>
                   setPeriodForm((current) => ({ ...current, label: event.target.value }))
                 }
-                placeholder="e.g. March 2026 Payroll"
+                placeholder={t('payroll.processing.periodLabelPlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="payroll-period-start">Period start</Label>
+              <Label htmlFor="payroll-period-start">{t('payroll.processing.periodStart')}</Label>
               <Input
                 id="payroll-period-start"
                 type="date"
@@ -756,7 +798,7 @@ export function PayrollProcessingPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="payroll-period-end">Period end</Label>
+              <Label htmlFor="payroll-period-end">{t('payroll.processing.periodEnd')}</Label>
               <Input
                 id="payroll-period-end"
                 type="date"
@@ -767,14 +809,14 @@ export function PayrollProcessingPage() {
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="payroll-period-notes">Notes</Label>
+              <Label htmlFor="payroll-period-notes">{t('payroll.processing.notes')}</Label>
               <Textarea
                 id="payroll-period-notes"
                 value={periodForm.notes ?? ''}
                 onChange={(event) =>
                   setPeriodForm((current) => ({ ...current, notes: event.target.value }))
                 }
-                placeholder="Optional operational notes for the payroll period."
+                placeholder={t('payroll.processing.periodNotesPlaceholder')}
                 rows={4}
               />
             </div>
@@ -787,14 +829,16 @@ export function PayrollProcessingPage() {
               onClick={() => setIsCreatePeriodDialogOpen(false)}
               disabled={createPeriodMutation.isPending}
             >
-              Cancel
+              {t('actions.cancel')}
             </Button>
             <Button
               type="button"
               onClick={() => void handleCreatePeriod()}
               disabled={createPeriodMutation.isPending}
             >
-              {createPeriodMutation.isPending ? 'Creating...' : 'Create period'}
+              {createPeriodMutation.isPending
+                ? t('payroll.processing.creating')
+                : t('actions.createPeriod')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -803,15 +847,15 @@ export function PayrollProcessingPage() {
       <Dialog open={isCreateRunDialogOpen} onOpenChange={setIsCreateRunDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Create payroll run</DialogTitle>
+            <DialogTitle>{t('payroll.processing.createRunTitle')}</DialogTitle>
             <DialogDescription>
-              Seed a payroll run from the current active payroll-visible employee scope for the selected payroll period.
+              {t('payroll.processing.createRunDescription')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="payroll-run-period">Payroll period</Label>
+              <Label htmlFor="payroll-run-period">{t('payroll.processing.payrollPeriod')}</Label>
               <Select
                 value={runForm.payrollPeriodId}
                 onValueChange={(value) =>
@@ -819,7 +863,7 @@ export function PayrollProcessingPage() {
                 }
               >
                 <SelectTrigger id="payroll-run-period">
-                  <SelectValue placeholder="Select a payroll period" />
+                  <SelectValue placeholder={t('payroll.processing.selectPayrollPeriod')} />
                 </SelectTrigger>
                 <SelectContent>
                   {nonArchivedPeriods.map((period) => (
@@ -831,18 +875,18 @@ export function PayrollProcessingPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="payroll-run-code">Run code</Label>
+              <Label htmlFor="payroll-run-code">{t('payroll.processing.runCode')}</Label>
               <Input
                 id="payroll-run-code"
                 value={runForm.code}
                 onChange={(event) =>
                   setRunForm((current) => ({ ...current, code: event.target.value }))
                 }
-                placeholder="e.g. 2026-03-REG-01"
+                placeholder={t('payroll.processing.runCodePlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="payroll-run-type">Run type</Label>
+              <Label htmlFor="payroll-run-type">{t('payroll.processing.runType')}</Label>
               <Select
                 value={runForm.runType}
                 onValueChange={(value) =>
@@ -850,33 +894,33 @@ export function PayrollProcessingPage() {
                 }
               >
                 <SelectTrigger id="payroll-run-type">
-                  <SelectValue placeholder="Run type" />
+                  <SelectValue placeholder={t('payroll.processing.runTypePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {RUN_TYPE_OPTIONS.map((runType) => (
                     <SelectItem key={runType} value={runType}>
-                      {getPayrollRunTypeLabel(runType)}
+                      {getPayrollRunTypeLabel(runType, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="payroll-run-notes">Notes</Label>
+              <Label htmlFor="payroll-run-notes">{t('payroll.processing.notes')}</Label>
               <Textarea
                 id="payroll-run-notes"
                 value={runForm.notes ?? ''}
                 onChange={(event) =>
                   setRunForm((current) => ({ ...current, notes: event.target.value }))
                 }
-                placeholder="Optional operational notes for the payroll run."
+                placeholder={t('payroll.processing.runNotesPlaceholder')}
                 rows={4}
               />
             </div>
           </div>
 
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-            Run creation seeds employee entries from the current active payroll-visible employee scope only. Fixed compensation profiles are configured separately, then applied by the backend calculation engine.
+            {t('payroll.processing.runCreationWarning')}
           </div>
 
           <DialogFooter className="gap-2">
@@ -886,14 +930,16 @@ export function PayrollProcessingPage() {
               onClick={() => setIsCreateRunDialogOpen(false)}
               disabled={createRunMutation.isPending}
             >
-              Cancel
+              {t('actions.cancel')}
             </Button>
             <Button
               type="button"
               onClick={() => void handleCreateRun()}
               disabled={createRunMutation.isPending || nonArchivedPeriods.length === 0}
             >
-              {createRunMutation.isPending ? 'Creating...' : 'Create run'}
+              {createRunMutation.isPending
+                ? t('payroll.processing.creating')
+                : t('actions.createRun')}
             </Button>
           </DialogFooter>
         </DialogContent>
