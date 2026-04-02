@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react'
 
 import { PayrollSidebar, PayrollSidebarMobile } from '@/components/layout/payroll/PayrollSidebar'
+import { PayrollNotificationsMenu } from '@/components/navigation/payroll-notifications-menu'
 import { env } from '@/config/env'
 import { useI18n } from '@/hooks/use-i18n'
 
@@ -43,6 +44,7 @@ export function PayrollLayout({
                   <p className="truncate text-xs text-muted-foreground">{t('shell.payrollWorkspace')}</p>
                 </div>
               </div>
+              <PayrollNotificationsMenu />
             </div>
           </header>
 

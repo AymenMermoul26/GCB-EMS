@@ -213,7 +213,7 @@ export function getLoginRoleConfigs(t: TranslateFn): LoginRoleConfig[] {
     {
       id: 'payroll',
       label: t('auth.login.roles.payroll.label'),
-      defaultEmail: 'lina.boudiaf@gcb.com',
+      defaultEmail: 'payrollagent@gcb.com',
       badge: t('auth.login.roles.payroll.badge'),
       title: t('auth.login.roles.payroll.title'),
       description: t('auth.login.roles.payroll.description'),

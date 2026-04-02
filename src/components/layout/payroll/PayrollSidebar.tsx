@@ -314,7 +314,16 @@ function PayrollSidebarContent({
         </button>
       </div>
 
-      <nav className="relative mt-5 flex-1 space-y-2">
+      <div
+        className={cn(
+          'mt-4 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-2.5',
+          compactMode && 'px-2 py-2',
+        )}
+      >
+        <LanguageSwitcher variant="sidebar" compact={compactMode} />
+      </div>
+
+      <nav className="relative mt-5 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         <span
           className={cn(
             'pointer-events-none absolute z-0 rounded-2xl border border-white/25 bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_20px_38px_-20px_rgba(255,107,53,1)] will-change-transform',
@@ -414,7 +423,6 @@ function PayrollSidebarContent({
             <p className="truncate text-sm text-slate-700">{userEmail ?? t('common.noEmail')}</p>
           </div>
         </div>
-        <LanguageSwitcher variant="sidebar" compact={compactMode} />
 
         <div className={cn('flex items-center justify-between gap-2', compactMode && 'justify-center')}>
           <StatusBadge tone="neutral" emphasis="outline" className="bg-white">

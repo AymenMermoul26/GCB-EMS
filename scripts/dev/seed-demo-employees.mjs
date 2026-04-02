@@ -162,7 +162,7 @@ const DEMO_EMPLOYEES = [
     firstName: 'Lina',
     lastName: 'Boudiaf',
     poste: 'Financial Controller',
-    email: 'lina.boudiaf@gcb.com',
+    email: 'payrollagent@gcb.com',
     telephone: '+213612345604',
     department: 'D\u00E9partement Finance et Comptabilit\u00E9',
     regionalBranch: 'Hassi Messaoud',

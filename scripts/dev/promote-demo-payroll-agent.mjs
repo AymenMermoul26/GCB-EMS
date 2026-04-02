@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const DEFAULT_ADMIN_EMAIL = 'hrAdmin@gcb.com'
 const DEFAULT_ADMIN_PASSWORD = 'hradmingcb2026'
-const DEFAULT_TARGET_EMAIL = 'lina.boudiaf@gcb.com'
+const DEFAULT_TARGET_EMAIL = 'payrollagent@gcb.com'
 
 function loadDotEnvFile() {
   const envPath = path.resolve(process.cwd(), '.env')

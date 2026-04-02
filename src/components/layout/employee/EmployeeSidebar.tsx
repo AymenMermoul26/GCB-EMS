@@ -313,7 +313,16 @@ function EmployeeSidebarContent({
         </button>
       </div>
 
-      <nav className="relative mt-5 flex-1 space-y-2">
+      <div
+        className={cn(
+          'mt-4 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-2.5',
+          compactMode && 'px-2 py-2',
+        )}
+      >
+        <LanguageSwitcher variant="sidebar" compact={compactMode} />
+      </div>
+
+      <nav className="relative mt-5 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         <span
           className={cn(
             'pointer-events-none absolute z-0 rounded-2xl border border-white/25 bg-[linear-gradient(135deg,rgb(var(--brand-primary)),rgb(var(--brand-accent)))] shadow-[0_20px_38px_-20px_rgba(255,107,53,1)] will-change-transform',
@@ -433,7 +442,6 @@ function EmployeeSidebarContent({
             <span className="text-[11px] text-muted-foreground">{t('sidebar.employee.profileUnavailable')}</span>
           ) : null}
         </div>
-        <LanguageSwitcher variant="sidebar" compact={compactMode} />
 
         <Button
           type="button"

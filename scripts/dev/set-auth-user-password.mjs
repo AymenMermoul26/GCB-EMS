@@ -4,7 +4,7 @@ import process from 'node:process'
 
 import { createClient } from '@supabase/supabase-js'
 
-const DEFAULT_EMAIL = 'lina.boudiaf@gcb.com'
+const DEFAULT_EMAIL = 'payrollagent@gcb.com'
 const DEFAULT_PASSWORD = 'GcbEmployee2026!'
 
 function loadDotEnvFile() {
