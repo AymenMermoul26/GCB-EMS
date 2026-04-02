@@ -3,10 +3,14 @@ import {
   ArrowRight,
   ChevronLeft,
   Calculator,
+  Clock3,
+  ExternalLink,
+  FileDown,
+  Loader2,
   ShieldCheck,
   Users,
 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -27,6 +31,14 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { PayslipWorkflowTimeline } from '@/components/payroll/payslip-workflow-timeline'
+import {
   Table,
   TableBody,
   TableCell,
@@ -37,6 +49,11 @@ import {
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import {
+  createPayrollRunEmployeePayslipAccessDescriptor,
+  downloadPayslipDocument,
+  openPayslipDocument,
+} from '@/services/payslipRequestsService'
 import {
   useCalculatePayrollRunMutation,
   useMyPayrollProcessingActivityQuery,
@@ -51,6 +68,9 @@ import type {
   PayrollRunEmployeeEntry,
 } from '@/types/payroll'
 import {
+  buildPublishedPayslipTimelineSource,
+  getPayslipDocumentRepresentationModeLabel,
+  getPayslipDocumentGenerationStatusLabel,
   getPayrollCalculationStatusMeta,
   getPayrollProcessingStatusMeta,
   getPayrollRunTypeLabel,
@@ -79,6 +99,22 @@ function formatAmount(value: number | null | undefined): string {
   })
 }
 
+function formatFileSize(value: number | null | undefined): string {
+  if (value === null || value === undefined || value <= 0) {
+    return '\u2014'
+  }
+
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(2)} MB`
+  }
+
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(1)} KB`
+  }
+
+  return `${value} B`
+}
+
 function buildNextRunAction(
   status: PayrollProcessingStatus,
 ): { label: string; nextStatus: PayrollProcessingStatus } | null {
@@ -95,6 +131,63 @@ function buildNextRunAction(
       return { label: 'Archive run', nextStatus: 'ARCHIVED' }
     default:
       return null
+  }
+}
+
+function getPayslipGenerationTone(status: PayrollRunEmployeeEntry['payslipGenerationStatus']) {
+  switch (status) {
+    case 'FAILED':
+      return 'danger'
+    case 'GENERATED':
+      return 'success'
+    case 'PENDING':
+    default:
+      return 'info'
+  }
+}
+
+function getRunEntryDocumentAvailabilityCopy(entry: PayrollRunEmployeeEntry): {
+  tone: 'neutral' | 'warning' | 'danger' | 'info'
+  message: string
+} {
+  if (entry.calculationStatus === 'EXCLUDED') {
+    return {
+      tone: 'warning',
+      message: 'Excluded entries do not receive generated payslip PDFs.',
+    }
+  }
+
+  if (entry.calculationStatus === 'FAILED') {
+    return {
+      tone: 'danger',
+      message: 'Calculation failed. Recalculate the run before publishing this payslip.',
+    }
+  }
+
+  if (!entry.payslipStatus) {
+    return {
+      tone: 'neutral',
+      message: 'Publish the run to create and attach the employee payslip PDF.',
+    }
+  }
+
+  if (entry.payslipGenerationStatus === 'FAILED') {
+    return {
+      tone: 'danger',
+      message: 'Document generation failed. Fix the payroll data or generation issue, then publish again.',
+    }
+  }
+
+  if (entry.payslipGenerationStatus === 'PENDING' || !entry.payslipDocumentReady) {
+    return {
+      tone: 'info',
+      message: 'Canonical payslip published. The generated PDF is still being attached.',
+    }
+  }
+
+  return {
+    tone: 'neutral',
+    message: 'Document metadata is not available yet.',
   }
 }
 
@@ -179,17 +272,27 @@ function RunMetadataCard({ run }: { run: PayrollRunDetail }) {
 }
 
 function EmployeeEntriesCard({
+  run,
   isLoading,
   isError,
   errorMessage,
   onRetry,
   entries,
+  activeDocumentActionKey,
+  onOpenWorkflow,
+  onOpenPayslipDocument,
+  onDownloadPayslipDocument,
 }: {
+  run: PayrollRunDetail
   isLoading: boolean
   isError: boolean
   errorMessage?: string
   onRetry: () => void
   entries: PayrollRunEmployeeEntry[]
+  activeDocumentActionKey: string | null
+  onOpenWorkflow: (entry: PayrollRunEmployeeEntry) => void
+  onOpenPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
+  onDownloadPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
 }) {
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
@@ -235,6 +338,7 @@ function EmployeeEntriesCard({
                   <TableHead className="min-w-[140px]">Net</TableHead>
                   <TableHead className="min-w-[280px]">Review notes</TableHead>
                   <TableHead className="min-w-[160px]">Payslip</TableHead>
+                  <TableHead className="min-w-[180px]">Document actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -243,6 +347,26 @@ function EmployeeEntriesCard({
                   const payslipMeta = entry.payslipStatus
                     ? getPayrollProcessingStatusMeta(entry.payslipStatus)
                     : null
+                  const representationModeLabel = entry.payslipDocumentRepresentationMode
+                    ? getPayslipDocumentRepresentationModeLabel(
+                        entry.payslipDocumentRepresentationMode,
+                      )
+                    : null
+                  const generationStatusLabel = entry.payslipGenerationStatus
+                    ? getPayslipDocumentGenerationStatusLabel(entry.payslipGenerationStatus)
+                    : null
+                  const documentDescriptor = createPayrollRunEmployeePayslipAccessDescriptor(
+                    run,
+                    entry,
+                  )
+                  const documentAvailabilityCopy = getRunEntryDocumentAvailabilityCopy(entry)
+                  const canInspectWorkflow =
+                    entry.calculationStatus === 'CALCULATED' ||
+                    entry.hasPayslip ||
+                    Boolean(entry.payslipPublishedAt) ||
+                    Boolean(entry.payslipGenerationStatus)
+                  const isOpening = activeDocumentActionKey === `${entry.id}:open`
+                  const isDownloading = activeDocumentActionKey === `${entry.id}:download`
 
                   return (
                     <TableRow key={entry.id}>
@@ -302,9 +426,106 @@ function EmployeeEntriesCard({
                             <p className="text-xs text-slate-500">
                               {formatTimestamp(entry.payslipPublishedAt)}
                             </p>
+                            {generationStatusLabel ? (
+                              <StatusBadge
+                                tone={getPayslipGenerationTone(entry.payslipGenerationStatus)}
+                                emphasis="outline"
+                              >
+                                {generationStatusLabel}
+                              </StatusBadge>
+                            ) : null}
+                            <p className="text-xs text-slate-500">
+                              {entry.payslipDocumentReady
+                                ? representationModeLabel ?? 'Document attached'
+                                : entry.payslipGenerationStatus === 'FAILED'
+                                  ? 'Generation failed. Retry publication after fixing payroll data or document generation issues.'
+                                  : 'Canonical record published. Document generation is pending.'}
+                            </p>
+                            {entry.payslipGenerationError ? (
+                              <p className="text-xs text-rose-600">{entry.payslipGenerationError}</p>
+                            ) : null}
+                            {canInspectWorkflow ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => onOpenWorkflow(entry)}
+                              >
+                                <Clock3 className="mr-2 h-4 w-4" />
+                                View workflow
+                              </Button>
+                            ) : null}
                           </div>
                         ) : (
-                          <span className="text-sm text-slate-500">Not published</span>
+                          <div className="space-y-2">
+                            <span className="text-sm text-slate-500">Not published</span>
+                            {canInspectWorkflow ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onOpenWorkflow(entry)}
+                              >
+                                <Clock3 className="mr-2 h-4 w-4" />
+                                View workflow
+                              </Button>
+                            ) : null}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {documentDescriptor ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-slate-500">
+                              {entry.payslipFileName ?? 'Generated PDF'}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {entry.payslipContentType ?? 'application/pdf'} |{' '}
+                              {formatFileSize(entry.payslipFileSizeBytes)}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={Boolean(activeDocumentActionKey)}
+                                onClick={() => void onOpenPayslipDocument(entry)}
+                              >
+                                {isOpening ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                )}
+                                Open
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={Boolean(activeDocumentActionKey)}
+                                onClick={() => void onDownloadPayslipDocument(entry)}
+                              >
+                                {isDownloading ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <FileDown className="mr-2 h-4 w-4" />
+                                )}
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <StatusBadge
+                              tone={documentAvailabilityCopy.tone}
+                              emphasis="outline"
+                            >
+                              Not available
+                            </StatusBadge>
+                            <p className="text-xs leading-5 text-slate-500">
+                              {documentAvailabilityCopy.message}
+                            </p>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -316,6 +537,127 @@ function EmployeeEntriesCard({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function PayslipWorkflowDialog({
+  run,
+  entry,
+  isOpen,
+  onOpenChange,
+  activeDocumentActionKey,
+  onOpenPayslipDocument,
+  onDownloadPayslipDocument,
+}: {
+  run: PayrollRunDetail
+  entry: PayrollRunEmployeeEntry | null
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  activeDocumentActionKey: string | null
+  onOpenPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
+  onDownloadPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
+}) {
+  if (!entry) {
+    return null
+  }
+
+  const descriptor = createPayrollRunEmployeePayslipAccessDescriptor(run, entry)
+  const generationStatusLabel = entry.payslipGenerationStatus
+    ? getPayslipDocumentGenerationStatusLabel(entry.payslipGenerationStatus)
+    : null
+  const representationModeLabel = entry.payslipDocumentRepresentationMode
+    ? getPayslipDocumentRepresentationModeLabel(entry.payslipDocumentRepresentationMode)
+    : null
+  const isOpening = activeDocumentActionKey === `${entry.id}:open`
+  const isDownloading = activeDocumentActionKey === `${entry.id}:download`
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>
+            Payslip workflow: {entry.prenom} {entry.nom}
+          </DialogTitle>
+          <DialogDescription>
+            Review the payroll-derived payslip lifecycle for this employee result in {run.periodLabel}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-950">Workflow timeline</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Timeline state is derived from the published canonical payslip record and generated PDF availability.
+            </p>
+            <PayslipWorkflowTimeline
+              className="mt-4"
+              source={buildPublishedPayslipTimelineSource({
+                status: entry.payslipStatus,
+                publishedAt: entry.payslipPublishedAt,
+                documentReady: entry.payslipDocumentReady,
+                documentGeneratedAt: entry.payslipGeneratedAt,
+              })}
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-sm text-slate-700">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Employee result</p>
+              <p>
+                {entry.prenom} {entry.nom}
+              </p>
+              <p>Matricule: {entry.matricule}</p>
+              <p>Department: {entry.departementNom ?? '\u2014'}</p>
+              <p>Job title: {entry.poste ?? '\u2014'}</p>
+              <p>Net pay: {formatAmount(entry.netPayAmount)}</p>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-sm text-slate-700">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Document state</p>
+              <p>Published: {formatTimestamp(entry.payslipPublishedAt)}</p>
+              <p>Generated: {formatTimestamp(entry.payslipGeneratedAt)}</p>
+              <p>Status: {generationStatusLabel ?? 'Pending'}</p>
+              <p>Representation: {representationModeLabel ?? 'No document attached'}</p>
+              <p>File: {entry.payslipFileName ?? '\u2014'}</p>
+              <p>Size: {formatFileSize(entry.payslipFileSizeBytes)}</p>
+              {entry.payslipGenerationError ? (
+                <p className="text-rose-600">{entry.payslipGenerationError}</p>
+              ) : null}
+            </div>
+          </div>
+
+          {descriptor ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={Boolean(activeDocumentActionKey)}
+                onClick={() => void onOpenPayslipDocument(entry)}
+              >
+                {isOpening ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                )}
+                Open PDF
+              </Button>
+              <Button
+                type="button"
+                disabled={Boolean(activeDocumentActionKey)}
+                onClick={() => void onDownloadPayslipDocument(entry)}
+              >
+                {isDownloading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="mr-2 h-4 w-4" />
+                )}
+                Download PDF
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -360,6 +702,10 @@ export function PayrollRunDetailPage() {
   const runQuery = usePayrollRunQuery(id)
   const entriesQuery = usePayrollRunEmployeeEntriesQuery(id)
   const activityQuery = useMyPayrollProcessingActivityQuery(user?.id, { limit: 50 })
+  const [activeDocumentActionKey, setActiveDocumentActionKey] = useState<string | null>(null)
+  const [selectedWorkflowEntry, setSelectedWorkflowEntry] = useState<PayrollRunEmployeeEntry | null>(
+    null,
+  )
   const updateRunStatusMutation = useUpdatePayrollRunStatusMutation(user?.id, {
     onSuccess: (_, variables) => {
       toast.success(`Payroll run moved to ${variables.status.toLowerCase().replaceAll('_', ' ')}.`)
@@ -416,6 +762,54 @@ export function PayrollRunDetailPage() {
       await calculateRunMutation.mutateAsync(run.id)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to recalculate payroll run')
+    }
+  }
+
+  const handleOpenPayslipDocument = async (entry: PayrollRunEmployeeEntry) => {
+    if (!run) {
+      return
+    }
+
+    const descriptor = createPayrollRunEmployeePayslipAccessDescriptor(run, entry)
+
+    if (!descriptor) {
+      toast.error('The generated payslip PDF is not available yet.')
+      return
+    }
+
+    setActiveDocumentActionKey(`${entry.id}:open`)
+
+    try {
+      await openPayslipDocument(descriptor)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not open generated payslip PDF.')
+    } finally {
+      setActiveDocumentActionKey(null)
+    }
+  }
+
+  const handleDownloadPayslipDocument = async (entry: PayrollRunEmployeeEntry) => {
+    if (!run) {
+      return
+    }
+
+    const descriptor = createPayrollRunEmployeePayslipAccessDescriptor(run, entry)
+
+    if (!descriptor) {
+      toast.error('The generated payslip PDF is not available yet.')
+      return
+    }
+
+    setActiveDocumentActionKey(`${entry.id}:download`)
+
+    try {
+      await downloadPayslipDocument(descriptor)
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Could not download generated payslip PDF.',
+      )
+    } finally {
+      setActiveDocumentActionKey(null)
     }
   }
 
@@ -591,20 +985,27 @@ export function PayrollRunDetailPage() {
               Exclusion decisions are produced by the backend calculation RPC. Missing compensation setup and payroll-ineligible employees are recorded explicitly for review.
             </div>
             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-              Publishing a run creates payslip metadata records so employee self-service can later consume only published payslips within its own access boundary.
+              Publishing a run creates canonical payslip records derived from payroll results and
+              automatically generates one PDF document per employee result when the payroll data is
+              complete.
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="space-y-6">
-        <EmployeeEntriesCard
-          isLoading={entriesQuery.isPending && !entriesQuery.data}
-          isError={entriesQuery.isError}
-          errorMessage={entriesQuery.isError ? entriesQuery.error.message : undefined}
-          onRetry={() => void entriesQuery.refetch()}
-          entries={entries}
-        />
+          <EmployeeEntriesCard
+            run={run}
+            isLoading={entriesQuery.isPending && !entriesQuery.data}
+            isError={entriesQuery.isError}
+            errorMessage={entriesQuery.isError ? entriesQuery.error.message : undefined}
+            onRetry={() => void entriesQuery.refetch()}
+            entries={entries}
+            activeDocumentActionKey={activeDocumentActionKey}
+            onOpenWorkflow={setSelectedWorkflowEntry}
+            onOpenPayslipDocument={handleOpenPayslipDocument}
+            onDownloadPayslipDocument={handleDownloadPayslipDocument}
+          />
 
         {activityQuery.isPending && !activityQuery.data ? (
           <Card className={SURFACE_CARD_CLASS_NAME}>
@@ -621,8 +1022,22 @@ export function PayrollRunDetailPage() {
           />
         ) : (
           <ActivityCard items={activity} />
-        )}
-      </div>
+          )}
+        </div>
+
+      <PayslipWorkflowDialog
+        run={run}
+        entry={selectedWorkflowEntry}
+        isOpen={Boolean(selectedWorkflowEntry)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedWorkflowEntry(null)
+          }
+        }}
+        activeDocumentActionKey={activeDocumentActionKey}
+        onOpenPayslipDocument={handleOpenPayslipDocument}
+        onDownloadPayslipDocument={handleDownloadPayslipDocument}
+      />
     </PayrollLayout>
   )
 }

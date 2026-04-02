@@ -5,7 +5,7 @@ import {
   Search,
   ShieldCheck,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -55,6 +55,8 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useAuth } from '@/hooks/use-auth'
 import { PayrollLayout } from '@/layouts/payroll-layout'
 import {
+  createPayslipRequestCanonicalDocumentAccessDescriptor,
+  createPayslipRequestDeliveredDocumentAccessDescriptor,
   downloadPayslipDocument,
   openPayslipDocument,
   useFulfillPayslipRequestMutation,
@@ -66,7 +68,12 @@ import type {
   PayslipRequestStatus,
   PayslipRequestStatusFilter,
 } from '@/types/payroll'
-import { getPayslipRequestStatusMeta } from '@/types/payroll'
+import {
+  buildPayslipRequestTimelineSource,
+  getPayslipDocumentRepresentationModeLabel,
+  getPayslipRequestStatusMeta,
+  getPayrollProcessingStatusMeta,
+} from '@/types/payroll'
 
 function formatTimestamp(value: string | null | undefined): string {
   if (!value) {
@@ -160,13 +167,36 @@ function canReviewRequest(status: PayslipRequestStatus): boolean {
   return status === 'PENDING' || status === 'IN_REVIEW'
 }
 
+function sortPayslipRequests(requests: PayrollPayslipRequestItem[]) {
+  return [...requests].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+}
+
+function canDeliverRequestDocument(request: PayrollPayslipRequestItem): boolean {
+  return Boolean(request.canonicalPayslipId && request.canonicalDocumentReady)
+}
+
+function formatFileSize(value: number | null | undefined): string {
+  if (value === null || value === undefined || value <= 0) {
+    return '\u2014'
+  }
+
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(2)} MB`
+  }
+
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(1)} KB`
+  }
+
+  return `${value} B`
+}
+
 export function PayrollPayslipRequestsPage() {
   const { signOut, user } = useAuth()
   const [searchInput, setSearchInput] = useState('')
   const [statusFilter, setStatusFilter] = useState<PayslipRequestStatusFilter>('ALL')
   const [selectedRequest, setSelectedRequest] = useState<PayrollPayslipRequestItem | null>(null)
   const [reviewNote, setReviewNote] = useState('')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [activeDocumentActionKey, setActiveDocumentActionKey] = useState<string | null>(null)
 
   const debouncedSearch = useDebouncedValue(searchInput, 350)
@@ -175,18 +205,49 @@ export function PayrollPayslipRequestsPage() {
     search: debouncedSearch,
   })
 
-  const requests = requestsQuery.data ?? []
+  const requests = sortPayslipRequests(requestsQuery.data ?? [])
   const pendingCount = requests.filter((request) => request.status === 'PENDING').length
   const inReviewCount = requests.filter((request) => request.status === 'IN_REVIEW').length
   const fulfilledCount = requests.filter((request) => request.status === 'FULFILLED').length
   const rejectedCount = requests.filter((request) => request.status === 'REJECTED').length
 
+  useEffect(() => {
+    if (!selectedRequest?.id || !requestsQuery.data) {
+      return
+    }
+
+    const refreshedRequest = requestsQuery.data.find(
+      (request) => request.id === selectedRequest.id,
+    )
+
+    if (!refreshedRequest) {
+      return
+    }
+
+    setSelectedRequest((current) => {
+      if (!current || current.id !== refreshedRequest.id) {
+        return current
+      }
+
+      return refreshedRequest
+    })
+  }, [requestsQuery.data, selectedRequest?.id])
+
   const updateStatusMutation = useUpdatePayslipRequestStatusMutation(user?.id, {
     onSuccess: (_, variables) => {
       toast.success('Payslip request status updated.')
       if (variables.status === 'IN_REVIEW') {
+        const reviewedAt = new Date().toISOString()
         setSelectedRequest((current) =>
-          current ? { ...current, status: 'IN_REVIEW', reviewNote } : current,
+          current
+            ? {
+                ...current,
+                status: 'IN_REVIEW',
+                reviewNote: reviewNote.trim().length > 0 ? reviewNote.trim() : current.reviewNote,
+                reviewedAt,
+                updatedAt: reviewedAt,
+              }
+            : current,
         )
       }
     },
@@ -194,10 +255,9 @@ export function PayrollPayslipRequestsPage() {
 
   const fulfillRequestMutation = useFulfillPayslipRequestMutation(user?.id, {
     onSuccess: () => {
-      toast.success('Payslip request fulfilled and delivered.')
+      toast.success('Payslip request fulfilled and linked to the available payslip document.')
       setSelectedRequest(null)
       setReviewNote('')
-      setSelectedFile(null)
     },
   })
 
@@ -206,7 +266,6 @@ export function PayrollPayslipRequestsPage() {
   const handleOpenRequest = (request: PayrollPayslipRequestItem) => {
     setSelectedRequest(request)
     setReviewNote(request.reviewNote ?? '')
-    setSelectedFile(null)
   }
 
   const handleMoveToInReview = async () => {
@@ -245,7 +304,6 @@ export function PayrollPayslipRequestsPage() {
       })
       setSelectedRequest(null)
       setReviewNote('')
-      setSelectedFile(null)
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Failed to reject payslip request.',
@@ -258,16 +316,23 @@ export function PayrollPayslipRequestsPage() {
       return
     }
 
-    if (!selectedFile) {
-      toast.error('Choose a PDF payslip file before fulfilling this request.')
+    if (!selectedRequest.canonicalSourcePayrollRunEmployeId) {
+      toast.error(
+        'This request cannot be fulfilled until payroll publishes the underlying payroll result for the requested period.',
+      )
+      return
+    }
+
+    if (!canDeliverRequestDocument(selectedRequest)) {
+      toast.error(
+        'This request cannot be fulfilled until a generated or legacy document representation is available on the canonical payslip record.',
+      )
       return
     }
 
     try {
       await fulfillRequestMutation.mutateAsync({
         requestId: selectedRequest.id,
-        employeId: selectedRequest.employeId,
-        file: selectedFile,
         reviewNote,
       })
     } catch (error) {
@@ -277,53 +342,41 @@ export function PayrollPayslipRequestsPage() {
     }
   }
 
-  const handleOpenDeliveredDocument = async (request: PayrollPayslipRequestItem) => {
-    if (!request.documentId || !request.documentStoragePath || !request.documentFileName) {
+  const handleOpenDocument = async (
+    actionKey: string,
+    descriptor: ReturnType<typeof createPayslipRequestCanonicalDocumentAccessDescriptor> | null,
+    failureMessage: string,
+  ) => {
+    if (!descriptor) {
       return
     }
 
-    setActiveDocumentActionKey(`${request.id}:open`)
+    setActiveDocumentActionKey(actionKey)
 
     try {
-      await openPayslipDocument({
-        auditTargetType: 'PayslipDelivery',
-        auditTargetId: request.documentId,
-        storagePath: request.documentStoragePath,
-        fileName: request.documentFileName,
-        payrollPeriodId: request.payrollPeriodId,
-        payrollPeriodCode: request.payrollPeriodCode,
-        payrollPeriodLabel: request.payrollPeriodLabel,
-      })
+      await openPayslipDocument(descriptor)
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not open delivered payslip file.',
-      )
+      toast.error(error instanceof Error ? error.message : failureMessage)
     } finally {
       setActiveDocumentActionKey(null)
     }
   }
 
-  const handleDownloadDeliveredDocument = async (request: PayrollPayslipRequestItem) => {
-    if (!request.documentId || !request.documentStoragePath || !request.documentFileName) {
+  const handleDownloadDocument = async (
+    actionKey: string,
+    descriptor: ReturnType<typeof createPayslipRequestCanonicalDocumentAccessDescriptor> | null,
+    failureMessage: string,
+  ) => {
+    if (!descriptor) {
       return
     }
 
-    setActiveDocumentActionKey(`${request.id}:download`)
+    setActiveDocumentActionKey(actionKey)
 
     try {
-      await downloadPayslipDocument({
-        auditTargetType: 'PayslipDelivery',
-        auditTargetId: request.documentId,
-        storagePath: request.documentStoragePath,
-        fileName: request.documentFileName,
-        payrollPeriodId: request.payrollPeriodId,
-        payrollPeriodCode: request.payrollPeriodCode,
-        payrollPeriodLabel: request.payrollPeriodLabel,
-      })
+      await downloadPayslipDocument(descriptor)
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not download delivered payslip file.',
-      )
+      toast.error(error instanceof Error ? error.message : failureMessage)
     } finally {
       setActiveDocumentActionKey(null)
     }
@@ -332,13 +385,13 @@ export function PayrollPayslipRequestsPage() {
   return (
     <PayrollLayout
       title="Payslip Requests"
-      subtitle="Review employee payslip requests and deliver payslip files through the payroll workflow."
+      subtitle="Review employee payslip requests and deliver document representations from payroll-derived payslip records."
       onSignOut={signOut}
       userEmail={user?.email ?? null}
     >
       <PageHeader
         title="Payslip Requests"
-        description="Manage employee payslip requests, move them through review, and deliver file-backed payslips securely to employee accounts."
+        description="Manage employee payslip requests, move them through review, and deliver secure document representations from payroll-derived payslip records."
         className="mb-6"
         badges={
           <>
@@ -426,11 +479,12 @@ export function PayrollPayslipRequestsPage() {
             <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
                 Employees can only request and access their own payslips. Payroll users can review
-                the request queue and publish only the delivered file for the owning employee.
+                the request queue and deliver only the document representation linked to the owning
+                employee's payroll-derived payslip record.
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                Delivery uses secure storage-backed PDF files and keeps unpublished payroll data out
-                of employee self-service views.
+                Delivery uses secure storage-backed PDF files, while the payroll result remains the
+                canonical source of truth for the payslip itself.
               </div>
             </CardContent>
           </Card>
@@ -441,8 +495,8 @@ export function PayrollPayslipRequestsPage() {
                 Payslip request queue
               </CardTitle>
               <CardDescription>
-                Review employee requests, inspect notes, and deliver payslip documents through the
-                payroll workflow.
+                Review employee requests, inspect notes, and close them against the payroll-derived
+                payslip records already published for each employee and period.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -495,7 +549,6 @@ export function PayrollPayslipRequestsPage() {
           if (!open) {
             setSelectedRequest(null)
             setReviewNote('')
-            setSelectedFile(null)
           }
         }}
       >
@@ -505,8 +558,8 @@ export function PayrollPayslipRequestsPage() {
               <DialogHeader>
                 <DialogTitle>Review Payslip Request</DialogTitle>
                 <DialogDescription>
-                  Inspect the employee, requested period, review note, and delivery state before
-                  updating this request.
+                  Inspect the employee, requested period, workflow state, and available payslip
+                  document before updating this request.
                 </DialogDescription>
               </DialogHeader>
 
@@ -517,17 +570,19 @@ export function PayrollPayslipRequestsPage() {
                     Timeline state is derived from the request status and recorded workflow
                     timestamps.
                   </p>
-                  <PayslipWorkflowTimeline
-                    className="mt-4"
-                    request={{
-                      status: selectedRequest.status,
-                      createdAt: selectedRequest.createdAt,
-                      reviewedAt: selectedRequest.reviewedAt,
-                      documentPublishedAt: selectedRequest.documentPublishedAt,
-                      fulfilledAt: selectedRequest.fulfilledAt,
-                    }}
-                  />
-                </div>
+                    <PayslipWorkflowTimeline
+                      className="mt-4"
+                      source={buildPayslipRequestTimelineSource({
+                        status: selectedRequest.status,
+                        createdAt: selectedRequest.createdAt,
+                        reviewedAt: selectedRequest.reviewedAt,
+                        canonicalPayslipPublishedAt: selectedRequest.canonicalPayslipPublishedAt,
+                        canonicalDocumentReady: selectedRequest.canonicalDocumentReady,
+                        documentPublishedAt: selectedRequest.documentPublishedAt,
+                        fulfilledAt: selectedRequest.fulfilledAt,
+                      })}
+                    />
+                  </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-4">
@@ -578,11 +633,123 @@ export function PayrollPayslipRequestsPage() {
                     </p>
                   </div>
 
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        Canonical payslip record
+                      </p>
+                      {selectedRequest.canonicalPayslipStatus ? (
+                        <StatusBadge
+                          tone={getPayrollProcessingStatusMeta(selectedRequest.canonicalPayslipStatus).tone}
+                          emphasis="outline"
+                        >
+                          {getPayrollProcessingStatusMeta(selectedRequest.canonicalPayslipStatus).label}
+                        </StatusBadge>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+                      {selectedRequest.canonicalPayslipId ? (
+                        <>
+                          <p>
+                            Payroll-derived payslip record is linked to this request and remains
+                            the canonical source of truth.
+                          </p>
+                          {selectedRequest.canonicalDocumentFileName ? (
+                            <p className="break-all text-xs text-slate-500">
+                              {selectedRequest.canonicalDocumentFileName}
+                            </p>
+                          ) : null}
+                          <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                            <span>
+                              Published {formatTimestamp(selectedRequest.canonicalPayslipPublishedAt)}
+                            </span>
+                            <span>
+                              Size {formatFileSize(selectedRequest.canonicalDocumentFileSizeBytes)}
+                            </span>
+                            <span>
+                              {selectedRequest.canonicalDocumentContentType ?? 'application/pdf'}
+                            </span>
+                          </div>
+                          {selectedRequest.canonicalDocumentReady &&
+                          createPayslipRequestCanonicalDocumentAccessDescriptor(selectedRequest) ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={Boolean(activeDocumentActionKey)}
+                                onClick={() =>
+                                  void handleOpenDocument(
+                                    `${selectedRequest.id}:canonical-open`,
+                                    createPayslipRequestCanonicalDocumentAccessDescriptor(
+                                      selectedRequest,
+                                    ),
+                                    'Could not open generated payslip PDF.',
+                                  )
+                                }
+                              >
+                                {activeDocumentActionKey === `${selectedRequest.id}:canonical-open` ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                )}
+                                Open generated PDF
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={Boolean(activeDocumentActionKey)}
+                                onClick={() =>
+                                  void handleDownloadDocument(
+                                    `${selectedRequest.id}:canonical-download`,
+                                    createPayslipRequestCanonicalDocumentAccessDescriptor(
+                                      selectedRequest,
+                                    ),
+                                    'Could not download generated payslip PDF.',
+                                  )
+                                }
+                              >
+                                {activeDocumentActionKey ===
+                                `${selectedRequest.id}:canonical-download` ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <FileText className="mr-2 h-4 w-4" />
+                                )}
+                                Download generated PDF
+                              </Button>
+                            </div>
+                          ) : null}
+                          <p className="text-xs text-slate-500">
+                            {selectedRequest.canonicalDocumentRepresentationMode
+                              ? getPayslipDocumentRepresentationModeLabel(
+                                  selectedRequest.canonicalDocumentRepresentationMode,
+                                )
+                              : 'No document representation attached'}
+                          </p>
+                        </>
+                      ) : selectedRequest.canonicalSourcePayrollRunEmployeId ? (
+                        <p>
+                          Published payroll result exists for this employee and period. Once a
+                          generated PDF representation is available for the canonical payslip record,
+                          payroll can deliver it from this workflow.
+                        </p>
+                      ) : (
+                        <p className="text-amber-800">
+                          No published payroll result is available yet for this employee and period.
+                          The request can be reviewed, but delivery remains blocked until payroll
+                          publication creates the canonical source record.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
                   {selectedRequest.documentId &&
                   selectedRequest.documentStoragePath &&
                   selectedRequest.documentFileName ? (
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                      <p className="text-sm font-semibold text-emerald-950">Delivered document</p>
+                      <p className="text-sm font-semibold text-emerald-950">
+                        Delivered document representation
+                      </p>
                       <p className="mt-2 text-sm text-emerald-900">
                         {selectedRequest.documentFileName}
                       </p>
@@ -595,9 +762,17 @@ export function PayrollPayslipRequestsPage() {
                           variant="outline"
                           size="sm"
                           disabled={Boolean(activeDocumentActionKey)}
-                          onClick={() => void handleOpenDeliveredDocument(selectedRequest)}
+                          onClick={() =>
+                            void handleOpenDocument(
+                              `${selectedRequest.id}:delivered-open`,
+                              createPayslipRequestDeliveredDocumentAccessDescriptor(
+                                selectedRequest,
+                              ),
+                              'Could not open delivered payslip file.',
+                            )
+                          }
                         >
-                          {activeDocumentActionKey === `${selectedRequest.id}:open` ? (
+                          {activeDocumentActionKey === `${selectedRequest.id}:delivered-open` ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
                             <ExternalLink className="mr-2 h-4 w-4" />
@@ -608,9 +783,18 @@ export function PayrollPayslipRequestsPage() {
                           type="button"
                           size="sm"
                           disabled={Boolean(activeDocumentActionKey)}
-                          onClick={() => void handleDownloadDeliveredDocument(selectedRequest)}
+                          onClick={() =>
+                            void handleDownloadDocument(
+                              `${selectedRequest.id}:delivered-download`,
+                              createPayslipRequestDeliveredDocumentAccessDescriptor(
+                                selectedRequest,
+                              ),
+                              'Could not download delivered payslip file.',
+                            )
+                          }
                         >
-                          {activeDocumentActionKey === `${selectedRequest.id}:download` ? (
+                          {activeDocumentActionKey ===
+                          `${selectedRequest.id}:delivered-download` ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
                             <FileText className="mr-2 h-4 w-4" />
@@ -636,33 +820,29 @@ export function PayrollPayslipRequestsPage() {
                   </div>
 
                   {canReviewRequest(selectedRequest.status) ? (
-                    <div className="space-y-2">
-                      <Label htmlFor="payslipDeliveryFile">Payslip PDF</Label>
-                      <Input
-                        id="payslipDeliveryFile"
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        onChange={(event) => {
-                          setSelectedFile(event.target.files?.[0] ?? null)
-                        }}
-                      />
-                      <p className="text-xs text-slate-500">
-                        Uploading a PDF here fulfills the request and publishes the document to the
-                        employee account.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {selectedFile ? (
                     <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-sm text-slate-700">
-                      Selected file: {selectedFile.name}
+                      {canDeliverRequestDocument(selectedRequest)
+                        ? 'A canonical payslip document is already available. Delivering this request closes the request and links the same document into the request history.'
+                        : selectedRequest.canonicalSourcePayrollRunEmployeId
+                          ? 'Payroll publication is complete, but no generated PDF representation is available yet. Keep the request in review until automatic generation publishes the document.'
+                          : 'No published payroll result is available yet for this employee and period. Payroll publication must happen before delivery can be completed.'}
                     </div>
                   ) : null}
 
                   {!canReviewRequest(selectedRequest.status) ? (
                     <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-sm text-slate-600">
-                      This request is closed. Delivered files remain available from this dialog and
-                      from the employee account, but the workflow state can no longer change.
+                      This request is closed. Attached documents remain available from this dialog
+                      and from the employee account, but the workflow state can no longer change.
+                    </div>
+                  ) : !selectedRequest.canonicalSourcePayrollRunEmployeId ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      Delivery stays disabled until payroll publishes the underlying payroll result
+                      for this employee and payroll period.
+                    </div>
+                  ) : !canDeliverRequestDocument(selectedRequest) ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      Delivery stays disabled until automatic generation or legacy migration makes a
+                      document representation available on the canonical payslip record.
                     </div>
                   ) : null}
                 </div>
@@ -711,7 +891,11 @@ export function PayrollPayslipRequestsPage() {
                   <Button
                     type="button"
                     className={BRAND_BUTTON_CLASS_NAME}
-                    disabled={updateStatusMutation.isPending || fulfillRequestMutation.isPending}
+                    disabled={
+                      updateStatusMutation.isPending ||
+                      fulfillRequestMutation.isPending ||
+                      !canDeliverRequestDocument(selectedRequest)
+                    }
                     onClick={() => void handleFulfill()}
                   >
                     {fulfillRequestMutation.isPending ? (
@@ -719,7 +903,7 @@ export function PayrollPayslipRequestsPage() {
                     ) : (
                       <FileText className="mr-2 h-4 w-4" />
                     )}
-                    Fulfill and deliver
+                    Deliver available payslip
                   </Button>
                 ) : null}
               </DialogFooter>

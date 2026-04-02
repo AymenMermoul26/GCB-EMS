@@ -13,14 +13,22 @@ import type {
   AvailablePayslipDocumentItem,
   CreatePayslipRequestPayload,
   EmployeePayslipRequestItem,
+  EmployeePayslipListItem,
   FulfillPayslipRequestPayload,
   PayrollPeriodStatus,
   PayrollPayslipRequestItem,
+  PayrollProcessingStatus,
+  PayrollRunEmployeeEntry,
   PayslipDocumentSource,
+  PayslipDocumentRepresentationMode,
   PayslipRequestPeriodOption,
   PayslipRequestStatus,
   PayslipRequestStatusFilter,
   UpdatePayslipRequestStatusPayload,
+} from '@/types/payroll'
+import {
+  isPayslipDocumentReady,
+  resolvePayslipDocumentRepresentationMode,
 } from '@/types/payroll'
 
 const PAYSLIP_STORAGE_BUCKET = 'payslips'
@@ -45,6 +53,17 @@ interface EmployeePayslipRequestRow {
   request_note: string | null
   review_note: string | null
   linked_payslip_id: string | null
+  canonical_source_payroll_run_id: string | null
+  canonical_source_payroll_run_employe_id: string | null
+  canonical_payslip_id: string | null
+  canonical_payslip_status: string | null
+  canonical_payslip_published_at: string | null
+  canonical_document_ready: boolean | null
+  canonical_document_representation_mode: string | null
+  canonical_document_file_name: string | null
+  canonical_document_storage_path: string | null
+  canonical_document_content_type: string | null
+  canonical_document_file_size_bytes: number | string | null
   document_id: string | null
   document_file_name: string | null
   document_storage_path: string | null
@@ -92,6 +111,17 @@ interface PayrollPayslipRequestRow {
   request_note: string | null
   review_note: string | null
   linked_payslip_id: string | null
+  canonical_source_payroll_run_id: string | null
+  canonical_source_payroll_run_employe_id: string | null
+  canonical_payslip_id: string | null
+  canonical_payslip_status: string | null
+  canonical_payslip_published_at: string | null
+  canonical_document_ready: boolean | null
+  canonical_document_representation_mode: string | null
+  canonical_document_file_name: string | null
+  canonical_document_storage_path: string | null
+  canonical_document_content_type: string | null
+  canonical_document_file_size_bytes: number | string | null
   document_id: string | null
   document_file_name: string | null
   document_storage_path: string | null
@@ -104,7 +134,7 @@ interface PayrollPayslipRequestRow {
   updated_at: string
 }
 
-interface PayslipDocumentAccessDescriptor {
+export interface PayslipDocumentAccessDescriptor {
   auditTargetType: 'PayslipDelivery' | 'Payslip'
   auditTargetId: string
   storagePath: string
@@ -112,6 +142,16 @@ interface PayslipDocumentAccessDescriptor {
   payrollPeriodId?: string
   payrollPeriodCode?: string
   payrollPeriodLabel?: string
+}
+
+interface PayslipDocumentAccessDescriptorInput {
+  auditTargetType: 'PayslipDelivery' | 'Payslip'
+  auditTargetId: string | null | undefined
+  storagePath: string | null | undefined
+  fileName: string | null | undefined
+  payrollPeriodId?: string | null | undefined
+  payrollPeriodCode?: string | null | undefined
+  payrollPeriodLabel?: string | null | undefined
 }
 
 export interface PayrollPayslipRequestFilters {
@@ -180,31 +220,24 @@ function resolvePayslipRequestStatus(value: string | null | undefined): PayslipR
   }
 }
 
+function resolvePayrollProcessingStatus(
+  value: string | null | undefined,
+): PayrollProcessingStatus | null {
+  switch (value) {
+    case 'DRAFT':
+    case 'CALCULATED':
+    case 'UNDER_REVIEW':
+    case 'FINALIZED':
+    case 'PUBLISHED':
+    case 'ARCHIVED':
+      return value
+    default:
+      return null
+  }
+}
+
 function resolvePayslipDocumentSource(value: string | null | undefined): PayslipDocumentSource {
   return value === 'PAYROLL_PUBLICATION' ? 'PAYROLL_PUBLICATION' : 'REQUEST_DELIVERY'
-}
-
-function sanitizeFileName(fileName: string): string {
-  const normalized = fileName.trim().replace(/[^A-Za-z0-9._-]+/g, '_')
-  const withExtension = normalized.toLowerCase().endsWith('.pdf')
-    ? normalized
-    : `${normalized || 'payslip'}.pdf`
-
-  return withExtension
-}
-
-function buildStoragePath(employeId: string, requestId: string, fileName: string): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-  return `${employeId}/${requestId}/${timestamp}-${sanitizeFileName(fileName)}`
-}
-
-function ensurePdfFile(file: File) {
-  const fileName = file.name.trim().toLowerCase()
-  const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf')
-
-  if (!isPdf) {
-    throw new Error('Only PDF payslip files can be delivered in this workflow.')
-  }
 }
 
 function mapPayslipRequestPeriod(row: PayslipRequestPeriodRow): PayslipRequestPeriodOption {
@@ -219,6 +252,16 @@ function mapPayslipRequestPeriod(row: PayslipRequestPeriodRow): PayslipRequestPe
 }
 
 function mapEmployeePayslipRequest(row: EmployeePayslipRequestRow): EmployeePayslipRequestItem {
+  const hasCanonicalDocumentAttachment = Boolean(
+    row.canonical_document_file_name && row.canonical_document_storage_path,
+  )
+  const canonicalDocumentRepresentationMode = row.canonical_document_representation_mode
+    ? resolvePayslipDocumentRepresentationMode(
+        { documentRepresentationMode: row.canonical_document_representation_mode },
+        hasCanonicalDocumentAttachment,
+      )
+    : null
+
   return {
     id: row.id,
     payrollPeriodId: row.payroll_period_id,
@@ -230,6 +273,25 @@ function mapEmployeePayslipRequest(row: EmployeePayslipRequestRow): EmployeePays
     requestNote: normalizeText(row.request_note),
     reviewNote: normalizeText(row.review_note),
     linkedPayslipId: row.linked_payslip_id,
+    canonicalSourcePayrollRunId: row.canonical_source_payroll_run_id,
+    canonicalSourcePayrollRunEmployeId: row.canonical_source_payroll_run_employe_id,
+    canonicalPayslipId: row.canonical_payslip_id,
+    canonicalPayslipStatus: resolvePayrollProcessingStatus(row.canonical_payslip_status),
+    canonicalPayslipPublishedAt: row.canonical_payslip_published_at,
+    canonicalDocumentReady: isPayslipDocumentReady(
+      row.canonical_document_representation_mode || row.canonical_document_ready !== null
+        ? {
+            documentRepresentationMode: row.canonical_document_representation_mode ?? undefined,
+            documentReady: row.canonical_document_ready ?? undefined,
+          }
+        : undefined,
+      hasCanonicalDocumentAttachment,
+    ),
+    canonicalDocumentRepresentationMode,
+    canonicalDocumentFileName: normalizeText(row.canonical_document_file_name),
+    canonicalDocumentStoragePath: normalizeText(row.canonical_document_storage_path),
+    canonicalDocumentContentType: normalizeText(row.canonical_document_content_type),
+    canonicalDocumentFileSizeBytes: normalizeNumber(row.canonical_document_file_size_bytes),
     documentId: row.document_id,
     documentFileName: normalizeText(row.document_file_name),
     documentStoragePath: normalizeText(row.document_storage_path),
@@ -266,6 +328,17 @@ function mapAvailablePayslipDocument(
 }
 
 function mapPayrollPayslipRequest(row: PayrollPayslipRequestRow): PayrollPayslipRequestItem {
+  const hasCanonicalDocumentAttachment = Boolean(
+    row.canonical_document_file_name && row.canonical_document_storage_path,
+  )
+  const canonicalDocumentRepresentationMode: PayslipDocumentRepresentationMode | null =
+    row.canonical_document_representation_mode
+      ? resolvePayslipDocumentRepresentationMode(
+          { documentRepresentationMode: row.canonical_document_representation_mode },
+          hasCanonicalDocumentAttachment,
+        )
+      : null
+
   return {
     id: row.id,
     employeId: row.employe_id,
@@ -283,6 +356,25 @@ function mapPayrollPayslipRequest(row: PayrollPayslipRequestRow): PayrollPayslip
     requestNote: normalizeText(row.request_note),
     reviewNote: normalizeText(row.review_note),
     linkedPayslipId: row.linked_payslip_id,
+    canonicalSourcePayrollRunId: row.canonical_source_payroll_run_id,
+    canonicalSourcePayrollRunEmployeId: row.canonical_source_payroll_run_employe_id,
+    canonicalPayslipId: row.canonical_payslip_id,
+    canonicalPayslipStatus: resolvePayrollProcessingStatus(row.canonical_payslip_status),
+    canonicalPayslipPublishedAt: row.canonical_payslip_published_at,
+    canonicalDocumentReady: isPayslipDocumentReady(
+      row.canonical_document_representation_mode || row.canonical_document_ready !== null
+        ? {
+            documentRepresentationMode: row.canonical_document_representation_mode ?? undefined,
+            documentReady: row.canonical_document_ready ?? undefined,
+          }
+        : undefined,
+      hasCanonicalDocumentAttachment,
+    ),
+    canonicalDocumentRepresentationMode,
+    canonicalDocumentFileName: normalizeText(row.canonical_document_file_name),
+    canonicalDocumentStoragePath: normalizeText(row.canonical_document_storage_path),
+    canonicalDocumentContentType: normalizeText(row.canonical_document_content_type),
+    canonicalDocumentFileSizeBytes: normalizeNumber(row.canonical_document_file_size_bytes),
     documentId: row.document_id,
     documentFileName: normalizeText(row.document_file_name),
     documentStoragePath: normalizeText(row.document_storage_path),
@@ -328,6 +420,99 @@ async function writePayslipDocumentAudit(
   } catch (error) {
     console.error(`Unable to log ${action.toLowerCase()} event`, error)
   }
+}
+
+export function createPayslipDocumentAccessDescriptor(
+  input: PayslipDocumentAccessDescriptorInput,
+): PayslipDocumentAccessDescriptor | null {
+  const auditTargetId = normalizeText(input.auditTargetId)
+  const storagePath = normalizeText(input.storagePath)
+  const fileName = normalizeText(input.fileName)
+
+  if (!auditTargetId || !storagePath || !fileName) {
+    return null
+  }
+
+  return {
+    auditTargetType: input.auditTargetType,
+    auditTargetId,
+    storagePath,
+    fileName,
+    payrollPeriodId: normalizeText(input.payrollPeriodId) ?? undefined,
+    payrollPeriodCode: normalizeText(input.payrollPeriodCode) ?? undefined,
+    payrollPeriodLabel: normalizeText(input.payrollPeriodLabel) ?? undefined,
+  }
+}
+
+export function createAvailablePayslipDocumentAccessDescriptor(
+  document: AvailablePayslipDocumentItem,
+): PayslipDocumentAccessDescriptor {
+  return {
+    auditTargetType: document.auditTargetType,
+    auditTargetId: document.auditTargetId,
+    storagePath: document.storagePath,
+    fileName: document.fileName,
+    payrollPeriodId: document.payrollPeriodId,
+    payrollPeriodCode: document.payrollPeriodCode,
+    payrollPeriodLabel: document.payrollPeriodLabel,
+  }
+}
+
+export function createEmployeePublishedPayslipAccessDescriptor(
+  payslip: EmployeePayslipListItem,
+): PayslipDocumentAccessDescriptor | null {
+  return createPayslipDocumentAccessDescriptor({
+    auditTargetType: 'Payslip',
+    auditTargetId: payslip.id,
+    storagePath: payslip.storagePath,
+    fileName: payslip.fileName,
+    payrollPeriodId: payslip.payrollPeriodId,
+    payrollPeriodCode: payslip.payrollPeriodCode,
+    payrollPeriodLabel: payslip.payrollPeriodLabel,
+  })
+}
+
+export function createPayslipRequestCanonicalDocumentAccessDescriptor(
+  request: EmployeePayslipRequestItem | PayrollPayslipRequestItem,
+): PayslipDocumentAccessDescriptor | null {
+  return createPayslipDocumentAccessDescriptor({
+    auditTargetType: 'Payslip',
+    auditTargetId: request.canonicalPayslipId,
+    storagePath: request.canonicalDocumentStoragePath,
+    fileName: request.canonicalDocumentFileName,
+    payrollPeriodId: request.payrollPeriodId,
+    payrollPeriodCode: request.payrollPeriodCode,
+    payrollPeriodLabel: request.payrollPeriodLabel,
+  })
+}
+
+export function createPayslipRequestDeliveredDocumentAccessDescriptor(
+  request: EmployeePayslipRequestItem | PayrollPayslipRequestItem,
+): PayslipDocumentAccessDescriptor | null {
+  return createPayslipDocumentAccessDescriptor({
+    auditTargetType: 'PayslipDelivery',
+    auditTargetId: request.documentId,
+    storagePath: request.documentStoragePath,
+    fileName: request.documentFileName,
+    payrollPeriodId: request.payrollPeriodId,
+    payrollPeriodCode: request.payrollPeriodCode,
+    payrollPeriodLabel: request.payrollPeriodLabel,
+  })
+}
+
+export function createPayrollRunEmployeePayslipAccessDescriptor(
+  run: { payrollPeriodId: string; periodCode: string; periodLabel: string },
+  entry: PayrollRunEmployeeEntry,
+): PayslipDocumentAccessDescriptor | null {
+  return createPayslipDocumentAccessDescriptor({
+    auditTargetType: 'Payslip',
+    auditTargetId: entry.payslipId,
+    storagePath: entry.payslipStoragePath,
+    fileName: entry.payslipFileName,
+    payrollPeriodId: run.payrollPeriodId,
+    payrollPeriodCode: run.periodCode,
+    payrollPeriodLabel: run.periodLabel,
+  })
 }
 
 export async function getEmployeePayslipRequestPeriods(): Promise<PayslipRequestPeriodOption[]> {
@@ -424,48 +609,16 @@ export async function updatePayslipRequestStatus(
 export async function fulfillPayslipRequest(
   payload: FulfillPayslipRequestPayload,
 ): Promise<string> {
-  ensurePdfFile(payload.file)
+  const { data, error } = await supabase.rpc('fulfill_payslip_request', {
+    p_request_id: payload.requestId,
+    p_review_note: normalizeText(payload.reviewNote),
+  })
 
-  const storagePath = buildStoragePath(payload.employeId, payload.requestId, payload.file.name)
-  const sanitizedFileName = sanitizeFileName(payload.file.name)
-
-  const { error: uploadError } = await supabase.storage
-    .from(PAYSLIP_STORAGE_BUCKET)
-    .upload(storagePath, payload.file, {
-      contentType: 'application/pdf',
-      upsert: false,
-    })
-
-  if (uploadError) {
-    throw new Error(uploadError.message)
+  if (error) {
+    throw new Error(error.message)
   }
 
-  try {
-    const { data, error } = await supabase.rpc('fulfill_payslip_request', {
-      p_request_id: payload.requestId,
-      p_file_name: sanitizedFileName,
-      p_storage_path: storagePath,
-      p_content_type: 'application/pdf',
-      p_file_size_bytes: payload.file.size,
-      p_review_note: normalizeText(payload.reviewNote),
-    })
-
-    if (error) {
-      throw new Error(error.message)
-    }
-
-    return normalizeScalarUuid(data, 'fulfill_payslip_request')
-  } catch (error) {
-    const { error: removeError } = await supabase.storage
-      .from(PAYSLIP_STORAGE_BUCKET)
-      .remove([storagePath])
-
-    if (removeError) {
-      console.error('Unable to roll back uploaded payslip file after fulfillment failure', removeError)
-    }
-
-    throw error
-  }
+  return normalizeScalarUuid(data, 'fulfill_payslip_request')
 }
 
 export async function openPayslipDocument(

@@ -12,7 +12,7 @@ import {
 } from '@/types/payroll'
 
 interface PayslipWorkflowTimelineProps {
-  request: PayslipWorkflowTimelineSource
+  source: PayslipWorkflowTimelineSource
   className?: string
 }
 
@@ -34,7 +34,7 @@ function getStateTone(
         return 'brand'
       }
 
-      if (stepKey === 'DELIVERED') {
+      if (stepKey === 'AVAILABLE') {
         return 'success'
       }
 
@@ -115,13 +115,13 @@ function formatTimelineTimestamp(value: string | null, locale: string): string |
 }
 
 export function PayslipWorkflowTimeline({
-  request,
+  source,
   className,
 }: PayslipWorkflowTimelineProps) {
   const { locale, t } = useI18n()
   const steps = useMemo(
-    () => buildPayslipWorkflowTimelineSteps(request, t),
-    [request, t],
+    () => buildPayslipWorkflowTimelineSteps(source, t),
+    [source, t],
   )
   const currentStepLabel = t('payroll.payslipWorkflow.currentStep')
   const closedStepLabel = t('payroll.payslipWorkflow.closedStep')

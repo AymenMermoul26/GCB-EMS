@@ -48,6 +48,18 @@ export type PayslipDocumentSource =
   | 'REQUEST_DELIVERY'
   | 'PAYROLL_PUBLICATION'
 
+export type PayslipCanonicalSource = 'PAYROLL_RUN_EMPLOYEE_RESULT'
+
+export type PayslipDocumentRepresentationMode =
+  | 'NONE'
+  | 'MANUAL_UPLOAD'
+  | 'GENERATED_PDF'
+
+export type PayslipDocumentGenerationStatus =
+  | 'PENDING'
+  | 'GENERATED'
+  | 'FAILED'
+
 export type PayrollRunType =
   | 'REGULAR'
   | 'SUPPLEMENTAL'
@@ -64,6 +76,26 @@ export type PayrollProcessingAuditAction =
   | 'PAYROLL_CALCULATION_COMPLETED'
   | 'PAYROLL_CALCULATION_FAILED'
   | 'PAYROLL_PAYSLIP_PUBLISHED'
+  | 'PAYSLIP_DOCUMENT_PUBLISHED'
+
+export interface PayrollPayslipPdfData {
+  employerName: string
+  employeeFullName: string
+  employeeMatricule: string
+  departmentName: string | null
+  jobTitle: string | null
+  payrollPeriodCode: string
+  payrollPeriodLabel: string
+  payrollRunCode: string
+  periodStart: string
+  periodEnd: string
+  issueDate: string
+  baseSalaryAmount: number
+  totalAllowancesAmount: number
+  totalDeductionsAmount: number
+  grossPayAmount: number
+  netPayAmount: number
+}
 
 export interface PayrollEmployeeListItem {
   id: string
@@ -379,8 +411,18 @@ export interface PayrollRunEmployeeEntry {
   exclusionReason: string | null
   calculationNotes: string | null
   hasPayslip: boolean
+  payslipId: string | null
   payslipStatus: PayrollProcessingStatus | null
   payslipPublishedAt: string | null
+  payslipDocumentReady: boolean
+  payslipDocumentRepresentationMode: PayslipDocumentRepresentationMode | null
+  payslipGenerationStatus: PayslipDocumentGenerationStatus | null
+  payslipGeneratedAt: string | null
+  payslipGenerationError: string | null
+  payslipFileName: string | null
+  payslipStoragePath: string | null
+  payslipContentType: string | null
+  payslipFileSizeBytes: number | null
   issueFlags: string[]
   calculationInputJson: Record<string, unknown>
   employeeSnapshotJson: Record<string, unknown>
@@ -410,6 +452,7 @@ export interface PayrollRunCalculationResult {
 export interface EmployeePayslipListItem {
   id: string
   payrollRunId: string
+  payrollRunEmployeId: string
   payrollPeriodId: string
   payrollPeriodCode: string
   payrollPeriodLabel: string
@@ -420,6 +463,14 @@ export interface EmployeePayslipListItem {
   publishedAt: string | null
   fileName: string | null
   storagePath: string | null
+  canonicalSource: PayslipCanonicalSource | null
+  documentReady: boolean
+  documentRepresentationMode: PayslipDocumentRepresentationMode
+  documentGenerationStatus: PayslipDocumentGenerationStatus
+  documentGeneratedAt: string | null
+  documentGenerationError: string | null
+  documentContentType: string | null
+  documentFileSizeBytes: number | null
   publicationMetadataJson: Record<string, unknown>
   createdAt: string
 }
@@ -444,6 +495,17 @@ export interface EmployeePayslipRequestItem {
   requestNote: string | null
   reviewNote: string | null
   linkedPayslipId: string | null
+  canonicalSourcePayrollRunId: string | null
+  canonicalSourcePayrollRunEmployeId: string | null
+  canonicalPayslipId: string | null
+  canonicalPayslipStatus: PayrollProcessingStatus | null
+  canonicalPayslipPublishedAt: string | null
+  canonicalDocumentReady: boolean
+  canonicalDocumentRepresentationMode: PayslipDocumentRepresentationMode | null
+  canonicalDocumentFileName: string | null
+  canonicalDocumentStoragePath: string | null
+  canonicalDocumentContentType: string | null
+  canonicalDocumentFileSizeBytes: number | null
   documentId: string | null
   documentFileName: string | null
   documentStoragePath: string | null
@@ -458,7 +520,7 @@ export type PayslipWorkflowStepKey =
   | 'REQUESTED'
   | 'IN_REVIEW'
   | 'GENERATED'
-  | 'DELIVERED'
+  | 'AVAILABLE'
   | 'REJECTED'
 
 export type PayslipWorkflowStepState =
@@ -467,13 +529,43 @@ export type PayslipWorkflowStepState =
   | 'pending'
   | 'rejected'
 
-export interface PayslipWorkflowTimelineSource {
+export interface PayslipWorkflowRequestTimelineInput {
   status: PayslipRequestStatus
   createdAt: string
   reviewedAt: string | null
-  documentPublishedAt: string | null
-  fulfilledAt: string | null
+  canonicalPayslipPublishedAt: string | null
+  canonicalDocumentReady: boolean
+  documentPublishedAt?: string | null
+  fulfilledAt?: string | null
 }
+
+export interface PayslipWorkflowPublishedTimelineInput {
+  status: PayrollProcessingStatus | null
+  publishedAt: string | null
+  documentReady: boolean
+  documentGeneratedAt?: string | null
+}
+
+export interface PayslipWorkflowRequestTimelineSource {
+  kind: 'REQUEST'
+  status: PayslipRequestStatus
+  requestedAt: string
+  reviewedAt: string | null
+  generatedAt: string | null
+  availableAt: string | null
+}
+
+export interface PayslipWorkflowPublishedTimelineSource {
+  kind: 'PAYSLIP'
+  status: PayrollProcessingStatus | null
+  publishedAt: string | null
+  generatedAt: string | null
+  availableAt: string | null
+}
+
+export type PayslipWorkflowTimelineSource =
+  | PayslipWorkflowRequestTimelineSource
+  | PayslipWorkflowPublishedTimelineSource
 
 export interface PayslipWorkflowTimelineStep {
   key: PayslipWorkflowStepKey
@@ -520,6 +612,17 @@ export interface PayrollPayslipRequestItem {
   requestNote: string | null
   reviewNote: string | null
   linkedPayslipId: string | null
+  canonicalSourcePayrollRunId: string | null
+  canonicalSourcePayrollRunEmployeId: string | null
+  canonicalPayslipId: string | null
+  canonicalPayslipStatus: PayrollProcessingStatus | null
+  canonicalPayslipPublishedAt: string | null
+  canonicalDocumentReady: boolean
+  canonicalDocumentRepresentationMode: PayslipDocumentRepresentationMode | null
+  canonicalDocumentFileName: string | null
+  canonicalDocumentStoragePath: string | null
+  canonicalDocumentContentType: string | null
+  canonicalDocumentFileSizeBytes: number | null
   documentId: string | null
   documentFileName: string | null
   documentStoragePath: string | null
@@ -545,8 +648,6 @@ export interface UpdatePayslipRequestStatusPayload {
 
 export interface FulfillPayslipRequestPayload {
   requestId: string
-  employeId: string
-  file: File
   reviewNote?: string
 }
 
@@ -633,25 +734,43 @@ const PAYSLIP_WORKFLOW_STEP_COPY = {
   },
   IN_REVIEW: {
     label: 'In Review',
-    description: 'Payroll is reviewing the request and delivery note.',
+    description: 'Payroll is reviewing the request and document availability.',
   },
   GENERATED: {
     label: 'Generated',
-    description: 'The payslip file was published to secure delivery storage.',
+    description: 'Payroll published the canonical payslip record from the payroll result.',
   },
-  DELIVERED: {
-    label: 'Delivered',
-    description: 'The payslip is now available in the employee account.',
+  AVAILABLE: {
+    label: 'Available',
+    description: 'A generated document representation is now available in the employee account.',
   },
   REJECTED: {
     label: 'Rejected',
-    description: 'The request was closed without delivering a payslip file.',
+    description: 'The request was closed without making a payslip document available.',
   },
 } as const
 
 export const PAYSLIP_DOCUMENT_SOURCE_LABELS: Record<PayslipDocumentSource, string> = {
   REQUEST_DELIVERY: 'Request delivery',
   PAYROLL_PUBLICATION: 'Payroll publication',
+}
+
+export const PAYSLIP_DOCUMENT_REPRESENTATION_MODE_LABELS: Record<
+  PayslipDocumentRepresentationMode,
+  string
+> = {
+  NONE: 'No document attached',
+  MANUAL_UPLOAD: 'Legacy manual PDF',
+  GENERATED_PDF: 'Generated PDF document',
+}
+
+export const PAYSLIP_DOCUMENT_GENERATION_STATUS_LABELS: Record<
+  PayslipDocumentGenerationStatus,
+  string
+> = {
+  PENDING: 'Document generation pending',
+  GENERATED: 'Document generated',
+  FAILED: 'Document generation failed',
 }
 
 export const PAYROLL_RUN_TYPE_LABELS: Record<string, string> = {
@@ -746,10 +865,74 @@ export function getPayslipWorkflowStepCopy(
   }
 }
 
+export function buildPayslipRequestTimelineSource(
+  input: PayslipWorkflowRequestTimelineInput,
+): PayslipWorkflowRequestTimelineSource {
+  return {
+    kind: 'REQUEST',
+    status: input.status,
+    requestedAt: input.createdAt,
+    reviewedAt: input.reviewedAt,
+    generatedAt: input.canonicalPayslipPublishedAt,
+    availableAt:
+      input.documentPublishedAt ??
+      input.fulfilledAt ??
+      (input.canonicalDocumentReady ? input.canonicalPayslipPublishedAt : null),
+  }
+}
+
+export function buildPublishedPayslipTimelineSource(
+  input: PayslipWorkflowPublishedTimelineInput,
+): PayslipWorkflowPublishedTimelineSource {
+  const availableAt = input.documentReady
+    ? input.documentGeneratedAt ?? input.publishedAt
+    : null
+
+  return {
+    kind: 'PAYSLIP',
+    status: input.status,
+    publishedAt: input.publishedAt,
+    generatedAt: input.publishedAt,
+    availableAt,
+  }
+}
+
 export function buildPayslipWorkflowTimelineSteps(
   source: PayslipWorkflowTimelineSource,
   t?: TranslateFn,
 ): PayslipWorkflowTimelineStep[] {
+  const generatedCopy = getPayslipWorkflowStepCopy('GENERATED', t)
+  const availableCopy = getPayslipWorkflowStepCopy('AVAILABLE', t)
+
+  if (source.kind === 'PAYSLIP') {
+    const isClosed = source.status === 'ARCHIVED'
+
+    return [
+      {
+        key: 'GENERATED',
+        label: generatedCopy.label,
+        description: generatedCopy.description,
+        state: source.generatedAt
+          ? source.availableAt
+            ? 'completed'
+            : 'current'
+          : 'pending',
+        timestamp: source.generatedAt,
+      },
+      {
+        key: 'AVAILABLE',
+        label: availableCopy.label,
+        description: availableCopy.description,
+        state: source.availableAt
+          ? isClosed
+            ? 'completed'
+            : 'current'
+          : 'pending',
+        timestamp: source.availableAt,
+      },
+    ]
+  }
+
   const requestedCopy = getPayslipWorkflowStepCopy('REQUESTED', t)
   const reviewCopy = getPayslipWorkflowStepCopy('IN_REVIEW', t)
 
@@ -762,7 +945,7 @@ export function buildPayslipWorkflowTimelineSteps(
         label: requestedCopy.label,
         description: requestedCopy.description,
         state: 'completed',
-        timestamp: source.createdAt,
+        timestamp: source.requestedAt,
       },
       {
         key: 'IN_REVIEW',
@@ -781,16 +964,13 @@ export function buildPayslipWorkflowTimelineSteps(
     ]
   }
 
-  const generatedCopy = getPayslipWorkflowStepCopy('GENERATED', t)
-  const deliveredCopy = getPayslipWorkflowStepCopy('DELIVERED', t)
-
   return [
     {
       key: 'REQUESTED',
       label: requestedCopy.label,
       description: requestedCopy.description,
       state: 'completed',
-      timestamp: source.createdAt,
+      timestamp: source.requestedAt,
     },
     {
       key: 'IN_REVIEW',
@@ -808,19 +988,19 @@ export function buildPayslipWorkflowTimelineSteps(
       key: 'GENERATED',
       label: generatedCopy.label,
       description: generatedCopy.description,
-      state: source.documentPublishedAt
-        ? source.status === 'FULFILLED'
+      state: source.generatedAt
+        ? source.availableAt
           ? 'completed'
           : 'current'
         : 'pending',
-      timestamp: source.documentPublishedAt,
+      timestamp: source.generatedAt,
     },
     {
-      key: 'DELIVERED',
-      label: deliveredCopy.label,
-      description: deliveredCopy.description,
-      state: source.status === 'FULFILLED' ? 'current' : 'pending',
-      timestamp: source.fulfilledAt,
+      key: 'AVAILABLE',
+      label: availableCopy.label,
+      description: availableCopy.description,
+      state: source.availableAt ? 'current' : 'pending',
+      timestamp: source.availableAt,
     },
   ]
 }
@@ -843,5 +1023,158 @@ export function getPayrollRunTypeLabel(
   const translated = t?.(`payroll.runType.${runType}`)
   return !translated || translated === `payroll.runType.${runType}`
     ? fallback
+    : translated
+}
+
+function readMetadataText(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  key: string,
+): string | null {
+  const value = publicationMetadataJson?.[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function readMetadataBoolean(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  key: string,
+): boolean | null {
+  const value = publicationMetadataJson?.[key]
+
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    if (value === 'true') {
+      return true
+    }
+
+    if (value === 'false') {
+      return false
+    }
+  }
+
+  return null
+}
+
+function readMetadataNumber(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  key: string,
+): number | null {
+  const value = publicationMetadataJson?.[key]
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+export function resolvePayslipCanonicalSource(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+): PayslipCanonicalSource | null {
+  const source = readMetadataText(publicationMetadataJson, 'canonicalSource')
+  return source === 'PAYROLL_RUN_EMPLOYEE_RESULT' ? source : null
+}
+
+export function resolvePayslipDocumentRepresentationMode(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  hasDocumentAttachment = false,
+): PayslipDocumentRepresentationMode {
+  const mode = readMetadataText(publicationMetadataJson, 'documentRepresentationMode')
+  const publicationSource = readMetadataText(publicationMetadataJson, 'publicationSource')
+
+  switch (mode) {
+    case 'MANUAL_UPLOAD':
+    case 'GENERATED_PDF':
+      return mode
+    case 'NONE':
+      return 'NONE'
+    default:
+      if (!hasDocumentAttachment) {
+        return 'NONE'
+      }
+
+      return publicationSource === 'payslip_request_workflow'
+        ? 'MANUAL_UPLOAD'
+        : 'GENERATED_PDF'
+  }
+}
+
+export function isPayslipDocumentReady(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  hasDocumentAttachment = false,
+): boolean {
+  return readMetadataBoolean(publicationMetadataJson, 'documentReady') ?? hasDocumentAttachment
+}
+
+export function resolvePayslipDocumentGenerationStatus(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  hasDocumentAttachment = false,
+): PayslipDocumentGenerationStatus {
+  const status = readMetadataText(publicationMetadataJson, 'generationStatus')
+
+  switch (status) {
+    case 'FAILED':
+      return 'FAILED'
+    case 'GENERATED':
+      return 'GENERATED'
+    case 'PENDING':
+      return 'PENDING'
+    default:
+      return hasDocumentAttachment ? 'GENERATED' : 'PENDING'
+  }
+}
+
+export function resolvePayslipDocumentGeneratedAt(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+): string | null {
+  return readMetadataText(publicationMetadataJson, 'generatedAt')
+}
+
+export function resolvePayslipDocumentGenerationError(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+): string | null {
+  return readMetadataText(publicationMetadataJson, 'generationError')
+}
+
+export function resolvePayslipDocumentContentType(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  hasDocumentAttachment = false,
+): string | null {
+  return (
+    readMetadataText(publicationMetadataJson, 'contentType') ??
+    (hasDocumentAttachment ? 'application/pdf' : null)
+  )
+}
+
+export function resolvePayslipDocumentFileSizeBytes(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+): number | null {
+  return readMetadataNumber(publicationMetadataJson, 'fileSizeBytes')
+}
+
+export function getPayslipDocumentRepresentationModeLabel(
+  mode: PayslipDocumentRepresentationMode,
+  t?: TranslateFn,
+): string {
+  const translated = t?.(`payroll.documentRepresentationMode.${mode}`)
+  return !translated || translated === `payroll.documentRepresentationMode.${mode}`
+    ? PAYSLIP_DOCUMENT_REPRESENTATION_MODE_LABELS[mode]
+    : translated
+}
+
+export function getPayslipDocumentGenerationStatusLabel(
+  status: PayslipDocumentGenerationStatus,
+  t?: TranslateFn,
+): string {
+  const translated = t?.(`payroll.documentGenerationStatus.${status}`)
+  return !translated || translated === `payroll.documentGenerationStatus.${status}`
+    ? PAYSLIP_DOCUMENT_GENERATION_STATUS_LABELS[status]
     : translated
 }

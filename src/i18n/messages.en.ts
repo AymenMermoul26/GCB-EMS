@@ -457,14 +457,14 @@
           label: 'Generated',
           description: 'The payslip file was published to secure delivery storage.',
         },
-        DELIVERED: {
-          label: 'Delivered',
-          description: 'The payslip is now available in the employee account.',
-        },
-        REJECTED: {
-          label: 'Rejected',
-          description: 'The request was closed without delivering a payslip file.',
-        },
+          AVAILABLE: {
+            label: 'Available',
+            description: 'The generated payslip PDF is now available in the employee account.',
+          },
+          REJECTED: {
+            label: 'Rejected',
+            description: 'The request was closed without making a payslip document available.',
+          },
       },
     },
     dashboard: {

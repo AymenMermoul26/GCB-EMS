@@ -8,12 +8,14 @@ import {
 
 import { supabase } from '@/lib/supabaseClient'
 import { auditService } from '@/services/auditService'
+import { notificationsService } from '@/services/notificationsService'
 import { getPayrollEmployeeExportRows } from '@/services/payrollExportsService'
 import { getDepartmentDisplayName } from '@/types/department'
 import type {
   CreatePayrollPeriodPayload,
   CreatePayrollRunPayload,
   EmployeePayslipListItem,
+  PayrollPayslipPdfData,
   PayrollCompensationProfile,
   PayrollCompensationProfileFilters,
   PayrollCalculationStatus,
@@ -32,6 +34,17 @@ import type {
   UpdatePayrollPeriodStatusPayload,
   UpdatePayrollRunStatusPayload,
 } from '@/types/payroll'
+import {
+  isPayslipDocumentReady,
+  resolvePayslipCanonicalSource,
+  resolvePayslipDocumentContentType,
+  resolvePayslipDocumentFileSizeBytes,
+  resolvePayslipDocumentGeneratedAt,
+  resolvePayslipDocumentGenerationError,
+  resolvePayslipDocumentGenerationStatus,
+  resolvePayslipDocumentRepresentationMode,
+} from '@/types/payroll'
+import { generatePayrollPayslipPdf, PAYROLL_EMPLOYER_NAME } from '@/utils/pdf/generatePayrollPayslipPdf'
 
 interface PayrollPeriodRow {
   id: string
@@ -98,8 +111,18 @@ interface PayrollRunEmployeeEntryRow {
   exclusion_reason: string | null
   calculation_notes: string | null
   has_payslip: boolean
+  payslip_id: string | null
   payslip_status: string | null
   payslip_published_at: string | null
+  payslip_document_ready: boolean | null
+  payslip_document_representation_mode: string | null
+  payslip_generation_status: string | null
+  payslip_generated_at: string | null
+  payslip_generation_error: string | null
+  payslip_file_name: string | null
+  payslip_storage_path: string | null
+  payslip_content_type: string | null
+  payslip_file_size_bytes: number | string | null
   issue_flags_json: unknown
   calculation_input_json: unknown
   employee_snapshot_json: unknown
@@ -154,6 +177,7 @@ interface PayrollRunCalculationResultRow {
 interface EmployeePayslipRow {
   id: string
   payroll_run_id: string
+  payroll_run_employe_id: string
   payroll_period_id: string
   payroll_period_code: string
   payroll_period_label: string
@@ -203,6 +227,12 @@ interface PayslipLookupRow {
   employe_id: string
 }
 
+interface ExistingPayslipPublicationRow extends PayslipLookupRow {
+  file_name: string | null
+  storage_path: string | null
+  publication_metadata_json: unknown
+}
+
 const PAYROLL_PROCESSING_ACTIONS: PayrollProcessingAuditAction[] = [
   'PAYROLL_PERIOD_CREATED',
   'PAYROLL_RUN_CREATED',
@@ -212,7 +242,10 @@ const PAYROLL_PROCESSING_ACTIONS: PayrollProcessingAuditAction[] = [
   'PAYROLL_CALCULATION_COMPLETED',
   'PAYROLL_CALCULATION_FAILED',
   'PAYROLL_PAYSLIP_PUBLISHED',
+  'PAYSLIP_DOCUMENT_PUBLISHED',
 ]
+
+const PAYSLIP_STORAGE_BUCKET = 'payslips'
 
 function ensureArrayResult<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : []
@@ -336,6 +369,113 @@ function buildEmployeeName(prenom: string | null | undefined, nom: string | null
   return fullName.length > 0 ? fullName : null
 }
 
+function buildPayslipStoragePath(
+  employeId: string,
+  payrollPeriodId: string,
+  payslipId: string,
+  fileName: string,
+): string {
+  return `${employeId}/payroll-periods/${payrollPeriodId}/payslips/${payslipId}/${fileName}`
+}
+
+function readMetadataText(
+  publicationMetadataJson: Record<string, unknown> | null | undefined,
+  key: string,
+): string | null {
+  const value = publicationMetadataJson?.[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function buildPayslipPublicationMetadata(
+  run: PayrollRunDetail,
+  entry: PayrollRunEmployeeEntry,
+  options: {
+    documentReady: boolean
+    documentRepresentationMode: 'NONE' | 'MANUAL_UPLOAD' | 'GENERATED_PDF'
+    documentAttachedAt: string | null
+    generationStatus: 'PENDING' | 'GENERATED' | 'FAILED'
+    generatedAt: string | null
+    generationError: string | null
+    fileName: string | null
+    storagePath: string | null
+    contentType: string | null
+    fileSizeBytes: number | null
+  },
+): Record<string, unknown> {
+  return {
+    canonicalSource: 'PAYROLL_RUN_EMPLOYEE_RESULT',
+    canonicalPayrollRunId: run.id,
+    canonicalPayrollRunEmployeeId: entry.id,
+    canonicalEmployeeId: entry.employeId,
+    publicationSource: 'payroll_processing_foundation',
+    payrollPeriodId: run.payrollPeriodId,
+    payrollPeriodCode: run.periodCode,
+    payrollPeriodLabel: run.periodLabel,
+    documentReady: options.documentReady,
+    documentRepresentationMode: options.documentRepresentationMode,
+    documentAttachedAt: options.documentAttachedAt,
+    documentFileName: options.fileName,
+    documentStoragePath: options.storagePath,
+    contentType: options.contentType,
+    fileSizeBytes: options.fileSizeBytes,
+    generationStatus: options.generationStatus,
+    generatedAt: options.generatedAt,
+    generationError: options.generationError,
+    issueDate: options.generatedAt,
+    payrollRunId: run.id,
+    baseSalaryAmount: entry.baseSalaryAmount,
+    totalAllowancesAmount: entry.totalAllowancesAmount,
+    grossPayAmount: entry.grossPayAmount,
+    totalDeductionsAmount: entry.totalDeductionsAmount,
+    netPayAmount: entry.netPayAmount,
+  }
+}
+
+function buildPayrollPayslipPdfData(
+  run: PayrollRunDetail,
+  entry: PayrollRunEmployeeEntry,
+  issueDate: string,
+): PayrollPayslipPdfData {
+  const employeeFullName = requireText(
+    buildEmployeeName(entry.prenom, entry.nom),
+    'Employee name',
+  )
+
+  return {
+    employerName: PAYROLL_EMPLOYER_NAME,
+    employeeFullName,
+    employeeMatricule: requireText(entry.matricule, 'Employee ID'),
+    departmentName: normalizeText(entry.departementNom),
+    jobTitle: normalizeText(entry.poste),
+    payrollPeriodCode: requireText(run.periodCode, 'Payroll period code'),
+    payrollPeriodLabel: requireText(run.periodLabel, 'Payroll period label'),
+    payrollRunCode: requireText(run.code, 'Payroll run code'),
+    periodStart: requireText(run.periodStart, 'Payroll period start'),
+    periodEnd: requireText(run.periodEnd, 'Payroll period end'),
+    issueDate,
+    baseSalaryAmount: requireNonNegativeAmount(
+      entry.baseSalaryAmount ?? Number.NaN,
+      'Base salary',
+    ),
+    totalAllowancesAmount: requireNonNegativeAmount(
+      entry.totalAllowancesAmount ?? Number.NaN,
+      'Allowances total',
+    ),
+    totalDeductionsAmount: requireNonNegativeAmount(
+      entry.totalDeductionsAmount ?? Number.NaN,
+      'Deductions total',
+    ),
+    grossPayAmount: requireNonNegativeAmount(
+      entry.grossPayAmount ?? Number.NaN,
+      'Gross pay',
+    ),
+    netPayAmount: requireNonNegativeAmount(
+      entry.netPayAmount ?? Number.NaN,
+      'Net pay',
+    ),
+  }
+}
+
 function normalizeSingleRowResult<T>(
   rows: T[] | null,
   context: string,
@@ -404,6 +544,21 @@ function mapPayrollRunDetail(row: PayrollRunDetailRow): PayrollRunDetail {
 }
 
 function mapPayrollRunEmployeeEntry(row: PayrollRunEmployeeEntryRow): PayrollRunEmployeeEntry {
+  const publicationMetadataJson =
+    row.payslip_document_representation_mode ||
+    row.payslip_document_ready !== null ||
+    row.payslip_generation_status ||
+    row.payslip_generated_at ||
+    row.payslip_generation_error
+      ? {
+          documentRepresentationMode: row.payslip_document_representation_mode ?? undefined,
+          documentReady: row.payslip_document_ready ?? undefined,
+          generationStatus: row.payslip_generation_status ?? undefined,
+          generatedAt: row.payslip_generated_at ?? undefined,
+          generationError: row.payslip_generation_error ?? undefined,
+        }
+      : undefined
+
   return {
     id: row.id,
     payrollRunId: row.payroll_run_id,
@@ -420,10 +575,30 @@ function mapPayrollRunEmployeeEntry(row: PayrollRunEmployeeEntryRow): PayrollRun
     exclusionReason: normalizeText(row.exclusion_reason),
     calculationNotes: normalizeText(row.calculation_notes),
     hasPayslip: row.has_payslip,
+    payslipId: row.payslip_id,
     payslipStatus: row.payslip_status
       ? resolvePayrollProcessingStatus(row.payslip_status)
       : null,
     payslipPublishedAt: row.payslip_published_at,
+    payslipDocumentReady: Boolean(row.payslip_document_ready),
+    payslipDocumentRepresentationMode: row.payslip_document_representation_mode
+      ? resolvePayslipDocumentRepresentationMode(
+          publicationMetadataJson,
+          Boolean(row.payslip_document_ready),
+        )
+      : null,
+    payslipGenerationStatus: row.has_payslip
+      ? resolvePayslipDocumentGenerationStatus(
+          publicationMetadataJson,
+          Boolean(row.payslip_document_ready),
+        )
+      : null,
+    payslipGeneratedAt: row.payslip_generated_at,
+    payslipGenerationError: normalizeText(row.payslip_generation_error),
+    payslipFileName: normalizeText(row.payslip_file_name),
+    payslipStoragePath: normalizeText(row.payslip_storage_path),
+    payslipContentType: normalizeText(row.payslip_content_type),
+    payslipFileSizeBytes: normalizeNumber(row.payslip_file_size_bytes),
     issueFlags: normalizeStringArray(row.issue_flags_json),
     calculationInputJson: normalizeObject(row.calculation_input_json),
     employeeSnapshotJson: normalizeObject(row.employee_snapshot_json),
@@ -480,9 +655,15 @@ function mapPayrollRunCalculationResult(
 }
 
 function mapEmployeePayslip(row: EmployeePayslipRow): EmployeePayslipListItem {
+  const fileName = normalizeText(row.file_name)
+  const storagePath = normalizeText(row.storage_path)
+  const publicationMetadataJson = normalizeObject(row.publication_metadata_json)
+  const hasDocumentAttachment = Boolean(fileName && storagePath)
+
   return {
     id: row.id,
     payrollRunId: row.payroll_run_id,
+    payrollRunEmployeId: row.payroll_run_employe_id,
     payrollPeriodId: row.payroll_period_id,
     payrollPeriodCode: row.payroll_period_code,
     payrollPeriodLabel: row.payroll_period_label,
@@ -491,9 +672,26 @@ function mapEmployeePayslip(row: EmployeePayslipRow): EmployeePayslipListItem {
     payrollRunCode: row.payroll_run_code,
     status: resolvePayrollProcessingStatus(row.status),
     publishedAt: row.published_at,
-    fileName: normalizeText(row.file_name),
-    storagePath: normalizeText(row.storage_path),
-    publicationMetadataJson: normalizeObject(row.publication_metadata_json),
+    fileName,
+    storagePath,
+    canonicalSource: resolvePayslipCanonicalSource(publicationMetadataJson),
+    documentReady: isPayslipDocumentReady(publicationMetadataJson, hasDocumentAttachment),
+    documentRepresentationMode: resolvePayslipDocumentRepresentationMode(
+      publicationMetadataJson,
+      hasDocumentAttachment,
+    ),
+    documentGenerationStatus: resolvePayslipDocumentGenerationStatus(
+      publicationMetadataJson,
+      hasDocumentAttachment,
+    ),
+    documentGeneratedAt: resolvePayslipDocumentGeneratedAt(publicationMetadataJson),
+    documentGenerationError: resolvePayslipDocumentGenerationError(publicationMetadataJson),
+    documentContentType: resolvePayslipDocumentContentType(
+      publicationMetadataJson,
+      hasDocumentAttachment,
+    ),
+    documentFileSizeBytes: resolvePayslipDocumentFileSizeBytes(publicationMetadataJson),
+    publicationMetadataJson,
     createdAt: row.created_at,
   }
 }
@@ -579,6 +777,20 @@ function buildProcessingActivitySummary(
       return employeeReference
         ? `Published payslip metadata for ${employeeReference}.`
         : 'Published a payslip.'
+    }
+    case 'PAYSLIP_DOCUMENT_PUBLISHED': {
+      const employeeReference = employeeName && matricule
+        ? `${employeeName} (${matricule})`
+        : employeeName ?? matricule
+      const fileName = normalizeText(String(detailsJson.file_name ?? ''))
+
+      if (employeeReference && fileName) {
+        return `Generated payslip PDF ${fileName} for ${employeeReference}.`
+      }
+
+      return employeeReference
+        ? `Generated a payslip PDF for ${employeeReference}.`
+        : 'Generated a payslip PDF.'
     }
     case 'PAYROLL_RUN_UPDATED':
     default:
@@ -724,6 +936,14 @@ async function insertPayrollAuditRows(rows: PayslipAuditInsertRow[]): Promise<vo
   }
 
   const { error } = await supabase.from('audit_log').insert(rows)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+async function removePayslipStorageObject(storagePath: string): Promise<void> {
+  const { error } = await supabase.storage.from(PAYSLIP_STORAGE_BUCKET).remove([storagePath])
 
   if (error) {
     throw new Error(error.message)
@@ -1212,26 +1432,66 @@ export async function updatePayrollRunStatus(
       )
     }
 
-    const upsertRows: PayslipUpsertRow[] = publishableEntries.map((entry) => ({
-      payroll_run_id: payload.runId,
-      payroll_run_employe_id: entry.id,
-      employe_id: entry.employeId,
-      status: 'PUBLISHED',
-      file_name: null,
-      storage_path: null,
-      published_at: publishedAt,
-      published_by_user_id: userId,
-      publication_metadata_json: {
-        publicationSource: 'payroll_processing_foundation',
-        documentReady: false,
-        payrollRunId: payload.runId,
-        baseSalaryAmount: entry.baseSalaryAmount,
-        totalAllowancesAmount: entry.totalAllowancesAmount,
-        grossPayAmount: entry.grossPayAmount,
-        totalDeductionsAmount: entry.totalDeductionsAmount,
-        netPayAmount: entry.netPayAmount,
-      },
-    }))
+    const { data: existingPayslipRows, error: existingPayslipsError } = await supabase
+      .from('Payslip')
+      .select('id, payroll_run_employe_id, employe_id, file_name, storage_path, publication_metadata_json')
+      .in(
+        'payroll_run_employe_id',
+        publishableEntries.map((entry) => entry.id),
+      )
+      .returns<ExistingPayslipPublicationRow[]>()
+
+    if (existingPayslipsError) {
+      throw new Error(existingPayslipsError.message)
+    }
+
+    const existingPayslipByRunEmployeeId = new Map(
+      ensureArrayResult<ExistingPayslipPublicationRow>(existingPayslipRows).map((row) => [
+        row.payroll_run_employe_id,
+        row,
+      ]),
+    )
+
+    const upsertRows: PayslipUpsertRow[] = publishableEntries.map((entry) => {
+      const existingPayslip = existingPayslipByRunEmployeeId.get(entry.id)
+      const existingFileName = normalizeText(existingPayslip?.file_name)
+      const existingStoragePath = normalizeText(existingPayslip?.storage_path)
+      const existingMetadata = normalizeObject(existingPayslip?.publication_metadata_json)
+      const hasExistingDocument = Boolean(existingFileName && existingStoragePath)
+
+      return {
+        payroll_run_id: payload.runId,
+        payroll_run_employe_id: entry.id,
+        employe_id: entry.employeId,
+        status: 'PUBLISHED',
+        file_name: existingFileName,
+        storage_path: existingStoragePath,
+        published_at: publishedAt,
+        published_by_user_id: userId,
+        publication_metadata_json: buildPayslipPublicationMetadata(currentRun, entry, {
+          documentReady: hasExistingDocument
+            ? isPayslipDocumentReady(existingMetadata, true)
+            : false,
+          documentRepresentationMode: hasExistingDocument
+            ? resolvePayslipDocumentRepresentationMode(existingMetadata, true)
+            : 'NONE',
+          documentAttachedAt: hasExistingDocument
+            ? readMetadataText(existingMetadata, 'documentAttachedAt') ??
+              readMetadataText(existingMetadata, 'generatedAt') ??
+              publishedAt
+            : null,
+          fileName: existingFileName,
+          storagePath: existingStoragePath,
+          contentType: resolvePayslipDocumentContentType(existingMetadata, hasExistingDocument),
+          fileSizeBytes: resolvePayslipDocumentFileSizeBytes(existingMetadata),
+          generationStatus: 'PENDING',
+          generatedAt: hasExistingDocument
+            ? resolvePayslipDocumentGeneratedAt(existingMetadata) ?? publishedAt
+            : null,
+          generationError: null,
+        }),
+      }
+    })
 
     const { data: payslipRows, error: payslipUpsertError } = await supabase
       .from('Payslip')
@@ -1248,9 +1508,15 @@ export async function updatePayrollRunStatus(
     )
 
     const payslipAuditRows: PayslipAuditInsertRow[] = []
+    const payslipDocumentAuditRows: PayslipAuditInsertRow[] = []
 
     for (const entry of publishableEntries) {
       const payslip = payslipByRunEmployeeId.get(entry.id)
+      const existingPayslip = existingPayslipByRunEmployeeId.get(entry.id)
+      const existingFileName = normalizeText(existingPayslip?.file_name)
+      const existingStoragePath = normalizeText(existingPayslip?.storage_path)
+      const existingMetadata = normalizeObject(existingPayslip?.publication_metadata_json)
+      const hasExistingDocument = Boolean(existingFileName && existingStoragePath)
 
       if (!payslip?.id) {
         continue
@@ -1271,12 +1537,175 @@ export async function updatePayrollRunStatus(
           employee_id: entry.employeId,
           employee_name: buildEmployeeName(entry.prenom, entry.nom),
           matricule: entry.matricule,
+          payroll_run_employe_id: entry.id,
           published_at: publishedAt,
+          canonical_source: 'PAYROLL_RUN_EMPLOYEE_RESULT',
+          document_ready: hasExistingDocument
+            ? isPayslipDocumentReady(existingMetadata, true)
+            : false,
+          document_representation_mode: hasExistingDocument
+            ? resolvePayslipDocumentRepresentationMode(existingMetadata, true)
+            : 'NONE',
         },
       })
+
+      try {
+        const pdfPayload = buildPayrollPayslipPdfData(currentRun, entry, publishedAt)
+        const generatedPayslipDocument = await generatePayrollPayslipPdf(pdfPayload)
+        const generatedFileSizeBytes = generatedPayslipDocument.blob.size
+        const storagePath = buildPayslipStoragePath(
+          entry.employeId,
+          currentRun.payrollPeriodId,
+          payslip.id,
+          generatedPayslipDocument.fileName,
+        )
+        const contentType = 'application/pdf'
+
+        const { error: uploadError } = await supabase.storage
+          .from(PAYSLIP_STORAGE_BUCKET)
+          .upload(storagePath, generatedPayslipDocument.blob, {
+            contentType,
+            upsert: true,
+          })
+
+        if (uploadError) {
+          throw new Error(uploadError.message)
+        }
+
+        const { error: payslipDocumentUpdateError } = await supabase
+          .from('Payslip')
+          .update({
+            file_name: generatedPayslipDocument.fileName,
+            storage_path: storagePath,
+            publication_metadata_json: buildPayslipPublicationMetadata(currentRun, entry, {
+              documentReady: true,
+              documentRepresentationMode: 'GENERATED_PDF',
+              documentAttachedAt: publishedAt,
+              fileName: generatedPayslipDocument.fileName,
+              storagePath,
+              contentType,
+              fileSizeBytes: generatedFileSizeBytes,
+              generationStatus: 'GENERATED',
+              generatedAt: publishedAt,
+              generationError: null,
+            }),
+          })
+          .eq('id', payslip.id)
+
+        if (payslipDocumentUpdateError) {
+          if (!existingStoragePath || existingStoragePath !== storagePath) {
+            try {
+              await removePayslipStorageObject(storagePath)
+            } catch (cleanupError) {
+              console.error(
+                'Failed to remove a newly uploaded payslip file after metadata update failure.',
+                cleanupError,
+              )
+            }
+          }
+          throw new Error(payslipDocumentUpdateError.message)
+        }
+
+        if (existingStoragePath && existingStoragePath !== storagePath) {
+          try {
+            await removePayslipStorageObject(existingStoragePath)
+          } catch (cleanupError) {
+            console.error('Failed to remove superseded payslip storage object.', cleanupError)
+          }
+        }
+
+        payslipDocumentAuditRows.push({
+          actor_user_id: userId,
+          action: 'PAYSLIP_DOCUMENT_PUBLISHED',
+          target_type: 'Payslip',
+          target_id: payslip.id,
+          details_json: {
+            payslip_id: payslip.id,
+            payroll_run_id: payload.runId,
+            payroll_run_code: currentRun.code,
+            payroll_period_id: currentRun.payrollPeriodId,
+            period_code: currentRun.periodCode,
+            period_label: currentRun.periodLabel,
+            employee_id: entry.employeId,
+            employee_name: buildEmployeeName(entry.prenom, entry.nom),
+            matricule: entry.matricule,
+            payroll_run_employe_id: entry.id,
+            published_at: publishedAt,
+            file_name: generatedPayslipDocument.fileName,
+            storage_path: storagePath,
+            content_type: contentType,
+            file_size_bytes: generatedFileSizeBytes,
+            canonical_source: 'PAYROLL_RUN_EMPLOYEE_RESULT',
+            document_ready: true,
+            document_representation_mode: 'GENERATED_PDF',
+          },
+        })
+
+        try {
+          await notificationsService.notifyEmployeePayslipAvailable({
+            employeId: entry.employeId,
+            payslipId: payslip.id,
+            payrollRunId: payload.runId,
+            payrollPeriodId: currentRun.payrollPeriodId,
+            payrollPeriodCode: currentRun.periodCode,
+            payrollPeriodLabel: currentRun.periodLabel,
+          })
+        } catch (notificationError) {
+          console.error(
+            `Failed to notify employee ${entry.employeId} about payslip availability for payroll run ${payload.runId}.`,
+            notificationError,
+          )
+        }
+      } catch (error) {
+        const generationError =
+          error instanceof Error ? error.message : 'Unknown payslip document generation failure.'
+
+        const { error: payslipFailureUpdateError } = await supabase
+          .from('Payslip')
+          .update({
+            file_name: existingFileName,
+            storage_path: existingStoragePath,
+            publication_metadata_json: buildPayslipPublicationMetadata(currentRun, entry, {
+              documentReady: hasExistingDocument
+                ? isPayslipDocumentReady(existingMetadata, true)
+                : false,
+              documentRepresentationMode: hasExistingDocument
+                ? resolvePayslipDocumentRepresentationMode(existingMetadata, true)
+                : 'NONE',
+              documentAttachedAt: hasExistingDocument
+                ? readMetadataText(existingMetadata, 'documentAttachedAt') ??
+                  readMetadataText(existingMetadata, 'generatedAt') ??
+                  publishedAt
+                : null,
+              fileName: existingFileName,
+              storagePath: existingStoragePath,
+              contentType: resolvePayslipDocumentContentType(existingMetadata, hasExistingDocument),
+              fileSizeBytes: resolvePayslipDocumentFileSizeBytes(existingMetadata),
+              generationStatus: 'FAILED',
+              generatedAt: hasExistingDocument
+                ? resolvePayslipDocumentGeneratedAt(existingMetadata) ?? publishedAt
+                : null,
+              generationError,
+            }),
+          })
+          .eq('id', payslip.id)
+
+        if (payslipFailureUpdateError) {
+          console.error(
+            'Failed to persist payslip document generation failure state.',
+            payslipFailureUpdateError,
+          )
+        }
+
+        console.error(
+          `Payslip PDF generation failed for payroll run employee entry ${entry.id}.`,
+          error,
+        )
+      }
     }
 
     await insertPayrollAuditRows(payslipAuditRows)
+    await insertPayrollAuditRows(payslipDocumentAuditRows)
   }
 
   await auditService.insertAuditLog({
@@ -1560,6 +1989,7 @@ export function useUpdatePayrollRunStatusMutation(
       await queryClient.invalidateQueries({ queryKey: ['payrollRun', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['payrollRunEmployeeEntries', data.id] })
       await queryClient.invalidateQueries({ queryKey: ['employeePayslips'] })
+      await queryClient.invalidateQueries({ queryKey: ['employeePayslipDocuments'] })
       await queryClient.invalidateQueries({ queryKey: ['payrollProcessingActivity', userId ?? null] })
       await onSuccess?.(data, variables, onMutateResult, context)
     },

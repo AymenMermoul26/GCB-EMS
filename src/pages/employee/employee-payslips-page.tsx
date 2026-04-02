@@ -52,6 +52,10 @@ import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import {
+  createAvailablePayslipDocumentAccessDescriptor,
+  createEmployeePublishedPayslipAccessDescriptor,
+  createPayslipRequestCanonicalDocumentAccessDescriptor,
+  createPayslipRequestDeliveredDocumentAccessDescriptor,
   downloadPayslipDocument,
   openPayslipDocument,
   useCreatePayslipRequestMutation,
@@ -67,7 +71,10 @@ import type {
   PayslipRequestPeriodOption,
 } from '@/types/payroll'
 import {
+  buildPayslipRequestTimelineSource,
+  buildPublishedPayslipTimelineSource,
   getPayslipDocumentSourceLabel,
+  getPayslipDocumentRepresentationModeLabel,
   getPayslipRequestStatusMeta,
   getPayrollProcessingStatusMeta,
 } from '@/types/payroll'
@@ -120,8 +127,32 @@ function SummaryCard({
   )
 }
 
-function RequestRow({ request }: { request: EmployeePayslipRequestItem }) {
+function RequestRow({
+  request,
+  activeActionKey,
+  onOpenDocument,
+  onDownloadDocument,
+}: {
+  request: EmployeePayslipRequestItem
+  activeActionKey: string | null
+  onOpenDocument: (request: EmployeePayslipRequestItem) => Promise<void>
+  onDownloadDocument: (request: EmployeePayslipRequestItem) => Promise<void>
+}) {
   const statusMeta = getPayslipRequestStatusMeta(request.status)
+  const canonicalPayslipStatusMeta = request.canonicalPayslipStatus
+    ? getPayrollProcessingStatusMeta(request.canonicalPayslipStatus)
+    : null
+  const representationModeLabel = request.canonicalDocumentRepresentationMode
+    ? getPayslipDocumentRepresentationModeLabel(request.canonicalDocumentRepresentationMode)
+    : null
+  const deliveredDescriptor = createPayslipRequestDeliveredDocumentAccessDescriptor(request)
+  const canonicalDescriptor = createPayslipRequestCanonicalDocumentAccessDescriptor(request)
+  const primaryDescriptor = deliveredDescriptor ?? canonicalDescriptor
+  const hasDeliveredDocument = Boolean(deliveredDescriptor)
+  const isOpening = activeActionKey === `${request.id}:open`
+  const isDownloading = activeActionKey === `${request.id}:download`
+  const fileName = hasDeliveredDocument ? request.documentFileName : request.canonicalDocumentFileName
+  const fileSizeBytes = hasDeliveredDocument ? null : request.canonicalDocumentFileSizeBytes
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
@@ -145,17 +176,19 @@ function RequestRow({ request }: { request: EmployeePayslipRequestItem }) {
             <span>Fulfilled {formatTimestamp(request.fulfilledAt)}</span>
           </div>
 
-          <div className="mt-4">
-            <PayslipWorkflowTimeline
-              request={{
-                status: request.status,
-                createdAt: request.createdAt,
-                reviewedAt: request.reviewedAt,
-                documentPublishedAt: request.documentPublishedAt,
-                fulfilledAt: request.fulfilledAt,
-              }}
-            />
-          </div>
+            <div className="mt-4">
+              <PayslipWorkflowTimeline
+                source={buildPayslipRequestTimelineSource({
+                  status: request.status,
+                  createdAt: request.createdAt,
+                  reviewedAt: request.reviewedAt,
+                  canonicalPayslipPublishedAt: request.canonicalPayslipPublishedAt,
+                  canonicalDocumentReady: request.canonicalDocumentReady,
+                  documentPublishedAt: request.documentPublishedAt,
+                  fulfilledAt: request.fulfilledAt,
+                })}
+              />
+            </div>
 
           {request.requestNote ? (
             <div className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3 text-sm leading-6 text-slate-700">
@@ -176,21 +209,88 @@ function RequestRow({ request }: { request: EmployeePayslipRequestItem }) {
           ) : null}
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm text-slate-600 lg:w-[260px]">
-          {request.documentId && request.documentFileName ? (
+        <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm text-slate-600 lg:w-[300px]">
+          {hasDeliveredDocument ? (
             <>
-              <p className="font-medium text-slate-900">Document delivered</p>
+              <p className="font-medium text-slate-900">Delivered document representation</p>
               <p className="mt-1 break-all">{request.documentFileName}</p>
               <p className="mt-2 text-xs text-slate-500">
                 Published {formatTimestamp(request.documentPublishedAt)}
               </p>
             </>
+          ) : request.canonicalPayslipId ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-medium text-slate-900">Canonical generated payslip</p>
+                {canonicalPayslipStatusMeta ? (
+                  <StatusBadge tone={canonicalPayslipStatusMeta.tone} emphasis="outline">
+                    {canonicalPayslipStatusMeta.label}
+                  </StatusBadge>
+                ) : null}
+              </div>
+              <p className="mt-2">
+                {request.canonicalDocumentReady
+                  ? 'This payroll-derived payslip already has a secure generated PDF available in your account. Payroll may still close this request separately for request-history traceability.'
+                  : 'The payroll-derived payslip record exists, but the generated PDF representation is still pending.'}
+              </p>
+              {fileName ? <p className="mt-2 break-all text-xs text-slate-500">{fileName}</p> : null}
+              {fileSizeBytes ? (
+                <p className="mt-1 text-xs text-slate-500">Size {formatFileSize(fileSizeBytes)}</p>
+              ) : null}
+              {representationModeLabel ? (
+                <p className="mt-2 text-xs text-slate-500">{representationModeLabel}</p>
+              ) : null}
+              <p className="mt-2 text-xs text-slate-500">
+                Published {formatTimestamp(request.canonicalPayslipPublishedAt)}
+              </p>
+            </>
+          ) : request.canonicalSourcePayrollRunEmployeId ? (
+            <>
+              <p className="font-medium text-slate-900">Payroll result source ready</p>
+              <p className="mt-2">
+                Payroll has a published payroll result for this period. The generated PDF becomes
+                available here as soon as document generation finishes and publication makes it
+                visible to your account.
+              </p>
+            </>
           ) : (
             <p>
-              This request stays visible here while payroll reviews or fulfills the requested
-              payslip.
+              This request stays visible here while payroll reviews the request and links it to a
+              payroll-derived payslip record.
             </p>
           )}
+
+          {primaryDescriptor ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={Boolean(activeActionKey)}
+                onClick={() => void onOpenDocument(request)}
+              >
+                {isOpening ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                )}
+                Open PDF
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={Boolean(activeActionKey)}
+                onClick={() => void onDownloadDocument(request)}
+              >
+                {isDownloading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                )}
+                Download PDF
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -264,9 +364,24 @@ function AvailableDocumentRow({
   )
 }
 
-function PublishedPayslipRow({ payslip }: { payslip: EmployeePayslipListItem }) {
+function PublishedPayslipRow({
+  payslip,
+  activeActionKey,
+  onOpenDocument,
+  onDownloadDocument,
+}: {
+  payslip: EmployeePayslipListItem
+  activeActionKey: string | null
+  onOpenDocument: (payslip: EmployeePayslipListItem) => Promise<void>
+  onDownloadDocument: (payslip: EmployeePayslipListItem) => Promise<void>
+}) {
   const statusMeta = getPayrollProcessingStatusMeta(payslip.status)
-  const documentReady = Boolean(payslip.fileName || payslip.storagePath)
+  const representationModeLabel = getPayslipDocumentRepresentationModeLabel(
+    payslip.documentRepresentationMode,
+  )
+  const documentDescriptor = createEmployeePublishedPayslipAccessDescriptor(payslip)
+  const isOpening = activeActionKey === `${payslip.id}:open`
+  const isDownloading = activeActionKey === `${payslip.id}:download`
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
@@ -285,15 +400,72 @@ function PublishedPayslipRow({ payslip }: { payslip: EmployeePayslipListItem }) 
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
             <span>Published {formatTimestamp(payslip.publishedAt)}</span>
             <span>Created {formatTimestamp(payslip.createdAt)}</span>
+            <span>Generated {formatTimestamp(payslip.documentGeneratedAt)}</span>
+          </div>
+          <div className="mt-4">
+            <PayslipWorkflowTimeline
+              source={buildPublishedPayslipTimelineSource({
+                status: payslip.status,
+                publishedAt: payslip.publishedAt,
+                documentReady: payslip.documentReady,
+                documentGeneratedAt: payslip.documentGeneratedAt,
+              })}
+            />
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm text-slate-600">
-          {documentReady ? (
-            <p className="font-medium text-slate-900">Document linked and available above</p>
+        <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm text-slate-600 lg:w-[300px]">
+          {payslip.documentReady ? (
+            <>
+              <p className="font-medium text-slate-900">Generated payslip PDF available</p>
+              {payslip.fileName ? <p className="mt-1 break-all">{payslip.fileName}</p> : null}
+              <p className="mt-1 text-xs text-slate-500">{representationModeLabel}</p>
+              <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                <span>Size {formatFileSize(payslip.documentFileSizeBytes)}</span>
+                <span>{payslip.documentContentType ?? 'application/pdf'}</span>
+              </div>
+            </>
           ) : (
-            <p>Published payroll metadata is available even if a file has not been attached yet.</p>
+            <>
+              <p className="font-medium text-slate-900">Canonical payslip record published</p>
+              <p className="mt-1">
+                Payroll data is available for this period, even though the generated PDF
+                representation is not available yet.
+              </p>
+            </>
           )}
+
+          {documentDescriptor ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={Boolean(activeActionKey)}
+                onClick={() => void onOpenDocument(payslip)}
+              >
+                {isOpening ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                )}
+                Open PDF
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={Boolean(activeActionKey)}
+                onClick={() => void onDownloadDocument(payslip)}
+              >
+                {isDownloading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                )}
+                Download PDF
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -302,6 +474,22 @@ function PublishedPayslipRow({ payslip }: { payslip: EmployeePayslipListItem }) 
 
 function sortPeriods(periods: PayslipRequestPeriodOption[]) {
   return [...periods].sort((left, right) => right.periodStart.localeCompare(left.periodStart))
+}
+
+function sortPayslipRequests(requests: EmployeePayslipRequestItem[]) {
+  return [...requests].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+}
+
+function sortAvailableDocuments(documents: AvailablePayslipDocumentItem[]) {
+  return [...documents].sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
+}
+
+function sortPublishedPayslips(items: EmployeePayslipListItem[]) {
+  return [...items].sort((left, right) => {
+    const leftTimestamp = left.publishedAt ?? left.createdAt
+    const rightTimestamp = right.publishedAt ?? right.createdAt
+    return rightTimestamp.localeCompare(leftTimestamp)
+  })
 }
 
 export function EmployeePayslipsPage() {
@@ -316,13 +504,22 @@ export function EmployeePayslipsPage() {
   const payslipRequestsQuery = useEmployeePayslipRequestsQuery(user?.id)
   const availableDocumentsQuery = useEmployeeAvailablePayslipDocumentsQuery(user?.id)
 
-  const publishedPayslips = publishedPayslipsQuery.data ?? []
+  const publishedPayslips = useMemo(
+    () => sortPublishedPayslips(publishedPayslipsQuery.data ?? []),
+    [publishedPayslipsQuery.data],
+  )
   const requestPeriods = useMemo(
     () => sortPeriods(requestPeriodsQuery.data ?? []),
     [requestPeriodsQuery.data],
   )
-  const payslipRequests = payslipRequestsQuery.data ?? []
-  const availableDocuments = availableDocumentsQuery.data ?? []
+  const payslipRequests = useMemo(
+    () => sortPayslipRequests(payslipRequestsQuery.data ?? []),
+    [payslipRequestsQuery.data],
+  )
+  const availableDocuments = useMemo(
+    () => sortAvailableDocuments(availableDocumentsQuery.data ?? []),
+    [availableDocumentsQuery.data],
+  )
 
   const createRequestMutation = useCreatePayslipRequestMutation(user?.id, {
     onSuccess: () => {
@@ -355,27 +552,43 @@ export function EmployeePayslipsPage() {
     }
   }
 
-  const handleOpenDocument = async (document: AvailablePayslipDocumentItem) => {
-    setActiveDocumentActionKey(`${document.id}:open`)
+  const handleOpenDocument = async (
+    actionKey: string,
+    descriptor: ReturnType<typeof createAvailablePayslipDocumentAccessDescriptor> | null,
+    failureMessage: string,
+  ) => {
+    if (!descriptor) {
+      toast.error('This payslip PDF is not available yet.')
+      return
+    }
+
+    setActiveDocumentActionKey(actionKey)
 
     try {
-      await openPayslipDocument(document)
+      await openPayslipDocument(descriptor)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not open payslip document.')
+      toast.error(error instanceof Error ? error.message : failureMessage)
     } finally {
       setActiveDocumentActionKey(null)
     }
   }
 
-  const handleDownloadDocument = async (document: AvailablePayslipDocumentItem) => {
-    setActiveDocumentActionKey(`${document.id}:download`)
+  const handleDownloadDocument = async (
+    actionKey: string,
+    descriptor: ReturnType<typeof createAvailablePayslipDocumentAccessDescriptor> | null,
+    failureMessage: string,
+  ) => {
+    if (!descriptor) {
+      toast.error('This payslip PDF is not available yet.')
+      return
+    }
+
+    setActiveDocumentActionKey(actionKey)
 
     try {
-      await downloadPayslipDocument(document)
+      await downloadPayslipDocument(descriptor)
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not download payslip document.',
-      )
+      toast.error(error instanceof Error ? error.message : failureMessage)
     } finally {
       setActiveDocumentActionKey(null)
     }
@@ -392,11 +605,11 @@ export function EmployeePayslipsPage() {
   return (
     <DashboardLayout
       title="Payslips"
-      subtitle="Request, track, and access the payslips available to your employee account."
+      subtitle="Request, track, and access payroll-derived payslip records and their available document representations."
     >
       <PageHeader
         title="Payslips"
-        description="Request a payslip for an existing payroll period, follow payroll review status, and access only the documents published to your own employee account."
+        description="Request a payslip for an existing payroll period, follow payroll review status, and access only the payroll-derived payslip records and document representations published to your own employee account."
         className="mb-6"
         actions={
           <>
@@ -441,7 +654,7 @@ export function EmployeePayslipsPage() {
             <SummaryCard
               title="Available documents"
               value={String(availableDocuments.length)}
-              helper="Delivered or published payslip files available to preview and download."
+              helper="PDF representations currently available to preview and download."
             />
             <SummaryCard
               title="Latest delivery"
@@ -464,11 +677,12 @@ export function EmployeePayslipsPage() {
             <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
                 You cannot access draft payroll runs, payroll calculation details for other
-                employees, or unpublished payslip files.
+                employees, unpublished payslip records, or unpublished document representations.
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                Once payroll fulfills a request or publishes a file-backed payslip, the document
-                appears here for preview and download.
+                Canonical payslip records come from published payroll data. Preview and download
+                become available only after the generated PDF representation is attached to that
+                record and published to your employee account.
               </div>
             </CardContent>
           </Card>
@@ -499,12 +713,32 @@ export function EmployeePayslipsPage() {
                   surface="plain"
                   align="left"
                   title="No payslip requests yet"
-                  description="Use the request action above whenever you need payroll to deliver a payslip for an available period."
+                  description="Use the request action above whenever you need payroll to review and deliver an available payslip document for an eligible period."
                 />
               ) : (
                 <div className="space-y-3">
                   {payslipRequests.map((request) => (
-                    <RequestRow key={request.id} request={request} />
+                    <RequestRow
+                      key={request.id}
+                      request={request}
+                      activeActionKey={activeDocumentActionKey}
+                      onOpenDocument={(item) =>
+                        handleOpenDocument(
+                          `${item.id}:open`,
+                          createPayslipRequestDeliveredDocumentAccessDescriptor(item) ??
+                            createPayslipRequestCanonicalDocumentAccessDescriptor(item),
+                          'Could not open payslip PDF.',
+                        )
+                      }
+                      onDownloadDocument={(item) =>
+                        handleDownloadDocument(
+                          `${item.id}:download`,
+                          createPayslipRequestDeliveredDocumentAccessDescriptor(item) ??
+                            createPayslipRequestCanonicalDocumentAccessDescriptor(item),
+                          'Could not download payslip PDF.',
+                        )
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -517,7 +751,9 @@ export function EmployeePayslipsPage() {
                 Available payslip documents
               </CardTitle>
               <CardDescription>
-                Preview or download only the payslip files delivered to your own employee account.
+                Preview or download only the payslip documents published to your own employee
+                account, whether they came directly from payroll publication or from request
+                delivery history.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -537,7 +773,7 @@ export function EmployeePayslipsPage() {
                   surface="plain"
                   align="left"
                   title="No payslip documents available"
-                  description="Fulfilled requests and file-backed published payslips will appear here."
+                  description="Generated payroll PDFs and request-delivery document records will appear here once they are published to your account."
                 />
               ) : (
                 <div className="space-y-3">
@@ -546,8 +782,20 @@ export function EmployeePayslipsPage() {
                       key={document.id}
                       document={document}
                       activeActionKey={activeDocumentActionKey}
-                      onOpen={handleOpenDocument}
-                      onDownload={handleDownloadDocument}
+                      onOpen={(item) =>
+                        handleOpenDocument(
+                          `${item.id}:open`,
+                          createAvailablePayslipDocumentAccessDescriptor(item),
+                          'Could not open payslip document.',
+                        )
+                      }
+                      onDownload={(item) =>
+                        handleDownloadDocument(
+                          `${item.id}:download`,
+                          createAvailablePayslipDocumentAccessDescriptor(item),
+                          'Could not download payslip document.',
+                        )
+                      }
                     />
                   ))}
                 </div>
@@ -558,11 +806,11 @@ export function EmployeePayslipsPage() {
           <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="text-base font-semibold text-slate-950">
-                Published payroll records
+                Published payslip records
               </CardTitle>
               <CardDescription>
-                Published payroll metadata remains visible here, even when file delivery is handled
-                through a separate request.
+                Canonical payslip records remain visible here even before a PDF representation is
+                generated and attached.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -573,7 +821,7 @@ export function EmployeePayslipsPage() {
                   surface="plain"
                   align="left"
                   title="Could not load published payslips"
-                  description="We couldn't load your published payroll records right now."
+                  description="We couldn't load your published payslip records right now."
                   message={publishedPayslipsQuery.error.message}
                   onRetry={() => void publishedPayslipsQuery.refetch()}
                 />
@@ -581,13 +829,31 @@ export function EmployeePayslipsPage() {
                 <EmptyState
                   surface="plain"
                   align="left"
-                  title="No published payslip metadata yet"
-                  description="Published payroll records will appear here once payroll completes publication for your account."
+                  title="No published payslip records yet"
+                  description="Payroll-derived payslip records will appear here once payroll completes publication for your account."
                 />
               ) : (
                 <div className="space-y-3">
                   {publishedPayslips.map((payslip) => (
-                    <PublishedPayslipRow key={payslip.id} payslip={payslip} />
+                    <PublishedPayslipRow
+                      key={payslip.id}
+                      payslip={payslip}
+                      activeActionKey={activeDocumentActionKey}
+                      onOpenDocument={(item) =>
+                        handleOpenDocument(
+                          `${item.id}:open`,
+                          createEmployeePublishedPayslipAccessDescriptor(item),
+                          'Could not open generated payslip PDF.',
+                        )
+                      }
+                      onDownloadDocument={(item) =>
+                        handleDownloadDocument(
+                          `${item.id}:download`,
+                          createEmployeePublishedPayslipAccessDescriptor(item),
+                          'Could not download generated payslip PDF.',
+                        )
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -611,7 +877,8 @@ export function EmployeePayslipsPage() {
             <DialogTitle>Request Payslip</DialogTitle>
             <DialogDescription>
               Submit a payroll request for one available payroll period. The request stays in your
-              account until payroll reviews and fulfills it.
+              account until payroll reviews it and delivers any available document representation
+              for the payroll-derived payslip record.
             </DialogDescription>
           </DialogHeader>
 

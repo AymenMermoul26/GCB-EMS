@@ -43,6 +43,7 @@ export const QR_REFRESH_NOTIFICATION_TITLE = 'QR refresh required'
 export const EMPLOYEE_QR_NOTIFICATION_SCOPE = 'employee_qr_profile'
 export const EMPLOYEE_PUBLIC_PROFILE_NOTIFICATION_SCOPE =
   'employee_public_profile_visibility_request'
+export const EMPLOYEE_PAYSLIP_NOTIFICATION_SCOPE = 'employee_payslip_availability'
 
 export interface NotifyAdminsQrRefreshPayload {
   employeId: string
@@ -60,6 +61,15 @@ export interface NotifyEmployeeQrLifecyclePayload {
   employeId: string
   tokenId: string
   event: 'generated' | 'updated'
+}
+
+export interface NotifyEmployeePayslipAvailablePayload {
+  employeId: string
+  payslipId: string
+  payrollRunId: string
+  payrollPeriodId: string
+  payrollPeriodCode: string
+  payrollPeriodLabel: string
 }
 
 function getQrRefreshNotificationLink(employeId: string) {
@@ -90,10 +100,13 @@ function mapNotification(row: NotificationRow): NotificationItem {
   }
 }
 
-async function upsertUnreadScopedNotification(
+async function upsertScopedNotification(
   payload: CreateNotificationPayload & {
     scope: string
     dedupeKey: string
+  } & {
+    matchUnreadOnly?: boolean
+    resetUnreadOnUpdate?: boolean
   },
 ): Promise<NotificationItem> {
   const metadataJson = {
@@ -102,16 +115,22 @@ async function upsertUnreadScopedNotification(
     dedupe_key: payload.dedupeKey,
   } satisfies NotificationMetadata
 
-  const { data: existingRows, error: existingError } = await supabase
+  let existingQuery = supabase
     .from('notifications')
     .select('id, user_id, title, body, link, is_read, created_at, updated_at, metadata_json')
     .eq('user_id', payload.userId)
-    .eq('is_read', false)
     .eq('metadata_json->>scope', payload.scope)
     .eq('metadata_json->>dedupe_key', payload.dedupeKey)
     .order('created_at', { ascending: false })
     .limit(1)
-    .returns<NotificationRow[]>()
+
+  if (payload.matchUnreadOnly ?? false) {
+    existingQuery = existingQuery.eq('is_read', false)
+  }
+
+  const { data: existingRows, error: existingError } = await existingQuery.returns<
+    NotificationRow[]
+  >()
 
   if (existingError) {
     throw new Error(existingError.message)
@@ -136,7 +155,7 @@ async function upsertUnreadScopedNotification(
       body: payload.body,
       link: payload.link ?? null,
       metadata_json: metadataJson,
-      is_read: false,
+      ...(payload.resetUnreadOnUpdate ?? false ? { is_read: false } : {}),
     })
     .eq('id', existing.id)
     .eq('user_id', payload.userId)
@@ -148,6 +167,19 @@ async function upsertUnreadScopedNotification(
   }
 
   return mapNotification(data)
+}
+
+async function upsertUnreadScopedNotification(
+  payload: CreateNotificationPayload & {
+    scope: string
+    dedupeKey: string
+  },
+): Promise<NotificationItem> {
+  return upsertScopedNotification({
+    ...payload,
+    matchUnreadOnly: true,
+    resetUnreadOnUpdate: true,
+  })
 }
 
 async function listMyNotificationsInternal(
@@ -304,6 +336,24 @@ export async function notifyEmployeeQrLifecycle(
       token_id: payload.tokenId,
     },
   })
+}
+
+export async function notifyEmployeePayslipAvailable(
+  payload: NotifyEmployeePayslipAvailablePayload,
+): Promise<void> {
+  const { error } = await supabase.rpc('notify_employee_payslip_available', {
+    p_employe_id: payload.employeId,
+    p_payslip_id: payload.payslipId,
+    p_payroll_run_id: payload.payrollRunId,
+    p_payroll_period_id: payload.payrollPeriodId,
+    p_payroll_period_code: payload.payrollPeriodCode,
+    p_payroll_period_label: payload.payrollPeriodLabel,
+    p_link: ROUTES.EMPLOYEE_PAYSLIPS,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 export async function markNotificationRead(id: string): Promise<NotificationItem> {
@@ -524,6 +574,7 @@ export const notificationsService = {
   createNotification,
   createNotifications,
   notifyEmployeeQrLifecycle,
+  notifyEmployeePayslipAvailable,
   markNotificationRead,
   markAllMyNotificationsRead,
   notifyAdminsQrRefreshRequired,
