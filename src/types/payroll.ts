@@ -868,31 +868,35 @@ export function getPayslipWorkflowStepCopy(
 export function buildPayslipRequestTimelineSource(
   input: PayslipWorkflowRequestTimelineInput,
 ): PayslipWorkflowRequestTimelineSource {
+  const generatedAt = input.canonicalPayslipPublishedAt
+  const availableAt =
+    input.canonicalDocumentReady && generatedAt
+      ? generatedAt
+      : input.documentPublishedAt ?? input.fulfilledAt ?? null
+
   return {
     kind: 'REQUEST',
     status: input.status,
     requestedAt: input.createdAt,
     reviewedAt: input.reviewedAt,
-    generatedAt: input.canonicalPayslipPublishedAt,
-    availableAt:
-      input.documentPublishedAt ??
-      input.fulfilledAt ??
-      (input.canonicalDocumentReady ? input.canonicalPayslipPublishedAt : null),
+    generatedAt,
+    availableAt,
   }
 }
 
 export function buildPublishedPayslipTimelineSource(
   input: PayslipWorkflowPublishedTimelineInput,
 ): PayslipWorkflowPublishedTimelineSource {
+  const generatedAt = input.documentGeneratedAt ?? input.publishedAt
   const availableAt = input.documentReady
-    ? input.documentGeneratedAt ?? input.publishedAt
+    ? generatedAt
     : null
 
   return {
     kind: 'PAYSLIP',
     status: input.status,
     publishedAt: input.publishedAt,
-    generatedAt: input.publishedAt,
+    generatedAt,
     availableAt,
   }
 }

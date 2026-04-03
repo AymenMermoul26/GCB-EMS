@@ -56,7 +56,7 @@ import {
 } from '@/services/payslipRequestsService'
 import {
   useCalculatePayrollRunMutation,
-  useMyPayrollProcessingActivityQuery,
+  usePayrollRunActivityQuery,
   usePayrollRunEmployeeEntriesQuery,
   usePayrollRunQuery,
   useUpdatePayrollRunStatusMutation,
@@ -189,15 +189,6 @@ function getRunEntryDocumentAvailabilityCopy(entry: PayrollRunEmployeeEntry): {
     tone: 'neutral',
     message: 'Document metadata is not available yet.',
   }
-}
-
-function filterRunActivity(
-  items: PayrollProcessingActivityItem[],
-  runId: string,
-): PayrollProcessingActivityItem[] {
-  return items.filter(
-    (item) => item.targetId === runId || item.payrollRunId === runId,
-  )
 }
 
 function SummaryCard({
@@ -670,7 +661,7 @@ function ActivityCard({ items }: { items: PayrollProcessingActivityItem[] }) {
           Run activity
         </CardTitle>
         <CardDescription>
-          Audit-ready actions recorded for this payroll run and its published payslips.
+          Audit-ready actions recorded for this payroll run and its published payslips across the payroll workflow.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -701,7 +692,7 @@ export function PayrollRunDetailPage() {
   const { signOut, user } = useAuth()
   const runQuery = usePayrollRunQuery(id)
   const entriesQuery = usePayrollRunEmployeeEntriesQuery(id)
-  const activityQuery = useMyPayrollProcessingActivityQuery(user?.id, { limit: 50 })
+  const activityQuery = usePayrollRunActivityQuery(id, { limit: 50 })
   const [activeDocumentActionKey, setActiveDocumentActionKey] = useState<string | null>(null)
   const [selectedWorkflowEntry, setSelectedWorkflowEntry] = useState<PayrollRunEmployeeEntry | null>(
     null,
@@ -721,10 +712,7 @@ export function PayrollRunDetailPage() {
 
   const run = runQuery.data
   const entries = entriesQuery.data ?? []
-  const activity = useMemo(
-    () => filterRunActivity(activityQuery.data ?? [], id ?? ''),
-    [activityQuery.data, id],
-  )
+  const activity = useMemo(() => activityQuery.data ?? [], [activityQuery.data])
   const nextAction = run ? buildNextRunAction(run.status) : null
 
   const handleAdvanceRun = async () => {

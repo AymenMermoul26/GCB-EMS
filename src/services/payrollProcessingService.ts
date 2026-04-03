@@ -201,6 +201,8 @@ interface PayrollProcessingAuditRow {
   created_at: string
 }
 
+type PayrollRunActivityRpcRow = PayrollProcessingAuditRow
+
 interface PayslipAuditInsertRow {
   actor_user_id: string
   action: PayrollProcessingAuditAction
@@ -1776,6 +1778,43 @@ export async function listMyPayrollProcessingActivity(
   return ensureArrayResult<PayrollProcessingAuditRow>(data).map(mapPayrollProcessingActivity)
 }
 
+export async function getPayrollRunActivity(
+  runId: string,
+  options: PayrollProcessingActivityListOptions = {},
+): Promise<PayrollProcessingActivityItem[]> {
+  const limit =
+    typeof options.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
+      ? Math.trunc(options.limit)
+      : 100
+
+  const { data, error } = await supabase
+    .rpc('get_payroll_run_activity', {
+      p_run_id: runId,
+      p_limit: limit,
+    })
+    .returns<PayrollRunActivityRpcRow[]>()
+
+  if (error) {
+    if (
+      error.message.includes('get_payroll_run_activity') &&
+      error.message.toLowerCase().includes('does not exist')
+    ) {
+      console.warn(
+        'get_payroll_run_activity RPC is unavailable. Falling back to current-user payroll activity.',
+      )
+
+      const fallbackItems = await listMyPayrollProcessingActivity(undefined, options)
+      return fallbackItems.filter(
+        (item) => item.targetId === runId || item.payrollRunId === runId,
+      )
+    }
+
+    throw new Error(error.message)
+  }
+
+  return ensureArrayResult<PayrollRunActivityRpcRow>(data).map(mapPayrollProcessingActivity)
+}
+
 export function usePayrollPeriodsQuery() {
   return useQuery({
     queryKey: ['payrollPeriods'],
@@ -1885,6 +1924,20 @@ export function useMyPayrollProcessingActivityQuery(
     queryKey: ['payrollProcessingActivity', userId ?? null, limit],
     queryFn: () => listMyPayrollProcessingActivity(userId, options),
     enabled: Boolean(userId),
+    refetchInterval: 15000,
+  })
+}
+
+export function usePayrollRunActivityQuery(
+  runId?: string | null,
+  options: PayrollProcessingActivityListOptions = {},
+) {
+  const limit = options.limit ?? null
+
+  return useQuery({
+    queryKey: ['payrollRunActivity', runId ?? null, limit],
+    queryFn: () => getPayrollRunActivity(runId as string, options),
+    enabled: Boolean(runId),
     refetchInterval: 15000,
   })
 }
@@ -2010,4 +2063,5 @@ export const payrollProcessingService = {
   updatePayrollRunStatus,
   getEmployeePayslips,
   listMyPayrollProcessingActivity,
+  getPayrollRunActivity,
 }

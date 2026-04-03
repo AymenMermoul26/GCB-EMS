@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { usePrintDocument } from '@/hooks/use-print-document'
 import {
   logEmployeeInformationSheetPreview,
+  validateEmployeeInformationSheetRecipientEmail,
   useDownloadEmployeeInformationSheetPdfMutation,
   useLogEmployeeInformationSheetExportMutation,
   useSendEmployeeInformationSheetMutation,
@@ -41,10 +42,6 @@ function formatDateTime(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 export function EmployeeInformationSheetDialog({
@@ -130,13 +127,9 @@ export function EmployeeInformationSheetDialog({
   const handleSendByEmail = async () => {
     const normalizedEmail = recipientEmail.trim().toLowerCase()
 
-    if (!normalizedEmail) {
-      setRecipientEmailError('Recipient email is required.')
-      return
-    }
-
-    if (!isValidEmail(normalizedEmail)) {
-      setRecipientEmailError('Enter a valid recipient email address.')
+    const validationError = validateEmployeeInformationSheetRecipientEmail(normalizedEmail)
+    if (validationError) {
+      setRecipientEmailError(validationError)
       return
     }
 
@@ -227,13 +220,14 @@ export function EmployeeInformationSheetDialog({
           </Button>
         </DialogTrigger>
         <DialogContent className="max-h-[92vh] w-[96vw] max-w-6xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Employee Information Sheet</DialogTitle>
-            <DialogDescription>
+            <DialogHeader>
+              <DialogTitle>Employee Information Sheet</DialogTitle>
+              <DialogDescription>
               Preview the controlled employee document, print it, download a PDF copy, or send it
-              by email through the backend delivery flow.
-            </DialogDescription>
-          </DialogHeader>
+              by email through the backend delivery flow. Email delivery is restricted to Gmail
+              recipients.
+              </DialogDescription>
+            </DialogHeader>
 
           {isLoading ? (
             <div className="space-y-4">
@@ -257,7 +251,7 @@ export function EmployeeInformationSheetDialog({
                     <p className="text-sm font-medium text-slate-900">Document actions</p>
                     <p className="text-sm text-slate-500">
                       Print the sheet, download a direct PDF copy, or send the controlled document
-                      by email through the server-side workflow.
+                      by email through the server-side workflow. Gmail recipients only.
                     </p>
                   </div>
 
@@ -314,16 +308,16 @@ export function EmployeeInformationSheetDialog({
                   <DialogHeader>
                     <DialogTitle>Send Employee Information Sheet</DialogTitle>
                     <DialogDescription>
-                      The document email is generated and sent by the backend. This action is role-checked and recorded in the audit log.
+                      The document email is generated and sent by the backend. This action is role-checked, restricted to Gmail recipients, and recorded in the audit log.
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-4">
                     <Alert className="rounded-2xl border border-slate-200 bg-slate-50 text-slate-800">
                       <Send className="h-4 w-4" />
-                      <AlertTitle>Controlled delivery</AlertTitle>
+                    <AlertTitle>Controlled delivery</AlertTitle>
                       <AlertDescription>
-                        Only the approved employee-sheet fields are included. Internal HR notes and unsupported sensitive fields remain excluded.
+                        Only the approved employee-sheet fields are included. Internal HR notes and unsupported sensitive fields remain excluded. Recipient addresses must end with @gmail.com. If compliant backend email delivery is not configured, the send attempt will fail clearly.
                       </AlertDescription>
                     </Alert>
 
@@ -333,7 +327,7 @@ export function EmployeeInformationSheetDialog({
                         id="employee-sheet-recipient-email"
                         type="email"
                         autoComplete="email"
-                        placeholder="recipient@company.com"
+                        placeholder="recipient@gmail.com"
                         value={recipientEmail}
                         onChange={(event) => {
                           setRecipientEmail(event.target.value)

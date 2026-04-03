@@ -52,6 +52,8 @@ export interface SendEmployeeInformationSheetResponse {
 
 type ExportChannel = 'print_pdf' | 'pdf_download'
 
+const GMAIL_DOMAIN = 'gmail.com'
+
 function buildEmployeeName(target: EmployeeInformationSheetAuditTarget): string {
   return `${target.prenom} ${target.nom}`.replace(/\s+/g, ' ').trim()
 }
@@ -76,6 +78,43 @@ async function getFreshAccessTokenOrThrow(): Promise<string> {
   return sessionData.session.access_token
 }
 
+function normalizeRecipientEmail(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+export function isValidEmployeeInformationSheetRecipientEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+export function isAllowedEmployeeInformationSheetRecipientEmail(value: string): boolean {
+  const normalized = normalizeRecipientEmail(value)
+
+  if (!isValidEmployeeInformationSheetRecipientEmail(normalized)) {
+    return false
+  }
+
+  const [, domain = ''] = normalized.split('@')
+  return domain === GMAIL_DOMAIN
+}
+
+export function validateEmployeeInformationSheetRecipientEmail(value: string): string | null {
+  const normalized = normalizeRecipientEmail(value)
+
+  if (!normalized) {
+    return 'Recipient email is required.'
+  }
+
+  if (!isValidEmployeeInformationSheetRecipientEmail(normalized)) {
+    return 'Enter a valid recipient email address.'
+  }
+
+  if (!isAllowedEmployeeInformationSheetRecipientEmail(normalized)) {
+    return 'Only Gmail recipient addresses are allowed for this document email flow.'
+  }
+
+  return null
+}
+
 function mapSendDocumentErrorMessage(status: number, body: FunctionErrorBody | null): string {
   const rawMessage = (body?.error ?? body?.message ?? '').trim()
   const normalized = rawMessage.toLowerCase()
@@ -94,6 +133,13 @@ function mapSendDocumentErrorMessage(status: number, body: FunctionErrorBody | n
 
   if (status === 404) {
     return 'Document email service is unreachable. Ensure edge function "send-employee-information-sheet" is deployed.'
+  }
+
+  if (status === 503) {
+    return (
+      rawMessage ||
+      'Employee information sheet email delivery is unavailable. Configure a compliant non-Resend provider before using this action.'
+    )
   }
 
   if (rawMessage.length > 0) {
@@ -235,6 +281,11 @@ export async function downloadEmployeeInformationSheetPdf({
 export async function sendEmployeeInformationSheet(
   payload: SendEmployeeInformationSheetPayload,
 ): Promise<SendEmployeeInformationSheetResponse> {
+  const validationError = validateEmployeeInformationSheetRecipientEmail(payload.recipientEmail)
+  if (validationError) {
+    throw new Error(validationError)
+  }
+
   const accessToken = await getFreshAccessTokenOrThrow()
   const firstAttempt = await callSendEmployeeInformationSheetFunction(payload, accessToken)
 

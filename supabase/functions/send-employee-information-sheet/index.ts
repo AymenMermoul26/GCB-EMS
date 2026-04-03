@@ -33,6 +33,8 @@ interface DepartmentRow {
   nom: string | null
 }
 
+const GMAIL_DOMAIN = 'gmail.com'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -82,6 +84,162 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
+function isAllowedGmailRecipient(value: string): boolean {
+  const normalized = value.trim().toLowerCase()
+  if (!isValidEmail(normalized)) {
+    return false
+  }
+
+  const [, domain = ''] = normalized.split('@')
+  return domain === GMAIL_DOMAIN
+}
+
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ').trim()
+}
+
+function base64UrlEncodeText(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  const chunkSize = 0x8000
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function buildRawMimeMessage(params: {
+  from: string
+  to: string
+  subject: string
+  html: string
+  replyTo?: string | null
+}): string {
+  const headers = [
+    `From: ${sanitizeHeaderValue(params.from)}`,
+    `To: ${sanitizeHeaderValue(params.to)}`,
+    `Subject: ${sanitizeHeaderValue(params.subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+  ]
+
+  if (params.replyTo) {
+    headers.push(`Reply-To: ${sanitizeHeaderValue(params.replyTo)}`)
+  }
+
+  return `${headers.join('\r\n')}\r\n\r\n${params.html}`
+}
+
+async function getGmailAccessToken(params: {
+  clientId: string
+  clientSecret: string
+  refreshToken: string
+}): Promise<string> {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      refresh_token: params.refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  })
+
+  let parsedBody: Record<string, unknown> | null = null
+  try {
+    parsedBody = (await response.json()) as Record<string, unknown> | null
+  } catch {
+    parsedBody = null
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof parsedBody?.error_description === 'string'
+        ? parsedBody.error_description
+        : typeof parsedBody?.error === 'string'
+          ? parsedBody.error
+          : 'Could not obtain a Gmail API access token.'
+    throw new Error(message)
+  }
+
+  const accessToken =
+    typeof parsedBody?.access_token === 'string' ? parsedBody.access_token : null
+
+  if (!accessToken) {
+    throw new Error('Gmail API access token response was invalid.')
+  }
+
+  return accessToken
+}
+
+async function sendEmployeeInformationSheetViaGmail(params: {
+  clientId: string
+  clientSecret: string
+  refreshToken: string
+  senderEmail: string
+  replyTo?: string | null
+  recipientEmail: string
+  subject: string
+  html: string
+}): Promise<void> {
+  const accessToken = await getGmailAccessToken({
+    clientId: params.clientId,
+    clientSecret: params.clientSecret,
+    refreshToken: params.refreshToken,
+  })
+
+  const rawMessage = buildRawMimeMessage({
+    from: params.senderEmail,
+    to: params.recipientEmail,
+    subject: params.subject,
+    html: params.html,
+    replyTo: params.replyTo,
+  })
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      raw: base64UrlEncodeText(rawMessage),
+    }),
+  })
+
+  if (!response.ok) {
+    let failureReason = 'Document email delivery failed through Gmail API.'
+
+    try {
+      const body = (await response.json()) as Record<string, unknown> | null
+      const errorObject =
+        body && typeof body.error === 'object' && body.error !== null
+          ? (body.error as Record<string, unknown>)
+          : null
+      const bodyMessage =
+        typeof errorObject?.message === 'string'
+          ? errorObject.message
+          : typeof body?.error === 'string'
+            ? body.error
+            : null
+
+      if (bodyMessage) {
+        failureReason = bodyMessage
+      }
+    } catch {
+      // Ignore JSON parsing failure and fall back to generic message.
+    }
+
+    throw new Error(failureReason)
+  }
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -91,13 +249,13 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;')
 }
 
-function formatDisplayValue(value: string | null | undefined, fallback = '—'): string {
+function formatDisplayValue(value: string | null | undefined, fallback = '-'): string {
   return escapeHtml(normalizeText(value) ?? fallback)
 }
 
 function formatDateValue(value: string | null | undefined): string {
   if (!value) {
-    return '—'
+    return '-'
   }
 
   return escapeHtml(
@@ -108,7 +266,7 @@ function formatDateValue(value: string | null | undefined): string {
 }
 
 function formatNumberValue(value: number | null | undefined): string {
-  return value === null || value === undefined ? '—' : escapeHtml(String(value))
+  return value === null || value === undefined ? '-' : escapeHtml(String(value))
 }
 
 function getEmployeeFullName(employee: Pick<EmployeeDocumentRow, 'prenom' | 'nom'>): string {
@@ -122,7 +280,7 @@ function getSexLabel(value: string | null): string {
     case 'F':
       return 'Female'
     default:
-      return value ?? '—'
+      return value ?? '-'
   }
 }
 
@@ -133,7 +291,7 @@ function getContractTypeLabel(value: string | null): string {
     case 'CDD':
       return 'Fixed-term (CDD)'
     default:
-      return value ?? '—'
+      return value ?? '-'
   }
 }
 
@@ -144,7 +302,7 @@ function getProfessionalCategoryLabel(value: string | null): string {
     case 'Agent':
       return 'Agent'
     default:
-      return value ?? '—'
+      return value ?? '-'
   }
 }
 
@@ -162,7 +320,7 @@ function getMaritalStatusLabel(value: string | null): string {
     case 'Veuf(ve)':
       return 'Widowed'
     default:
-      return value ?? '—'
+      return value ?? '-'
   }
 }
 
@@ -291,18 +449,20 @@ async function insertDocumentAuditLog(params: {
   action: 'EMPLOYEE_SHEET_EMAIL_SENT' | 'EMPLOYEE_SHEET_EMAIL_FAILED'
   employee: EmployeeDocumentRow
   recipientEmail: string
+  provider?: string
   failureReason?: string
 }): Promise<{ logged: boolean; warning?: string }> {
   const timestamp = new Date().toISOString()
   const detailsJson: Record<string, unknown> = {
     document_type: 'EMPLOYEE_INFORMATION_SHEET',
     channel: 'email',
-    provider: 'resend',
+    provider: params.provider ?? 'none',
     recipient_email: params.recipientEmail,
     employee_id: params.employee.id,
     employee_name: getEmployeeFullName(params.employee),
     matricule: params.employee.matricule,
     status: params.action === 'EMPLOYEE_SHEET_EMAIL_SENT' ? 'sent' : 'failed',
+    delivery_mode: 'html_email',
   }
 
   if (params.action === 'EMPLOYEE_SHEET_EMAIL_SENT') {
@@ -346,17 +506,7 @@ Deno.serve(async (request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  const resendApiKey = Deno.env.get('RESEND_API_KEY')
-  const emailFrom = Deno.env.get('DOCUMENT_EMAIL_FROM')
-  const emailReplyTo = normalizeText(Deno.env.get('DOCUMENT_EMAIL_REPLY_TO'))
   const documentLogoUrl = normalizeText(Deno.env.get('DOCUMENT_LOGO_URL'))
-
-  if (!supabaseUrl || !serviceRoleKey || !resendApiKey || !emailFrom) {
-    return jsonResponse(500, {
-      error:
-        'Server configuration error. SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, and DOCUMENT_EMAIL_FROM are required.',
-    })
-  }
 
   const accessToken = extractBearerToken(request.headers.get('Authorization'))
   if (!accessToken) {
@@ -408,6 +558,19 @@ Deno.serve(async (request) => {
     return jsonResponse(400, { error: 'Invalid recipient email format.' })
   }
 
+  if (!isAllowedGmailRecipient(recipientEmail)) {
+    return jsonResponse(400, {
+      error: 'Only Gmail recipient addresses are allowed for this document email flow.',
+    })
+  }
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return jsonResponse(500, {
+      error:
+        'Server configuration error. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.',
+    })
+  }
+
   const { data: employeeRows, error: employeeError } = await adminClient
     .from('Employe')
     .select(
@@ -447,6 +610,35 @@ Deno.serve(async (request) => {
     timeStyle: 'short',
   }).format(new Date())
 
+  const gmailClientId = normalizeText(Deno.env.get('GMAIL_OAUTH_CLIENT_ID'))
+  const gmailClientSecret = normalizeText(Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET'))
+  const gmailRefreshToken = normalizeText(Deno.env.get('GMAIL_OAUTH_REFRESH_TOKEN'))
+  const gmailSenderEmail = normalizeText(Deno.env.get('GMAIL_SENDER_EMAIL'))
+  const emailReplyTo = normalizeText(Deno.env.get('DOCUMENT_EMAIL_REPLY_TO'))
+
+  if (!gmailClientId || !gmailClientSecret || !gmailRefreshToken || !gmailSenderEmail) {
+    const failureReason =
+      'Employee information sheet email delivery requires Gmail API configuration. Set GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN, and GMAIL_SENDER_EMAIL.'
+
+    const auditResult = await insertDocumentAuditLog({
+      adminClient,
+      actorUserId: caller.id,
+      action: 'EMPLOYEE_SHEET_EMAIL_FAILED',
+      employee,
+      recipientEmail,
+      provider: 'gmail_api',
+      failureReason,
+    })
+
+    return jsonResponse(503, {
+      error: failureReason,
+      employe_id: employee.id,
+      recipient_email: recipientEmail,
+      audit_logged: auditResult.logged,
+      ...(auditResult.warning ? { warning: auditResult.warning } : {}),
+    })
+  }
+
   const subject = buildSubject(employee)
   const html = renderEmployeeInformationSheetEmail({
     employee,
@@ -455,42 +647,22 @@ Deno.serve(async (request) => {
     logoUrl: documentLogoUrl,
   })
 
-  const resendPayload: Record<string, unknown> = {
-    from: emailFrom,
-    to: [recipientEmail],
-    subject,
-    html,
-  }
-
-  if (emailReplyTo) {
-    resendPayload.reply_to = emailReplyTo
-  }
-
-  const resendResponse = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(resendPayload),
-  })
-
-  if (!resendResponse.ok) {
-    let failureReason = 'Document email delivery failed.'
-    try {
-      const body = (await resendResponse.json()) as Record<string, unknown> | null
-      const bodyMessage =
-        typeof body?.message === 'string'
-          ? body.message
-          : typeof body?.error === 'string'
-            ? body.error
-            : null
-      if (bodyMessage) {
-        failureReason = bodyMessage
-      }
-    } catch {
-      // Ignore JSON parsing failure and fall back to generic message.
-    }
+  try {
+    await sendEmployeeInformationSheetViaGmail({
+      clientId: gmailClientId,
+      clientSecret: gmailClientSecret,
+      refreshToken: gmailRefreshToken,
+      senderEmail: gmailSenderEmail,
+      replyTo: emailReplyTo,
+      recipientEmail,
+      subject,
+      html,
+    })
+  } catch (error) {
+    const failureReason =
+      error instanceof Error && error.message.trim().length > 0
+        ? error.message
+        : 'Document email delivery failed through Gmail API.'
 
     const auditResult = await insertDocumentAuditLog({
       adminClient,
@@ -498,11 +670,14 @@ Deno.serve(async (request) => {
       action: 'EMPLOYEE_SHEET_EMAIL_FAILED',
       employee,
       recipientEmail,
+      provider: 'gmail_api',
       failureReason,
     })
 
     return jsonResponse(502, {
       error: failureReason,
+      employe_id: employee.id,
+      recipient_email: recipientEmail,
       audit_logged: auditResult.logged,
       ...(auditResult.warning ? { warning: auditResult.warning } : {}),
     })
@@ -514,6 +689,7 @@ Deno.serve(async (request) => {
     action: 'EMPLOYEE_SHEET_EMAIL_SENT',
     employee,
     recipientEmail,
+    provider: 'gmail_api',
   })
 
   return jsonResponse(200, {
@@ -524,3 +700,4 @@ Deno.serve(async (request) => {
     ...(auditResult.warning ? { warning: auditResult.warning } : {}),
   })
 })
+
