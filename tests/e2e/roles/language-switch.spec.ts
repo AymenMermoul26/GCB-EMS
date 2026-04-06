@@ -49,10 +49,6 @@ async function readTrimmedText(locator: Locator): Promise<string> {
   return text
 }
 
-function getAuthLanguageSwitcher(page: Page): Locator {
-  return page.getByTestId('language-switcher-auth')
-}
-
 function getSidebarLanguageSwitcher(page: Page): Locator {
   return page.getByTestId('language-switcher-sidebar')
 }

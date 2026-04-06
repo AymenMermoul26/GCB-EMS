@@ -592,7 +592,7 @@ export function LoginPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-3">
                           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/60">
-                            Workspace preview
+                            {t('common.workspacePreview')}
                           </p>
                           <h2 className="text-2xl font-semibold text-white [@media(min-width:1024px)_and_(max-height:860px)]:text-xl [@media(min-width:1024px)_and_(max-height:760px)]:text-lg">
                             {displayedRole.visualTitle}

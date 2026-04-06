@@ -154,7 +154,7 @@ export function getLoginRoleConfigs(t: TranslateFn): LoginRoleConfig[] {
     {
       id: 'admin',
       label: t('auth.login.roles.admin.label'),
-      defaultEmail: 'hrAdmin@gcb.com',
+      defaultEmail: 'hradmin@gcb.com',
       badge: t('auth.login.roles.admin.badge'),
       title: t('auth.login.roles.admin.title'),
       description: t('auth.login.roles.admin.description'),

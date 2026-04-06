@@ -13,11 +13,12 @@ import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getPublicProfileRoute } from '@/constants/routes'
+import { useI18n } from '@/hooks/use-i18n'
+import { cn } from '@/lib/utils'
 import { useMyActiveTokenQuery } from '@/services/qrService'
 import type { TokenQR } from '@/types/token'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { downloadQrPng } from '@/utils/qrDownload'
-import { cn } from '@/lib/utils'
 
 type MyQrStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'NONE'
 
@@ -42,38 +43,45 @@ function resolveQrStatus(token: TokenQR | null): MyQrStatus {
   return 'ACTIVE'
 }
 
-function statusBadge(status: MyQrStatus): {
+function statusBadge(
+  status: MyQrStatus,
+  t: (key: string) => string,
+): {
   label: string
   tone: 'success' | 'warning' | 'danger' | 'neutral'
 } {
   if (status === 'ACTIVE') {
-    return { label: 'Active', tone: 'success' }
+    return { label: t('employee.qr.card.status.active'), tone: 'success' }
   }
 
   if (status === 'EXPIRED') {
-    return { label: 'Expired', tone: 'warning' }
+    return { label: t('employee.qr.card.status.expired'), tone: 'warning' }
   }
 
   if (status === 'REVOKED') {
-    return { label: 'Revoked', tone: 'danger' }
+    return { label: t('employee.qr.card.status.revoked'), tone: 'danger' }
   }
 
-  return { label: 'Not assigned', tone: 'neutral' }
+  return { label: t('employee.qr.card.status.notAssigned'), tone: 'neutral' }
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, locale: string, emptyLabel: string): string {
   if (!value) {
-    return 'No expiration'
+    return emptyLabel
   }
 
-  return new Date(value).toLocaleString()
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
 }
 
 export function MyQrCard({ employeId, className }: MyQrCardProps) {
+  const { isRTL, locale, t } = useI18n()
   const tokenQuery = useMyActiveTokenQuery(employeId)
   const token = tokenQuery.data
   const status = resolveQrStatus(token ?? null)
-  const statusMeta = statusBadge(status)
+  const statusMeta = statusBadge(status, t)
   const isValidToken = Boolean(token && status === 'ACTIVE')
   const publicUrl = useMemo(() => {
     if (!token) {
@@ -92,9 +100,11 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
 
     try {
       await copyTextToClipboard(publicUrl)
-      toast.success('Public link copied.')
+      toast.success(t('employee.qr.card.copyLinkSuccess'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to copy link')
+      toast.error(
+        error instanceof Error ? error.message : t('employee.qr.card.copyLinkError'),
+      )
     }
   }
 
@@ -105,9 +115,11 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
 
     try {
       downloadQrPng(qrCanvasId, `ems_my_qr_${token.employeId}.png`)
-      toast.success('QR code downloaded.')
+      toast.success(t('employee.qr.card.downloadQrSuccess'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to download QR')
+      toast.error(
+        error instanceof Error ? error.message : t('employee.qr.card.downloadQrError'),
+      )
     }
   }
 
@@ -124,7 +136,7 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <QrCode className="h-4 w-4" />
-          My QR Code
+          {t('employee.qr.card.title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -135,8 +147,8 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
         {tokenQuery.isError ? (
           <ErrorState
             surface="plain"
-            title="QR code unavailable"
-            description="We couldn't load your QR status right now."
+            title={t('employee.qr.card.loadErrorTitle')}
+            description={t('employee.qr.card.loadErrorDescription')}
             message={tokenQuery.error.message}
             onRetry={() => void tokenQuery.refetch()}
           />
@@ -149,37 +161,44 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
                 {statusMeta.label}
               </StatusBadge>
               <p className="text-xs text-muted-foreground">
-                Expires: {formatDate(token?.expiresAt ?? null)}
+                {t('employee.qr.card.expiresLabel')}:{' '}
+                {formatDate(
+                  token?.expiresAt ?? null,
+                  locale,
+                  t('employee.qr.card.noExpiration'),
+                )}
               </p>
             </div>
 
             {status === 'NONE' ? (
               <EmptyState
                 surface="plain"
-                title="QR code not available"
-                description="No QR token is assigned yet. Contact HR to publish your public profile."
+                title={t('employee.qr.card.notAvailableTitle')}
+                description={t('employee.qr.card.notAvailableDescription')}
               />
             ) : null}
 
             {status === 'EXPIRED' ? (
               <EmptyState
                 surface="plain"
-                title="QR link expired"
-                description="Your public profile link has expired. Contact HR to refresh it."
+                title={t('employee.qr.card.expiredTitle')}
+                description={t('employee.qr.card.expiredDescription')}
               />
             ) : null}
 
             {status === 'REVOKED' ? (
               <EmptyState
                 surface="plain"
-                title="QR link revoked"
-                description="This QR link is no longer active. Contact HR if you need a new one."
+                title={t('employee.qr.card.revokedTitle')}
+                description={t('employee.qr.card.revokedDescription')}
               />
             ) : null}
 
             {publicUrl ? (
               <div className="rounded-md border p-3">
-                <p className="mb-1 text-xs text-muted-foreground">Public profile link</p>
+                <p className="mb-1 text-xs text-muted-foreground">
+                  {t('employee.qr.card.publicLinkLabel')}
+                </p>
                 <p className="select-all break-all text-sm">{publicUrl}</p>
               </div>
             ) : null}
@@ -197,23 +216,40 @@ export function MyQrCard({ employeId, className }: MyQrCardProps) {
             ) : (
               <EmptyState
                 surface="plain"
-                title="QR preview unavailable"
-                description="A valid QR token is required before the preview can be displayed."
+                title={t('employee.qr.card.previewUnavailableTitle')}
+                description={t('employee.qr.card.previewUnavailableDescription')}
               />
             )}
 
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={!isValidToken} onClick={() => void handleCopyLink()}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy Link
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!isValidToken}
+                onClick={() => void handleCopyLink()}
+                className="gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                {t('employee.qr.card.copyLink')}
               </Button>
-              <Button type="button" variant="outline" disabled={!isValidToken} onClick={handleDownloadQr}>
-                <Download className="mr-2 h-4 w-4" />
-                Download QR
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!isValidToken}
+                onClick={handleDownloadQr}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                {t('employee.qr.card.downloadQr')}
               </Button>
-              <Button type="button" disabled={!isValidToken} onClick={handleOpenPreview}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open Preview
+              <Button
+                type="button"
+                disabled={!isValidToken}
+                onClick={handleOpenPreview}
+                className="gap-2"
+              >
+                <ExternalLink className={cn('h-4 w-4', isRTL && 'scale-x-[-1]')} />
+                {t('employee.qr.card.openPreview')}
               </Button>
             </div>
           </>

@@ -34,6 +34,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import {
   useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation,
@@ -44,7 +45,7 @@ import type { NotificationItem, NotificationsFilter } from '@/types/notification
 import { formatRelativeTime } from '@/utils/date'
 
 type ViewFilter = 'all' | 'unread' | 'read'
-type NotificationGroupLabel = 'Today' | 'Yesterday' | 'Older'
+type NotificationGroupLabel = 'today' | 'yesterday' | 'older'
 
 interface NotificationGroup {
   label: NotificationGroupLabel
@@ -81,22 +82,22 @@ function getGroupLabel(createdAt: string): NotificationGroupLabel {
 
   const created = new Date(createdAt)
   if (created >= startOfToday) {
-    return 'Today'
+    return 'today'
   }
 
   if (created >= startOfYesterday) {
-    return 'Yesterday'
+    return 'yesterday'
   }
 
-  return 'Older'
+  return 'older'
 }
 
 function buildNotificationGroups(notifications: NotificationItem[]): NotificationGroup[] {
-  const orderedLabels: NotificationGroupLabel[] = ['Today', 'Yesterday', 'Older']
+  const orderedLabels: NotificationGroupLabel[] = ['today', 'yesterday', 'older']
   const grouped = new Map<NotificationGroupLabel, NotificationItem[]>([
-    ['Today', []],
-    ['Yesterday', []],
-    ['Older', []],
+    ['today', []],
+    ['yesterday', []],
+    ['older', []],
   ])
 
   for (const notification of notifications) {
@@ -112,6 +113,7 @@ function buildNotificationGroups(notifications: NotificationItem[]): Notificatio
 export function NotificationsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isRTL, locale, t } = useI18n()
 
   const [viewFilter, setViewFilter] = useState<ViewFilter>('all')
   const [searchInput, setSearchInput] = useState('')
@@ -132,7 +134,7 @@ export function NotificationsPage() {
   const markAllMutation = useMarkAllNotificationsReadMutation(user?.id, {
     onSuccess: (updatedCount) => {
       if (updatedCount > 0) {
-        toast.success(`${updatedCount} notifications marked as read.`)
+        toast.success(t('notificationsMenu.markAllSuccess', { count: updatedCount }))
       }
     },
     onError: (error) => {
@@ -198,29 +200,38 @@ export function NotificationsPage() {
 
   return (
     <DashboardLayout
-      title="Notifications"
-      subtitle="System updates, workflow alerts, and employee changes."
+      title={t('notificationsPage.title')}
+      subtitle={t('notificationsPage.subtitle')}
     >
       <PageHeader
-        title="Notifications"
-        description="System updates, workflow alerts, and employee changes."
+        title={t('notificationsPage.title')}
+        description={t('notificationsPage.subtitle')}
         className="sticky top-2 z-20 mb-6"
         badges={
           <>
-            <StatusBadge tone="neutral">Total {totalCount}</StatusBadge>
-            <StatusBadge tone="danger" emphasis="solid">Unread {unreadCount}</StatusBadge>
+            <StatusBadge tone="neutral">
+              {t('notificationsPage.totalBadge', { count: totalCount })}
+            </StatusBadge>
+            <StatusBadge tone="danger" emphasis="solid">
+              {t('notificationsPage.unreadBadge', { count: unreadCount })}
+            </StatusBadge>
           </>
         }
         actions={
           <>
             <div className="relative w-full sm:w-72">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search
+                className={cn(
+                  'pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground',
+                  isRTL ? 'right-3' : 'left-3',
+                )}
+              />
               <Input
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Search notifications..."
-                className="pl-9"
-                aria-label="Search notifications"
+                placeholder={t('notificationsPage.searchPlaceholder')}
+                className={cn(isRTL ? 'pr-9' : 'pl-9')}
+                aria-label={t('notificationsPage.searchAria')}
               />
             </div>
 
@@ -228,26 +239,28 @@ export function NotificationsPage() {
               type="button"
               variant="outline"
               onClick={() => setIsFilterDialogOpen(true)}
-              aria-label="Open notification filters"
+              aria-label={t('notificationsPage.openFilters')}
+              className="gap-2"
             >
-              <MoreHorizontal className="mr-2 h-4 w-4" />
-              Filters
+              <MoreHorizontal className="h-4 w-4" />
+              {t('notificationsPage.filters')}
             </Button>
 
             <Button
               type="button"
               variant="outline"
               disabled={isMarkAllDisabled}
+              className="gap-2"
               onClick={() => {
                 void markAllMutation.mutateAsync()
               }}
             >
               {markAllMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <CheckCheck className="mr-2 h-4 w-4" />
+                <CheckCheck className="h-4 w-4" />
               )}
-              Mark all as read
+              {t('actions.markAllAsRead')}
             </Button>
 
             <Button
@@ -255,11 +268,12 @@ export function NotificationsPage() {
               variant="outline"
               onClick={() => void notificationsQuery.refetch()}
               disabled={notificationsQuery.isFetching}
+              className="gap-2"
             >
               <RefreshCw
-                className={cn('mr-2 h-4 w-4', notificationsQuery.isFetching && 'animate-spin')}
+                className={cn('h-4 w-4', notificationsQuery.isFetching && 'animate-spin')}
               />
-              Refresh
+              {t('notificationsPage.refresh')}
             </Button>
           </>
         }
@@ -268,8 +282,8 @@ export function NotificationsPage() {
       {notificationsQuery.isError ? (
         <ErrorState
           className="mb-6"
-          title="Failed to load notifications"
-          description="We couldn't load your inbox right now."
+          title={t('notificationsPage.loadErrorTitle')}
+          description={t('notificationsPage.loadErrorDescription')}
           message={notificationsQuery.error.message}
           onRetry={() => void notificationsQuery.refetch()}
         />
@@ -279,16 +293,14 @@ export function NotificationsPage() {
         <CardHeader className="space-y-3">
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
             <Bell className="h-4 w-4" />
-            Notification Center
+            {t('notificationsPage.centerTitle')}
           </CardTitle>
-          <CardDescription>
-            Stay updated with workflow alerts and platform events.
-          </CardDescription>
+          <CardDescription>{t('notificationsPage.centerDescription')}</CardDescription>
           <Tabs value={viewFilter} onValueChange={(value) => setViewFilter(value as ViewFilter)}>
             <TabsList className="grid w-full max-w-[320px] grid-cols-3">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="unread">Unread</TabsTrigger>
-              <TabsTrigger value="read">Read</TabsTrigger>
+              <TabsTrigger value="all">{t('notificationsPage.tabs.all')}</TabsTrigger>
+              <TabsTrigger value="unread">{t('notificationsPage.tabs.unread')}</TabsTrigger>
+              <TabsTrigger value="read">{t('notificationsPage.tabs.read')}</TabsTrigger>
             </TabsList>
           </Tabs>
         </CardHeader>
@@ -311,7 +323,9 @@ export function NotificationsPage() {
                 {groupedNotifications.map((group) => (
                   <section key={group.label} className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-slate-900">{group.label}</h3>
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        {t(`notificationsPage.groups.${group.label}`)}
+                      </h3>
                       <div className="h-px flex-1 bg-border" />
                     </div>
                     <div className="space-y-2">
@@ -366,7 +380,7 @@ export function NotificationsPage() {
                                     {notification.body}
                                   </p>
                                   <p className={getNotificationTimeClass(isUnread)}>
-                                    {formatRelativeTime(notification.createdAt)}
+                                    {formatRelativeTime(notification.createdAt, locale)}
                                   </p>
                                 </div>
                               </div>
@@ -379,7 +393,9 @@ export function NotificationsPage() {
                                   tone={isUnread ? 'danger' : 'neutral'}
                                   emphasis={isUnread ? 'solid' : 'soft'}
                                 >
-                                  {isUnread ? 'Unread' : 'Read'}
+                                  {isUnread
+                                    ? t('notificationsPage.status.unread')
+                                    : t('notificationsPage.status.read')}
                                 </StatusBadge>
 
                                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -389,7 +405,7 @@ export function NotificationsPage() {
                                       variant="outline"
                                       size="sm"
                                       className={cn(
-                                        'w-full sm:w-auto',
+                                        'w-full gap-2 sm:w-auto',
                                         isUnread &&
                                           'border-white/60 bg-white/10 text-white hover:bg-white/20 hover:text-white',
                                       )}
@@ -399,9 +415,9 @@ export function NotificationsPage() {
                                       }}
                                     >
                                       {markReadMutation.isPending && isMarkingThis ? (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                       ) : null}
-                                      Mark as read
+                                      {t('actions.markRead')}
                                     </Button>
                                   ) : null}
 
@@ -428,11 +444,11 @@ export function NotificationsPage() {
                   <SearchEmptyState
                     surface="plain"
                     className="py-8"
-                    title="No notifications found"
-                    description="Try changing your search or filters."
+                    title={t('notificationsPage.noResultsTitle')}
+                    description={t('notificationsPage.noResultsDescription')}
                     actions={
                       <Button type="button" variant="outline" onClick={clearFilters}>
-                        Clear filters
+                        {t('actions.clearFilters')}
                       </Button>
                     }
                   />
@@ -440,8 +456,8 @@ export function NotificationsPage() {
                   <EmptyState
                     surface="plain"
                     className="py-8"
-                    title="You're all caught up"
-                    description="New workflow alerts and system events will appear here."
+                    title={t('notificationsPage.emptyTitle')}
+                    description={t('notificationsPage.emptyDescription')}
                   />
                 )}
               </>
@@ -453,21 +469,23 @@ export function NotificationsPage() {
       <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Notification filters</DialogTitle>
-            <DialogDescription>Refine what appears in your inbox.</DialogDescription>
+            <DialogTitle>{t('notificationsPage.dialogTitle')}</DialogTitle>
+            <DialogDescription>{t('notificationsPage.dialogDescription')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="notifications-view-filter">Status</Label>
+              <Label htmlFor="notifications-view-filter">
+                {t('notificationsPage.statusLabel')}
+              </Label>
               <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as ViewFilter)}>
                 <SelectTrigger id="notifications-view-filter">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue placeholder={t('notificationsPage.filterPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="unread">Unread only</SelectItem>
-                  <SelectItem value="read">Read only</SelectItem>
+                  <SelectItem value="all">{t('notificationsPage.tabs.all')}</SelectItem>
+                  <SelectItem value="unread">{t('notificationsPage.unreadOnly')}</SelectItem>
+                  <SelectItem value="read">{t('notificationsPage.readOnly')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -475,14 +493,14 @@ export function NotificationsPage() {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={clearFilters}>
-              Clear filters
+              {t('actions.clearFilters')}
             </Button>
             <Button
               type="button"
               className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
               onClick={() => setIsFilterDialogOpen(false)}
             >
-              Apply
+              {t('actions.apply')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -508,6 +526,7 @@ function NotificationRowMenu({
 }: NotificationRowMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const { isRTL, t } = useI18n()
 
   useEffect(() => {
     if (!isOpen) {
@@ -533,7 +552,7 @@ function NotificationRowMenu({
         size="icon"
         variant="ghost"
         className={cn(isUnread && 'text-white hover:bg-white/15 hover:text-white')}
-        aria-label={`Actions for notification ${notification.id}`}
+        aria-label={t('notificationsPage.actionsAria', { id: notification.id })}
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
@@ -543,7 +562,10 @@ function NotificationRowMenu({
       {isOpen ? (
         <div
           role="menu"
-          className="absolute right-0 top-10 z-30 w-44 rounded-xl border border-slate-200/80 bg-white p-1 shadow-md"
+          className={cn(
+            'absolute top-10 z-30 w-44 rounded-xl border border-slate-200/80 bg-white p-1 shadow-md',
+            isRTL ? 'left-0' : 'right-0',
+          )}
         >
           {notification.link ? (
             <MenuItem
@@ -551,8 +573,9 @@ function NotificationRowMenu({
                 setIsOpen(false)
                 onOpen()
               }}
+              isRTL={isRTL}
             >
-              Open related page
+              {t('notificationsPage.openRelatedPage')}
             </MenuItem>
           ) : null}
 
@@ -563,14 +586,15 @@ function NotificationRowMenu({
                 setIsOpen(false)
                 onMarkRead()
               }}
+              isRTL={isRTL}
             >
               {isMarking ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Marking...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t('notificationsPage.marking')}
                 </>
               ) : (
-                'Mark as read'
+                t('actions.markRead')
               )}
             </MenuItem>
           ) : null}
@@ -584,14 +608,16 @@ interface MenuItemProps {
   children: ReactNode
   onClick: () => void
   disabled?: boolean
+  isRTL?: boolean
 }
 
-function MenuItem({ children, onClick, disabled = false }: MenuItemProps) {
+function MenuItem({ children, onClick, disabled = false, isRTL = false }: MenuItemProps) {
   return (
     <button
       type="button"
       className={cn(
-        'flex min-h-10 w-full items-center rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted',
+        'flex min-h-10 w-full items-center rounded-md px-2 py-2 text-sm transition-colors hover:bg-muted',
+        isRTL ? 'text-right' : 'text-left',
         disabled && 'cursor-not-allowed opacity-50',
       )}
       onClick={onClick}

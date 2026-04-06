@@ -9,7 +9,9 @@ export async function seedPreferredLanguage(
 ) {
   await page.addInitScript(
     ({ key, value }) => {
-      window.localStorage.setItem(key, value)
+      if (window.localStorage.getItem(key) === null) {
+        window.localStorage.setItem(key, value)
+      }
     },
     {
       key: LANGUAGE_STORAGE_KEY,

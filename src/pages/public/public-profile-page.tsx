@@ -22,6 +22,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ROUTES } from '@/constants/routes'
+import { useI18n } from '@/hooks/use-i18n'
+import { cn } from '@/lib/utils'
 import { usePublicProfile } from '@/hooks/use-public-profile'
 import { getDepartmentDisplayName } from '@/types/department'
 import {
@@ -46,10 +48,6 @@ interface InfoSection {
   rows: InfoRow[]
 }
 
-const COMPANY_NAME_FULL = 'LA SOCIETE NATIONALE DE GENIE-CIVIL & BATIMENT'
-const PAGE_SUBTITLE =
-  'Only approved employee profile fields are shared through this secure QR token.'
-
 function hasText(value: string | null | undefined): boolean {
   return Boolean(value && value.trim().length > 0)
 }
@@ -58,9 +56,9 @@ function formatValue(value: string | null | undefined): string {
   return hasText(value) ? (value as string).trim() : ''
 }
 
-function buildFullName(profile: PublicProfile | null): string {
+function buildFullName(profile: PublicProfile | null, fallback: string): string {
   if (!profile) {
-    return 'Verified Employee'
+    return fallback
   }
 
   const fullName = [formatValue(profile.prenom), formatValue(profile.nom)]
@@ -68,7 +66,7 @@ function buildFullName(profile: PublicProfile | null): string {
     .join(' ')
     .trim()
 
-  return fullName || 'Verified Employee'
+  return fullName || fallback
 }
 
 function getInitials(fullName: string): string {
@@ -81,21 +79,21 @@ function getInitials(fullName: string): string {
   return initials || 'EM'
 }
 
-function buildSections(profile: PublicProfile): InfoSection[] {
+function buildSections(profile: PublicProfile, t: (key: string) => string): InfoSection[] {
   const professionalRows: InfoRow[] = []
   const educationRows: InfoRow[] = []
   const identityRows: InfoRow[] = []
 
   if (hasText(profile.poste)) {
     professionalRows.push({
-      label: 'Job Title',
+      label: t('publicProfile.fields.jobTitle'),
       value: formatValue(getEmployeePosteLabel(profile.poste)),
     })
   }
 
   if (hasText(profile.categorie_professionnelle)) {
     professionalRows.push({
-      label: 'Professional Category',
+      label: t('publicProfile.fields.professionalCategory'),
       value: formatValue(
         getEmployeeCategorieProfessionnelleLabel(profile.categorie_professionnelle),
       ),
@@ -104,35 +102,35 @@ function buildSections(profile: PublicProfile): InfoSection[] {
 
   if (hasText(profile.departement)) {
     professionalRows.push({
-      label: 'Department',
+      label: t('publicProfile.fields.department'),
       value: formatValue(getDepartmentDisplayName(profile.departement)),
     })
   }
 
   if (hasText(profile.diplome)) {
     educationRows.push({
-      label: 'Degree',
+      label: t('publicProfile.fields.degree'),
       value: formatValue(getEmployeeDiplomeLabel(profile.diplome)),
     })
   }
 
   if (hasText(profile.specialite)) {
     educationRows.push({
-      label: 'Specialization',
+      label: t('publicProfile.fields.specialization'),
       value: formatValue(getEmployeeSpecialiteLabel(profile.specialite)),
     })
   }
 
   if (hasText(profile.universite)) {
     educationRows.push({
-      label: 'University',
+      label: t('publicProfile.fields.university'),
       value: formatValue(getEmployeeUniversiteLabel(profile.universite)),
     })
   }
 
   if (hasText(profile.matricule)) {
     identityRows.push({
-      label: 'Employee ID',
+      label: t('publicProfile.fields.employeeId'),
       value: formatValue(profile.matricule),
     })
   }
@@ -140,20 +138,20 @@ function buildSections(profile: PublicProfile): InfoSection[] {
   return [
     {
       id: 'professional',
-      title: 'Professional Information',
-      description: 'Role and department details approved for public display.',
+      title: t('publicProfile.sections.professional.title'),
+      description: t('publicProfile.sections.professional.description'),
       rows: professionalRows,
     },
     {
       id: 'education',
-      title: 'Education & Career Background',
-      description: 'Academic and qualification details approved for public display.',
+      title: t('publicProfile.sections.education.title'),
+      description: t('publicProfile.sections.education.description'),
       rows: educationRows,
     },
     {
       id: 'identity',
-      title: 'Employee Reference',
-      description: 'Internal employee identifiers that have been approved for public viewing.',
+      title: t('publicProfile.sections.identity.title'),
+      description: t('publicProfile.sections.identity.description'),
       rows: identityRows,
     },
   ].filter((section) => section.rows.length > 0)
@@ -181,7 +179,7 @@ function UnavailableState({
   title,
   description,
   onBack,
-  primaryActionLabel = 'Go back',
+  primaryActionLabel,
   showLoginButton = true,
 }: {
   title: string
@@ -190,6 +188,8 @@ function UnavailableState({
   primaryActionLabel?: string
   showLoginButton?: boolean
 }) {
+  const { isRTL, t } = useI18n()
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,201,71,0.18),transparent_30%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">
@@ -201,8 +201,8 @@ function UnavailableState({
           actions={
             <>
               <Button type="button" variant="outline" className="rounded-xl" onClick={onBack}>
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                {primaryActionLabel}
+                <ChevronLeft className={cn('h-4 w-4', isRTL && 'rotate-180')} />
+                <span>{primaryActionLabel ?? t('publicProfile.goBack')}</span>
               </Button>
               {showLoginButton ? (
                 <Button
@@ -210,7 +210,7 @@ function UnavailableState({
                   className="rounded-xl bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95"
                   onClick={() => window.location.assign(ROUTES.LOGIN)}
                 >
-                  Open login
+                  {t('publicProfile.openLogin')}
                 </Button>
               ) : null}
             </>
@@ -221,7 +221,13 @@ function UnavailableState({
   )
 }
 
-function ProfileSectionCard({ section }: { section: InfoSection }) {
+function ProfileSectionCard({
+  section,
+  isRTL,
+}: {
+  section: InfoSection
+  isRTL: boolean
+}) {
   return (
     <Card className="rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]">
       <CardHeader className="space-y-2 pb-3">
@@ -234,11 +240,21 @@ function ProfileSectionCard({ section }: { section: InfoSection }) {
             key={`${section.id}-${row.label}`}
             className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3"
           >
-            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+            <div
+              className={cn(
+                'flex flex-col gap-1.5 sm:items-start sm:justify-between sm:gap-6',
+                isRTL ? 'sm:flex-row-reverse' : 'sm:flex-row',
+              )}
+            >
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                 {row.label}
               </p>
-              <p className="text-sm font-medium leading-6 text-slate-900 sm:text-right">
+              <p
+                className={cn(
+                  'text-sm font-medium leading-6 text-slate-900',
+                  isRTL ? 'sm:text-left' : 'sm:text-right',
+                )}
+              >
                 {row.value}
               </p>
             </div>
@@ -252,10 +268,14 @@ function ProfileSectionCard({ section }: { section: InfoSection }) {
 export function PublicProfilePage() {
   const { token } = useParams<{ token: string }>()
   const navigate = useNavigate()
+  const { isRTL, t } = useI18n()
   const { data, isPending, isError, refetch, isFetching } = usePublicProfile(token)
 
   const profile = data?.profile ?? null
-  const fullName = useMemo(() => buildFullName(profile), [profile])
+  const fullName = useMemo(
+    () => buildFullName(profile, t('publicProfile.verifiedEmployee')),
+    [profile, t],
+  )
   const position = formatValue(getEmployeePosteLabel(profile?.poste))
   const professionalCategory = formatValue(
     getEmployeeCategorieProfessionnelleLabel(profile?.categorie_professionnelle),
@@ -266,16 +286,16 @@ export function PublicProfilePage() {
   const telephone = formatValue(profile?.telephone)
   const photoUrl = formatValue(profile?.photo_url)
   const sections = useMemo(
-    () => (profile ? buildSections(profile) : []),
-    [profile],
+    () => (profile ? buildSections(profile, t) : []),
+    [profile, t],
   )
 
   const handleCopyProfileLink = async () => {
     try {
       await copyTextToClipboard(window.location.href)
-      toast.success('Profile link copied.')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to copy profile link.')
+      toast.success(t('publicProfile.profileLinkCopied'))
+    } catch {
+      toast.error(t('publicProfile.profileLinkCopyError'))
     }
   }
 
@@ -299,12 +319,12 @@ export function PublicProfilePage() {
           <ErrorState
             className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]"
             icon={ShieldCheck}
-            title="Profile unavailable"
-            description="We couldn't load this employee profile right now."
+            title={t('publicProfile.profileUnavailableTitle')}
+            description={t('publicProfile.profileUnavailableLoadDescription')}
             onRetry={() => {
               void refetch()
             }}
-            retryLabel="Retry"
+            retryLabel={t('publicProfile.loadingRetry')}
           />
         </div>
       </main>
@@ -314,8 +334,8 @@ export function PublicProfilePage() {
   if (data?.status === 'expired' || data?.status === 'invalid_or_revoked' || !profile) {
     return (
       <UnavailableState
-        title="Profile unavailable"
-        description="This QR link is invalid, expired, or no longer active."
+        title={t('publicProfile.profileUnavailableTitle')}
+        description={t('publicProfile.profileUnavailableTokenDescription')}
         onBack={handleBack}
       />
     )
@@ -324,8 +344,8 @@ export function PublicProfilePage() {
   if (!hasVisiblePublicContent(profile)) {
     return (
       <UnavailableState
-        title="Profile unavailable"
-        description="No public information is currently available for this employee."
+        title={t('publicProfile.profileUnavailableTitle')}
+        description={t('publicProfile.profileUnavailableNoContentDescription')}
         onBack={handleBack}
       />
     )
@@ -339,22 +359,22 @@ export function PublicProfilePage() {
           <div className="px-6 py-8 sm:px-8">
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-slate-100">
-                <img src={gcbLogo} alt="GCB logo" className="h-10 w-10 object-contain" />
+                <img src={gcbLogo} alt={t('common.appSystemName')} className="h-10 w-10 object-contain" />
               </div>
               <div className="space-y-3">
-                <Badge className="border-transparent bg-slate-100 text-slate-700">
-                  <ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" />
-                  Verified via EMS
+                <Badge className="gap-1.5 border-transparent bg-slate-100 text-slate-700">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  <span>{t('publicProfile.verifiedBadge')}</span>
                 </Badge>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    {COMPANY_NAME_FULL}
+                    {t('publicProfile.companyName')}
                   </p>
                   <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-                    Verified Employee Profile
+                    {t('publicProfile.heroTitle')}
                   </h1>
                   <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-                    {PAGE_SUBTITLE}
+                    {t('publicProfile.subtitle')}
                   </p>
                 </div>
               </div>
@@ -373,11 +393,11 @@ export function PublicProfilePage() {
                 )}
               </div>
 
-              <div className="space-y-4 text-center md:text-left">
+              <div className={cn('space-y-4 text-center', isRTL ? 'md:text-right' : 'md:text-left')}>
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    Public profile verified
+                    {t('publicProfile.publicProfileVerified')}
                   </div>
                   <div>
                     <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
@@ -392,16 +412,21 @@ export function PublicProfilePage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-2 md:justify-start">
+                <div
+                  className={cn(
+                    'flex flex-wrap justify-center gap-2',
+                    isRTL ? 'md:justify-end' : 'md:justify-start',
+                  )}
+                >
                   {position ? (
-                    <Badge className="border-transparent bg-orange-50 text-[#d35b2d]">
-                      <BriefcaseBusiness className="mr-1.5 h-3.5 w-3.5" />
+                    <Badge className="gap-1.5 border-transparent bg-orange-50 text-[#d35b2d]">
+                      <BriefcaseBusiness className="h-3.5 w-3.5" />
                       {position}
                     </Badge>
                   ) : null}
                   {department ? (
-                    <Badge className="border-transparent bg-slate-100 text-slate-700">
-                      <Building2 className="mr-1.5 h-3.5 w-3.5" />
+                    <Badge className="gap-1.5 border-transparent bg-slate-100 text-slate-700">
+                      <Building2 className="h-3.5 w-3.5" />
                       {department}
                     </Badge>
                   ) : null}
@@ -411,31 +436,36 @@ export function PublicProfilePage() {
                     </Badge>
                   ) : null}
                   {employeeId ? (
-                    <Badge className="border-transparent bg-slate-100 text-slate-700">
-                      <IdCard className="mr-1.5 h-3.5 w-3.5" />
+                    <Badge className="gap-1.5 border-transparent bg-slate-100 text-slate-700">
+                      <IdCard className="h-3.5 w-3.5" />
                       {employeeId}
                     </Badge>
                   ) : null}
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-center md:justify-start">
+                <div
+                  className={cn(
+                    'flex flex-col gap-3 sm:flex-row sm:justify-center',
+                    isRTL ? 'md:justify-end' : 'md:justify-start',
+                  )}
+                >
                   <Button
                     type="button"
                     variant="outline"
-                    className="rounded-xl"
+                    className="gap-2 rounded-xl"
                     onClick={() => void handleCopyProfileLink()}
                   >
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy profile link
+                    <Copy className="h-4 w-4" />
+                    {t('publicProfile.copyProfileLink')}
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
-                    className="rounded-xl text-slate-600"
+                    className="gap-2 rounded-xl text-slate-600"
                     onClick={handleBack}
                   >
-                    <ChevronLeft className="mr-2 h-4 w-4" />
-                    Back
+                    <ChevronLeft className={cn('h-4 w-4', isRTL && 'rotate-180')} />
+                    {t('publicProfile.goBack')}
                   </Button>
                 </div>
               </div>
@@ -447,10 +477,10 @@ export function PublicProfilePage() {
           <Card className="rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_22px_65px_-36px_rgba(15,23,42,0.45)]">
             <CardHeader className="space-y-2 pb-3">
               <CardTitle className="text-lg font-semibold text-slate-950">
-                Quick Contact
+                {t('publicProfile.quickContactTitle')}
               </CardTitle>
               <p className="text-sm leading-6 text-slate-600">
-                Contact channels approved for this public profile.
+                {t('publicProfile.quickContactDescription')}
               </p>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -460,7 +490,7 @@ export function PublicProfilePage() {
                     <Mail className="mt-0.5 h-4 w-4 text-slate-500" />
                     <div>
                       <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-                        Professional Email
+                        {t('publicProfile.professionalEmail')}
                       </p>
                       <p className="mt-1 break-all text-sm font-medium text-slate-900">
                         {email}
@@ -475,7 +505,7 @@ export function PublicProfilePage() {
                     <Phone className="mt-0.5 h-4 w-4 text-slate-500" />
                     <div>
                       <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-                        Professional Phone
+                        {t('publicProfile.professionalPhone')}
                       </p>
                       <p className="mt-1 text-sm font-medium text-slate-900">{telephone}</p>
                     </div>
@@ -488,7 +518,7 @@ export function PublicProfilePage() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           {sections.map((section) => (
-            <ProfileSectionCard key={section.id} section={section} />
+            <ProfileSectionCard key={section.id} section={section} isRTL={isRTL} />
           ))}
         </div>
 
@@ -499,21 +529,26 @@ export function PublicProfilePage() {
                 <ShieldCheck className="h-6 w-6" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-base font-semibold text-slate-950">Secure public profile</h3>
+                <h3 className="text-base font-semibold text-slate-950">
+                  {t('publicProfile.secureProfileTitle')}
+                </h3>
                 <p className="text-sm leading-6 text-slate-600">
-                  This public profile is built from structured employee records and field-level
-                  visibility settings. Activity logs are not used to render employee profile data.
+                  {t('publicProfile.secureProfileDescription')}
                 </p>
                 <div className="flex flex-wrap gap-3 text-xs font-medium text-slate-500">
                   <span className="inline-flex items-center gap-1.5">
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                    Token validated
+                    {t('publicProfile.tokenValidated')}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                    Visibility filtered
+                    {t('publicProfile.visibilityFiltered')}
                   </span>
-                  <span>{isFetching ? 'Refreshing verification...' : 'Verified via EMS'}</span>
+                  <span>
+                    {isFetching
+                      ? t('publicProfile.refreshingVerification')
+                      : t('publicProfile.verifiedBadge')}
+                  </span>
                 </div>
               </div>
             </div>
