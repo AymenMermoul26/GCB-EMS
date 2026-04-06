@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { type UseFormRegisterReturn, useForm } from 'react-hook-form'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -17,11 +17,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { cn } from '@/lib/utils'
 import {
-  changePasswordSchema,
+  createChangePasswordSchema,
   type ChangePasswordFormValues,
-  firstLoginSetPasswordSchema,
+  createFirstLoginSetPasswordSchema,
   type FirstLoginSetPasswordFormValues,
 } from '@/schemas/changePasswordSchema'
 import { authService } from '@/services/auth'
@@ -47,6 +48,7 @@ export function ChangePasswordCard({
   description,
   anchorId,
 }: ChangePasswordCardProps) {
+  const { isRTL, t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const locationState = location.state as SecurityLocationState | null
@@ -60,9 +62,11 @@ export function ChangePasswordCard({
     newPassword: false,
     confirmNewPassword: false,
   })
+  const regularSchema = useMemo(() => createChangePasswordSchema(t), [t])
+  const firstLoginSchema = useMemo(() => createFirstLoginSetPasswordSchema(t), [t])
 
   const regularForm = useForm<ChangePasswordFormValues>({
-    resolver: zodResolver(changePasswordSchema),
+    resolver: zodResolver(regularSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -73,7 +77,7 @@ export function ChangePasswordCard({
   })
 
   const firstLoginForm = useForm<FirstLoginSetPasswordFormValues>({
-    resolver: zodResolver(firstLoginSetPasswordSchema),
+    resolver: zodResolver(firstLoginSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -92,8 +96,8 @@ export function ChangePasswordCard({
       })
       await refreshAuthState()
 
-      toast.success('Password updated successfully')
-      setSubmitFeedback({ type: 'success', message: 'Password updated successfully.' })
+      toast.success(t('security.feedback.updated'))
+      setSubmitFeedback({ type: 'success', message: t('security.feedback.updated') })
       regularForm.clearErrors()
       regularForm.reset({
         currentPassword: '',
@@ -101,7 +105,11 @@ export function ChangePasswordCard({
         confirmNewPassword: '',
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to update password'
+      const message = translatePasswordError(
+        error instanceof Error ? error.message : null,
+        t,
+        t('security.feedback.updateError'),
+      )
       toast.error(message)
       setSubmitFeedback({ type: 'error', message })
     }
@@ -116,8 +124,8 @@ export function ChangePasswordCard({
       })
       await refreshAuthState()
 
-      toast.success('Password set successfully')
-      setSubmitFeedback({ type: 'success', message: 'Password set successfully.' })
+      toast.success(t('security.feedback.set'))
+      setSubmitFeedback({ type: 'success', message: t('security.feedback.set') })
       firstLoginForm.clearErrors()
       firstLoginForm.reset({
         newPassword: '',
@@ -136,7 +144,11 @@ export function ChangePasswordCard({
 
       navigate(nextRoute, { replace: true })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to set password'
+      const message = translatePasswordError(
+        error instanceof Error ? error.message : null,
+        t,
+        t('security.feedback.setError'),
+      )
       toast.error(message)
       setSubmitFeedback({ type: 'error', message })
     }
@@ -145,13 +157,6 @@ export function ChangePasswordCard({
   const isSubmitting = mustChangePassword
     ? firstLoginForm.formState.isSubmitting
     : regularForm.formState.isSubmitting
-
-  const effectiveTitle = title ?? 'Security'
-  const effectiveDescription =
-    description ??
-    (mustChangePassword
-      ? 'First login detected. Set a strong password before continuing.'
-      : 'Change your account password.')
 
   const isValidAndDirty = mustChangePassword
     ? firstLoginForm.formState.isValid && firstLoginForm.formState.isDirty
@@ -164,13 +169,20 @@ export function ChangePasswordCard({
     }))
   }
 
+  const effectiveTitle = title ?? t('security.title')
+  const effectiveDescription =
+    description ??
+    (mustChangePassword
+      ? t('security.firstLoginDescription')
+      : t('security.changePasswordDescription'))
+
   return (
     <Card id={anchorId} className={cn(SURFACE_CARD_CLASS_NAME, className)}>
       <CardHeader>
         <CardTitle className="text-base font-semibold">{effectiveTitle}</CardTitle>
         <p className="text-sm text-muted-foreground">{effectiveDescription}</p>
         <p className="text-xs text-muted-foreground">
-          Password must be at least 8 characters and different from your current password.
+          {t('security.passwordHint')}
         </p>
       </CardHeader>
       <CardContent>
@@ -180,7 +192,9 @@ export function ChangePasswordCard({
             className="mb-4"
           >
             <AlertTitle>
-              {submitFeedback.type === 'success' ? 'Success' : 'Could not update password'}
+              {submitFeedback.type === 'success'
+                ? t('common.success')
+                : t('security.feedback.couldNotUpdateTitle')}
             </AlertTitle>
             <AlertDescription>{submitFeedback.message}</AlertDescription>
           </Alert>
@@ -190,24 +204,30 @@ export function ChangePasswordCard({
           <form className="space-y-4" onSubmit={onSubmitFirstLogin}>
             <PasswordField
               id="newPassword"
-              label="New password"
+              label={t('security.fields.newPassword')}
               error={firstLoginForm.formState.errors.newPassword?.message}
               inputType={showPassword.newPassword ? 'text' : 'password'}
               isSubmitting={isSubmitting}
               onToggleVisibility={() => toggleVisibility('newPassword')}
               isVisible={showPassword.newPassword}
               registration={firstLoginForm.register('newPassword')}
+              isRTL={isRTL}
+              showPasswordLabel={t('common.showPassword')}
+              hidePasswordLabel={t('common.hidePassword')}
             />
 
             <PasswordField
               id="confirmNewPassword"
-              label="Confirm new password"
+              label={t('security.fields.confirmNewPassword')}
               error={firstLoginForm.formState.errors.confirmNewPassword?.message}
               inputType={showPassword.confirmNewPassword ? 'text' : 'password'}
               isSubmitting={isSubmitting}
               onToggleVisibility={() => toggleVisibility('confirmNewPassword')}
               isVisible={showPassword.confirmNewPassword}
               registration={firstLoginForm.register('confirmNewPassword')}
+              isRTL={isRTL}
+              showPasswordLabel={t('common.showPassword')}
+              hidePasswordLabel={t('common.hidePassword')}
             />
 
             <Button
@@ -216,46 +236,55 @@ export function ChangePasswordCard({
               className={cn('w-full', BRAND_BUTTON_CLASS_NAME)}
             >
               {isSubmitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : (
-                <KeyRound className="mr-2 h-4 w-4" />
+                <KeyRound className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               )}
-              {isSubmitting ? 'Updating...' : 'Update Password'}
+              {isSubmitting ? t('security.updating') : t('actions.changePassword')}
             </Button>
           </form>
         ) : (
           <form className="space-y-4" onSubmit={onSubmitRegular}>
             <PasswordField
               id="currentPassword"
-              label="Current password"
+              label={t('security.fields.currentPassword')}
               error={regularForm.formState.errors.currentPassword?.message}
               inputType={showPassword.currentPassword ? 'text' : 'password'}
               isSubmitting={isSubmitting}
               onToggleVisibility={() => toggleVisibility('currentPassword')}
               isVisible={showPassword.currentPassword}
               registration={regularForm.register('currentPassword')}
+              isRTL={isRTL}
+              showPasswordLabel={t('common.showPassword')}
+              hidePasswordLabel={t('common.hidePassword')}
             />
 
             <PasswordField
               id="newPassword"
-              label="New password"
+              label={t('security.fields.newPassword')}
               error={regularForm.formState.errors.newPassword?.message}
               inputType={showPassword.newPassword ? 'text' : 'password'}
               isSubmitting={isSubmitting}
               onToggleVisibility={() => toggleVisibility('newPassword')}
               isVisible={showPassword.newPassword}
               registration={regularForm.register('newPassword')}
+              isRTL={isRTL}
+              showPasswordLabel={t('common.showPassword')}
+              hidePasswordLabel={t('common.hidePassword')}
             />
 
             <PasswordField
               id="confirmNewPassword"
-              label="Confirm new password"
+              label={t('security.fields.confirmNewPassword')}
               error={regularForm.formState.errors.confirmNewPassword?.message}
               inputType={showPassword.confirmNewPassword ? 'text' : 'password'}
               isSubmitting={isSubmitting}
               onToggleVisibility={() => toggleVisibility('confirmNewPassword')}
               isVisible={showPassword.confirmNewPassword}
               registration={regularForm.register('confirmNewPassword')}
+              isRTL={isRTL}
+              showPasswordLabel={t('common.showPassword')}
+              hidePasswordLabel={t('common.hidePassword')}
             />
 
             <Button
@@ -264,11 +293,11 @@ export function ChangePasswordCard({
               className={cn('w-full', BRAND_BUTTON_CLASS_NAME)}
             >
               {isSubmitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : (
-                <KeyRound className="mr-2 h-4 w-4" />
+                <KeyRound className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               )}
-              {isSubmitting ? 'Updating...' : 'Update Password'}
+              {isSubmitting ? t('security.updating') : t('actions.changePassword')}
             </Button>
           </form>
         )}
@@ -283,9 +312,12 @@ interface PasswordFieldProps {
   error?: string
   inputType: 'text' | 'password'
   isSubmitting: boolean
+  isRTL: boolean
   isVisible: boolean
+  hidePasswordLabel: string
   onToggleVisibility: () => void
   registration: UseFormRegisterReturn
+  showPasswordLabel: string
 }
 
 function PasswordField({
@@ -294,9 +326,12 @@ function PasswordField({
   error,
   inputType,
   isSubmitting,
+  isRTL,
   isVisible,
+  hidePasswordLabel,
   onToggleVisibility,
   registration,
+  showPasswordLabel,
 }: PasswordFieldProps) {
   return (
     <div className="space-y-2">
@@ -307,10 +342,10 @@ function PasswordField({
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-1 top-1 h-8 w-8"
+          className={cn('absolute top-1 h-8 w-8', isRTL ? 'left-1' : 'right-1')}
           disabled={isSubmitting}
           onClick={onToggleVisibility}
-          aria-label={isVisible ? 'Hide password' : 'Show password'}
+          aria-label={isVisible ? hidePasswordLabel : showPasswordLabel}
         >
           {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
@@ -318,4 +353,31 @@ function PasswordField({
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   )
+}
+
+function translatePasswordError(
+  message: string | null,
+  t: ReturnType<typeof useI18n>['t'],
+  fallbackMessage: string,
+) {
+  if (!message) {
+    return fallbackMessage
+  }
+
+  switch (message) {
+    case 'This account does not have an email address. Contact an administrator.':
+      return t('security.feedback.noAccountEmail')
+    case 'Current password is incorrect.':
+      return t('security.feedback.incorrectCurrentPassword')
+    case 'Please sign in again and retry changing your password.':
+      return t('security.feedback.sessionRetry')
+    case 'Session expired. Please sign in again from your invite link.':
+      return t('security.feedback.firstLoginExpired')
+    case 'Password updated, but session refresh failed. Please sign in again.':
+      return t('security.feedback.sessionRefreshFailed')
+    case 'Unable to finalize password change.':
+      return t('security.feedback.finalizeChangeFailed')
+    default:
+      return message
+  }
 }

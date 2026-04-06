@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 
 import { APP_ROLES, type AppRole } from '@/constants/roles'
 import { ROUTES } from '@/constants/routes'
+import { useI18n } from '@/hooks/use-i18n'
 import { usePendingRequestsCountQuery } from '@/services/requestsService'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -17,29 +18,30 @@ const linkClassName = ({ isActive }: { isActive: boolean }) =>
   )
 
 export function DashboardNav({ role }: DashboardNavProps) {
+  const { t } = useI18n()
   const pendingRequestsCountQuery = usePendingRequestsCountQuery(role === APP_ROLES.ADMIN_RH)
   const pendingCount = pendingRequestsCountQuery.data ?? 0
 
   if (role === APP_ROLES.ADMIN_RH) {
     return (
-      <nav className="flex items-center gap-2">
+      <nav className="flex flex-wrap items-center gap-2">
         <NavLink to={ROUTES.ADMIN_EMPLOYEES} className={linkClassName}>
-          Employees
+          {t('sidebar.admin.nav.employees')}
         </NavLink>
         <NavLink to={ROUTES.ADMIN_DEPARTMENTS} className={linkClassName}>
-          Departments
+          {t('sidebar.admin.nav.departments')}
         </NavLink>
         <NavLink
           to={ROUTES.ADMIN_REQUESTS}
           className={({ isActive }) => cn(linkClassName({ isActive }), 'inline-flex items-center gap-2')}
         >
-          Requests
+          {t('sidebar.admin.nav.requests')}
           {pendingCount > 0 ? (
             <Badge className="border-transparent bg-red-600 text-white">{pendingCount}</Badge>
           ) : null}
         </NavLink>
         <NavLink to={ROUTES.ADMIN_AUDIT} className={linkClassName}>
-          Audit Log
+          {t('sidebar.admin.nav.audit')}
         </NavLink>
       </nav>
     )
@@ -47,24 +49,24 @@ export function DashboardNav({ role }: DashboardNavProps) {
 
   if (role === APP_ROLES.PAYROLL_AGENT) {
     return (
-      <nav className="flex items-center gap-2">
+      <nav className="flex flex-wrap items-center gap-2">
         <NavLink to={ROUTES.PAYROLL_DASHBOARD} className={linkClassName}>
-          Dashboard
+          {t('sidebar.payroll.nav.dashboard')}
         </NavLink>
         <NavLink to={ROUTES.PAYROLL_EMPLOYEES} className={linkClassName}>
-          Employees
+          {t('sidebar.payroll.nav.employees')}
         </NavLink>
         <NavLink to={ROUTES.PAYROLL_SECURITY} className={linkClassName}>
-          Security
+          {t('sidebar.payroll.nav.security')}
         </NavLink>
       </nav>
     )
   }
 
   return (
-    <nav className="flex items-center gap-2">
+    <nav className="flex flex-wrap items-center gap-2">
       <NavLink to={ROUTES.EMPLOYEE_PROFILE} className={linkClassName}>
-        My Profile
+        {t('sidebar.employee.nav.profile')}
       </NavLink>
     </nav>
   )

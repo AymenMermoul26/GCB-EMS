@@ -1,8 +1,8 @@
 import {
   Activity,
   ArrowRight,
-  ChevronLeft,
   Calculator,
+  ChevronLeft,
   Clock3,
   ExternalLink,
   FileDown,
@@ -48,7 +48,9 @@ import {
 } from '@/components/ui/table'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import { cn } from '@/lib/utils'
 import {
   createPayrollRunEmployeePayslipAccessDescriptor,
   downloadPayslipDocument,
@@ -76,24 +78,24 @@ import {
   getPayrollRunTypeLabel,
 } from '@/types/payroll'
 
-function formatTimestamp(value: string | null | undefined): string {
+function formatTimestamp(value: string | null | undefined, locale: string): string {
   if (!value) {
     return '\u2014'
   }
 
-  return new Date(value).toLocaleString()
+  return new Date(value).toLocaleString(locale)
 }
 
-function formatDateRange(start: string, end: string): string {
-  return `${new Date(`${start}T00:00:00`).toLocaleDateString()} - ${new Date(`${end}T00:00:00`).toLocaleDateString()}`
+function formatDateRange(start: string, end: string, locale: string): string {
+  return `${new Date(`${start}T00:00:00`).toLocaleDateString(locale)} - ${new Date(`${end}T00:00:00`).toLocaleDateString(locale)}`
 }
 
-function formatAmount(value: number | null | undefined): string {
+function formatAmount(value: number | null | undefined, locale: string): string {
   if (value === null || value === undefined) {
     return '\u2014'
   }
 
-  return value.toLocaleString(undefined, {
+  return value.toLocaleString(locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
@@ -117,18 +119,19 @@ function formatFileSize(value: number | null | undefined): string {
 
 function buildNextRunAction(
   status: PayrollProcessingStatus,
+  t: (key: string) => string,
 ): { label: string; nextStatus: PayrollProcessingStatus } | null {
   switch (status) {
     case 'DRAFT':
-      return { label: 'Calculate run', nextStatus: 'CALCULATED' }
+      return { label: t('payroll.processing.runActions.calculate'), nextStatus: 'CALCULATED' }
     case 'CALCULATED':
-      return { label: 'Send to review', nextStatus: 'UNDER_REVIEW' }
+      return { label: t('payroll.processing.runActions.review'), nextStatus: 'UNDER_REVIEW' }
     case 'UNDER_REVIEW':
-      return { label: 'Finalize run', nextStatus: 'FINALIZED' }
+      return { label: t('payroll.processing.runActions.finalize'), nextStatus: 'FINALIZED' }
     case 'FINALIZED':
-      return { label: 'Publish payslips', nextStatus: 'PUBLISHED' }
+      return { label: t('payroll.processing.runActions.publish'), nextStatus: 'PUBLISHED' }
     case 'PUBLISHED':
-      return { label: 'Archive run', nextStatus: 'ARCHIVED' }
+      return { label: t('payroll.processing.runActions.archive'), nextStatus: 'ARCHIVED' }
     default:
       return null
   }
@@ -146,48 +149,51 @@ function getPayslipGenerationTone(status: PayrollRunEmployeeEntry['payslipGenera
   }
 }
 
-function getRunEntryDocumentAvailabilityCopy(entry: PayrollRunEmployeeEntry): {
+function getRunEntryDocumentAvailabilityCopy(
+  entry: PayrollRunEmployeeEntry,
+  t: (key: string) => string,
+): {
   tone: 'neutral' | 'warning' | 'danger' | 'info'
   message: string
 } {
   if (entry.calculationStatus === 'EXCLUDED') {
     return {
       tone: 'warning',
-      message: 'Excluded entries do not receive generated payslip PDFs.',
+      message: t('payroll.runDetail.entries.excludedMessage'),
     }
   }
 
   if (entry.calculationStatus === 'FAILED') {
     return {
       tone: 'danger',
-      message: 'Calculation failed. Recalculate the run before publishing this payslip.',
+      message: t('payroll.runDetail.entries.calculationFailedMessage'),
     }
   }
 
   if (!entry.payslipStatus) {
     return {
       tone: 'neutral',
-      message: 'Publish the run to create and attach the employee payslip PDF.',
+      message: t('payroll.runDetail.entries.publishRunMessage'),
     }
   }
 
   if (entry.payslipGenerationStatus === 'FAILED') {
     return {
       tone: 'danger',
-      message: 'Document generation failed. Fix the payroll data or generation issue, then publish again.',
+      message: t('payroll.runDetail.entries.generationFailedMessage'),
     }
   }
 
   if (entry.payslipGenerationStatus === 'PENDING' || !entry.payslipDocumentReady) {
     return {
       tone: 'info',
-      message: 'Canonical payslip published. The generated PDF is still being attached.',
+      message: t('payroll.runDetail.entries.generationPendingMessage'),
     }
   }
 
   return {
     tone: 'neutral',
-    message: 'Document metadata is not available yet.',
+    message: t('payroll.runDetail.entries.metadataUnavailableMessage'),
   }
 }
 
@@ -212,48 +218,50 @@ function SummaryCard({
 }
 
 function RunMetadataCard({ run }: { run: PayrollRunDetail }) {
+  const { t, locale } = useI18n()
+
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
           <ShieldCheck className="h-4 w-4 text-slate-600" />
-          Run metadata
+          {t('payroll.runDetail.metadataTitle')}
         </CardTitle>
         <CardDescription>
-          Lifecycle, timing, and publication information for this payroll run.
+          {t('payroll.runDetail.metadataDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-slate-600">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Created</p>
-            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.createdAt)}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t('common.created')}</p>
+            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.createdAt, locale)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Calculated</p>
-            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.calculatedAt)}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t('payroll.runDetail.metadata.calculated')}</p>
+            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.calculatedAt, locale)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Reviewed</p>
-            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.reviewedAt)}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t('common.reviewed')}</p>
+            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.reviewedAt, locale)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Finalized</p>
-            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.finalizedAt)}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t('payroll.runDetail.metadata.finalized')}</p>
+            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.finalizedAt, locale)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Published</p>
-            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.publishedAt)}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t('common.published')}</p>
+            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.publishedAt, locale)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Archived</p>
-            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.archivedAt)}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t('payroll.runDetail.metadata.archived')}</p>
+            <p className="mt-1 font-medium text-slate-900">{formatTimestamp(run.archivedAt, locale)}</p>
           </div>
         </div>
 
         {run.notes ? (
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Notes</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t('payroll.runDetail.metadata.notes')}</p>
             <p className="mt-2 leading-6 text-slate-700">{run.notes}</p>
           </div>
         ) : null}
@@ -285,15 +293,17 @@ function EmployeeEntriesCard({
   onOpenPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
   onDownloadPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
 }) {
+  const { t, locale, isRTL } = useI18n()
+
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
           <Users className="h-4 w-4 text-slate-600" />
-          Payroll calculation results
+          {t('payroll.runDetail.entries.title')}
         </CardTitle>
         <CardDescription>
-          Review per-employee payroll calculation snapshots before sending the run to review or publication.
+          {t('payroll.runDetail.entries.description')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -303,8 +313,8 @@ function EmployeeEntriesCard({
           <ErrorState
             surface="plain"
             align="left"
-            title="Could not load payroll run entries"
-            description="We couldn't load payroll run employee entries right now."
+            title={t('payroll.runDetail.entries.loadErrorTitle')}
+            description={t('payroll.runDetail.entries.loadErrorDescription')}
             message={errorMessage}
             onRetry={onRetry}
           />
@@ -312,45 +322,46 @@ function EmployeeEntriesCard({
           <EmptyState
             surface="plain"
             align="left"
-            title="No employee entries yet"
-            description="Employee entries will appear here once the payroll run is seeded."
+            title={t('payroll.runDetail.entries.emptyTitle')}
+            description={t('payroll.runDetail.entries.emptyDescription')}
           />
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[220px]">Employee</TableHead>
-                  <TableHead className="min-w-[180px]">Calculation status</TableHead>
-                  <TableHead className="min-w-[140px]">Base salary</TableHead>
-                  <TableHead className="min-w-[140px]">Allowances</TableHead>
-                  <TableHead className="min-w-[140px]">Deductions</TableHead>
-                  <TableHead className="min-w-[140px]">Gross</TableHead>
-                  <TableHead className="min-w-[140px]">Net</TableHead>
-                  <TableHead className="min-w-[280px]">Review notes</TableHead>
-                  <TableHead className="min-w-[160px]">Payslip</TableHead>
-                  <TableHead className="min-w-[180px]">Document actions</TableHead>
+                  <TableHead className="min-w-[220px]">{t('payroll.runDetail.entries.table.employee')}</TableHead>
+                  <TableHead className="min-w-[180px]">{t('payroll.runDetail.entries.table.calculationStatus')}</TableHead>
+                  <TableHead className="min-w-[140px]">{t('payroll.runDetail.entries.table.baseSalary')}</TableHead>
+                  <TableHead className="min-w-[140px]">{t('payroll.runDetail.entries.table.allowances')}</TableHead>
+                  <TableHead className="min-w-[140px]">{t('payroll.runDetail.entries.table.deductions')}</TableHead>
+                  <TableHead className="min-w-[140px]">{t('payroll.runDetail.entries.table.gross')}</TableHead>
+                  <TableHead className="min-w-[140px]">{t('payroll.runDetail.entries.table.net')}</TableHead>
+                  <TableHead className="min-w-[280px]">{t('payroll.runDetail.entries.table.reviewNotes')}</TableHead>
+                  <TableHead className="min-w-[160px]">{t('payroll.runDetail.entries.table.payslip')}</TableHead>
+                  <TableHead className="min-w-[180px]">{t('payroll.runDetail.entries.table.documentActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {entries.map((entry) => {
-                  const calculationMeta = getPayrollCalculationStatusMeta(entry.calculationStatus)
+                  const calculationMeta = getPayrollCalculationStatusMeta(entry.calculationStatus, t)
                   const payslipMeta = entry.payslipStatus
-                    ? getPayrollProcessingStatusMeta(entry.payslipStatus)
+                    ? getPayrollProcessingStatusMeta(entry.payslipStatus, t)
                     : null
                   const representationModeLabel = entry.payslipDocumentRepresentationMode
                     ? getPayslipDocumentRepresentationModeLabel(
                         entry.payslipDocumentRepresentationMode,
+                        t,
                       )
                     : null
                   const generationStatusLabel = entry.payslipGenerationStatus
-                    ? getPayslipDocumentGenerationStatusLabel(entry.payslipGenerationStatus)
+                    ? getPayslipDocumentGenerationStatusLabel(entry.payslipGenerationStatus, t)
                     : null
                   const documentDescriptor = createPayrollRunEmployeePayslipAccessDescriptor(
                     run,
                     entry,
                   )
-                  const documentAvailabilityCopy = getRunEntryDocumentAvailabilityCopy(entry)
+                  const documentAvailabilityCopy = getRunEntryDocumentAvailabilityCopy(entry, t)
                   const canInspectWorkflow =
                     entry.calculationStatus === 'CALCULATED' ||
                     entry.hasPayslip ||
@@ -376,7 +387,7 @@ function EmployeeEntriesCard({
                         <div className="space-y-2">
                           <StatusBadge tone={calculationMeta.tone}>{calculationMeta.label}</StatusBadge>
                           <StatusBadge tone="neutral" emphasis="outline">
-                            {getPayrollProcessingStatusMeta(entry.status).label}
+                            {getPayrollProcessingStatusMeta(entry.status, t).label}
                           </StatusBadge>
                           {entry.exclusionReason ? (
                             <p className="text-xs text-slate-500">{entry.exclusionReason}</p>
@@ -384,28 +395,30 @@ function EmployeeEntriesCard({
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-slate-700">
-                        {formatAmount(entry.baseSalaryAmount)}
+                        {formatAmount(entry.baseSalaryAmount, locale)}
                       </TableCell>
                       <TableCell className="text-sm text-slate-700">
-                        {formatAmount(entry.totalAllowancesAmount)}
+                        {formatAmount(entry.totalAllowancesAmount, locale)}
                       </TableCell>
                       <TableCell className="text-sm text-slate-700">
-                        {formatAmount(entry.totalDeductionsAmount)}
+                        {formatAmount(entry.totalDeductionsAmount, locale)}
                       </TableCell>
                       <TableCell className="text-sm text-slate-700">
-                        {formatAmount(entry.grossPayAmount)}
+                        {formatAmount(entry.grossPayAmount, locale)}
                       </TableCell>
                       <TableCell className="text-sm font-medium text-slate-900">
-                        {formatAmount(entry.netPayAmount)}
+                        {formatAmount(entry.netPayAmount, locale)}
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <p className="text-sm text-slate-600">
-                            {entry.calculationNotes ?? 'No calculation notes.'}
+                            {entry.calculationNotes ?? t('payroll.runDetail.entries.noCalculationNotes')}
                           </p>
                           {entry.issueFlags.length > 0 ? (
                             <p className="text-xs text-amber-700">
-                              Flags: {entry.issueFlags.join(', ')}
+                              {t('payroll.runDetail.entries.flags', {
+                                value: entry.issueFlags.join(', '),
+                              })}
                             </p>
                           ) : null}
                         </div>
@@ -415,7 +428,7 @@ function EmployeeEntriesCard({
                           <div className="space-y-1">
                             <StatusBadge tone={payslipMeta.tone}>{payslipMeta.label}</StatusBadge>
                             <p className="text-xs text-slate-500">
-                              {formatTimestamp(entry.payslipPublishedAt)}
+                              {formatTimestamp(entry.payslipPublishedAt, locale)}
                             </p>
                             {generationStatusLabel ? (
                               <StatusBadge
@@ -427,10 +440,10 @@ function EmployeeEntriesCard({
                             ) : null}
                             <p className="text-xs text-slate-500">
                               {entry.payslipDocumentReady
-                                ? representationModeLabel ?? 'Document attached'
+                                ? representationModeLabel ?? t('payroll.runDetail.entries.documentAttached')
                                 : entry.payslipGenerationStatus === 'FAILED'
-                                  ? 'Generation failed. Retry publication after fixing payroll data or document generation issues.'
-                                  : 'Canonical record published. Document generation is pending.'}
+                                  ? t('payroll.runDetail.entries.generationFailedDescription')
+                                  : t('payroll.runDetail.entries.generationPendingDescription')}
                             </p>
                             {entry.payslipGenerationError ? (
                               <p className="text-xs text-rose-600">{entry.payslipGenerationError}</p>
@@ -443,14 +456,14 @@ function EmployeeEntriesCard({
                                 className="mt-2"
                                 onClick={() => onOpenWorkflow(entry)}
                               >
-                                <Clock3 className="mr-2 h-4 w-4" />
-                                View workflow
+                                <Clock3 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                {t('actions.viewWorkflow')}
                               </Button>
                             ) : null}
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <span className="text-sm text-slate-500">Not published</span>
+                            <span className="text-sm text-slate-500">{t('payroll.runDetail.entries.notPublished')}</span>
                             {canInspectWorkflow ? (
                               <Button
                                 type="button"
@@ -458,8 +471,8 @@ function EmployeeEntriesCard({
                                 size="sm"
                                 onClick={() => onOpenWorkflow(entry)}
                               >
-                                <Clock3 className="mr-2 h-4 w-4" />
-                                View workflow
+                                <Clock3 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                {t('actions.viewWorkflow')}
                               </Button>
                             ) : null}
                           </div>
@@ -469,7 +482,7 @@ function EmployeeEntriesCard({
                         {documentDescriptor ? (
                           <div className="space-y-2">
                             <p className="text-xs text-slate-500">
-                              {entry.payslipFileName ?? 'Generated PDF'}
+                              {entry.payslipFileName ?? '\u2014'}
                             </p>
                             <p className="text-xs text-slate-500">
                               {entry.payslipContentType ?? 'application/pdf'} |{' '}
@@ -484,11 +497,11 @@ function EmployeeEntriesCard({
                                 onClick={() => void onOpenPayslipDocument(entry)}
                               >
                                 {isOpening ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                                 ) : (
-                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                                 )}
-                                Open
+                                {t('actions.open')}
                               </Button>
                               <Button
                                 type="button"
@@ -497,11 +510,11 @@ function EmployeeEntriesCard({
                                 onClick={() => void onDownloadPayslipDocument(entry)}
                               >
                                 {isDownloading ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                                 ) : (
-                                  <FileDown className="mr-2 h-4 w-4" />
+                                  <FileDown className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                                 )}
-                                Download
+                                {t('actions.download')}
                               </Button>
                             </div>
                           </div>
@@ -511,7 +524,7 @@ function EmployeeEntriesCard({
                               tone={documentAvailabilityCopy.tone}
                               emphasis="outline"
                             >
-                              Not available
+                              {t('payroll.runDetail.entries.documentUnavailable')}
                             </StatusBadge>
                             <p className="text-xs leading-5 text-slate-500">
                               {documentAvailabilityCopy.message}
@@ -548,16 +561,18 @@ function PayslipWorkflowDialog({
   onOpenPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
   onDownloadPayslipDocument: (entry: PayrollRunEmployeeEntry) => Promise<void>
 }) {
+  const { t, locale, isRTL } = useI18n()
+
   if (!entry) {
     return null
   }
 
   const descriptor = createPayrollRunEmployeePayslipAccessDescriptor(run, entry)
   const generationStatusLabel = entry.payslipGenerationStatus
-    ? getPayslipDocumentGenerationStatusLabel(entry.payslipGenerationStatus)
+    ? getPayslipDocumentGenerationStatusLabel(entry.payslipGenerationStatus, t)
     : null
   const representationModeLabel = entry.payslipDocumentRepresentationMode
-    ? getPayslipDocumentRepresentationModeLabel(entry.payslipDocumentRepresentationMode)
+    ? getPayslipDocumentRepresentationModeLabel(entry.payslipDocumentRepresentationMode, t)
     : null
   const isOpening = activeDocumentActionKey === `${entry.id}:open`
   const isDownloading = activeDocumentActionKey === `${entry.id}:download`
@@ -567,18 +582,22 @@ function PayslipWorkflowDialog({
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            Payslip workflow: {entry.prenom} {entry.nom}
+            {t('payroll.runDetail.workflowDialog.title', {
+              employee: `${entry.prenom} ${entry.nom}`.trim(),
+            })}
           </DialogTitle>
           <DialogDescription>
-            Review the payroll-derived payslip lifecycle for this employee result in {run.periodLabel}.
+            {t('payroll.runDetail.workflowDialog.description', {
+              period: run.periodLabel,
+            })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
-            <p className="text-sm font-semibold text-slate-950">Workflow timeline</p>
+            <p className="text-sm font-semibold text-slate-950">{t('common.workflowTimeline')}</p>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              Timeline state is derived from the published canonical payslip record and generated PDF availability.
+              {t('payroll.runDetail.workflowDialog.timelineDescription')}
             </p>
             <PayslipWorkflowTimeline
               className="mt-4"
@@ -593,24 +612,24 @@ function PayslipWorkflowDialog({
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-sm text-slate-700">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Employee result</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t('payroll.runDetail.workflowDialog.employeeResultTitle')}</p>
               <p>
                 {entry.prenom} {entry.nom}
               </p>
-              <p>Matricule: {entry.matricule}</p>
-              <p>Department: {entry.departementNom ?? '\u2014'}</p>
-              <p>Job title: {entry.poste ?? '\u2014'}</p>
-              <p>Net pay: {formatAmount(entry.netPayAmount)}</p>
+              <p>{t('employee.profile.fields.employeeId')}: {entry.matricule}</p>
+              <p>{t('common.department')}: {entry.departementNom ?? '\u2014'}</p>
+              <p>{t('common.jobTitle')}: {entry.poste ?? '\u2014'}</p>
+              <p>{t('payroll.runDetail.entries.table.net')}: {formatAmount(entry.netPayAmount, locale)}</p>
             </div>
 
             <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-sm text-slate-700">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Document state</p>
-              <p>Published: {formatTimestamp(entry.payslipPublishedAt)}</p>
-              <p>Generated: {formatTimestamp(entry.payslipGeneratedAt)}</p>
-              <p>Status: {generationStatusLabel ?? 'Pending'}</p>
-              <p>Representation: {representationModeLabel ?? 'No document attached'}</p>
-              <p>File: {entry.payslipFileName ?? '\u2014'}</p>
-              <p>Size: {formatFileSize(entry.payslipFileSizeBytes)}</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t('payroll.runDetail.workflowDialog.documentStateTitle')}</p>
+              <p>{t('common.published')}: {formatTimestamp(entry.payslipPublishedAt, locale)}</p>
+              <p>{t('common.generated')}: {formatTimestamp(entry.payslipGeneratedAt, locale)}</p>
+              <p>{t('common.status')}: {generationStatusLabel ?? t('payroll.runDetail.workflowDialog.pendingStatus')}</p>
+              <p>{t('common.representation')}: {representationModeLabel ?? t('payroll.runDetail.workflowDialog.noDocumentRepresentation')}</p>
+              <p>{t('common.file')}: {entry.payslipFileName ?? '\u2014'}</p>
+              <p>{t('common.size')}: {formatFileSize(entry.payslipFileSizeBytes)}</p>
               {entry.payslipGenerationError ? (
                 <p className="text-rose-600">{entry.payslipGenerationError}</p>
               ) : null}
@@ -626,11 +645,11 @@ function PayslipWorkflowDialog({
                 onClick={() => void onOpenPayslipDocument(entry)}
               >
                 {isOpening ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <ExternalLink className="mr-2 h-4 w-4" />
+                  <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                Open PDF
+                {t('actions.open')}
               </Button>
               <Button
                 type="button"
@@ -638,11 +657,11 @@ function PayslipWorkflowDialog({
                 onClick={() => void onDownloadPayslipDocument(entry)}
               >
                 {isDownloading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <FileDown className="mr-2 h-4 w-4" />
+                  <FileDown className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                Download PDF
+                {t('actions.download')}
               </Button>
             </div>
           ) : null}
@@ -653,15 +672,17 @@ function PayslipWorkflowDialog({
 }
 
 function ActivityCard({ items }: { items: PayrollProcessingActivityItem[] }) {
+  const { t, locale } = useI18n()
+
   return (
     <Card className={SURFACE_CARD_CLASS_NAME}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
           <Activity className="h-4 w-4 text-slate-600" />
-          Run activity
+          {t('payroll.runDetail.activity.title')}
         </CardTitle>
         <CardDescription>
-          Audit-ready actions recorded for this payroll run and its published payslips across the payroll workflow.
+          {t('payroll.runDetail.activity.description')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -669,15 +690,15 @@ function ActivityCard({ items }: { items: PayrollProcessingActivityItem[] }) {
           <EmptyState
             surface="plain"
             align="left"
-            title="No run activity yet"
-            description="Lifecycle changes and payslip publication events will appear here."
+            title={t('payroll.runDetail.activity.emptyTitle')}
+            description={t('payroll.runDetail.activity.emptyDescription')}
           />
         ) : (
           <div className="space-y-3">
             {items.map((item) => (
               <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
                 <p className="text-sm font-semibold text-slate-950">{item.summary}</p>
-                <p className="mt-2 text-xs text-slate-500">{formatTimestamp(item.createdAt)}</p>
+                <p className="mt-2 text-xs text-slate-500">{formatTimestamp(item.createdAt, locale)}</p>
               </div>
             ))}
           </div>
@@ -690,6 +711,7 @@ function ActivityCard({ items }: { items: PayrollProcessingActivityItem[] }) {
 export function PayrollRunDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { signOut, user } = useAuth()
+  const { t, locale, isRTL } = useI18n()
   const runQuery = usePayrollRunQuery(id)
   const entriesQuery = usePayrollRunEmployeeEntriesQuery(id)
   const activityQuery = usePayrollRunActivityQuery(id, { limit: 50 })
@@ -699,13 +721,18 @@ export function PayrollRunDetailPage() {
   )
   const updateRunStatusMutation = useUpdatePayrollRunStatusMutation(user?.id, {
     onSuccess: (_, variables) => {
-      toast.success(`Payroll run moved to ${variables.status.toLowerCase().replaceAll('_', ' ')}.`)
+      toast.success(t('payroll.runDetail.feedback.moveRunSuccess', {
+        status: getPayrollProcessingStatusMeta(variables.status, t).label,
+      }))
     },
   })
   const calculateRunMutation = useCalculatePayrollRunMutation(user?.id, {
     onSuccess: (result) => {
       toast.success(
-        `Payroll calculation completed: ${result.calculatedEmployeeCount} calculated, ${result.excludedEmployeeCount} excluded.`,
+        t('payroll.runDetail.feedback.calculationSuccess', {
+          calculated: result.calculatedEmployeeCount,
+          excluded: result.excludedEmployeeCount,
+        }),
       )
     },
   })
@@ -713,7 +740,7 @@ export function PayrollRunDetailPage() {
   const run = runQuery.data
   const entries = entriesQuery.data ?? []
   const activity = useMemo(() => activityQuery.data ?? [], [activityQuery.data])
-  const nextAction = run ? buildNextRunAction(run.status) : null
+  const nextAction = run ? buildNextRunAction(run.status, t) : null
 
   const handleAdvanceRun = async () => {
     if (!run || !nextAction) {
@@ -735,8 +762,8 @@ export function PayrollRunDetailPage() {
         error instanceof Error
           ? error.message
           : nextAction.nextStatus === 'CALCULATED'
-            ? 'Failed to calculate payroll run'
-            : 'Failed to update payroll run status',
+            ? t('payroll.runDetail.feedback.calculateError')
+            : t('payroll.runDetail.feedback.updateError'),
       )
     }
   }
@@ -749,7 +776,7 @@ export function PayrollRunDetailPage() {
     try {
       await calculateRunMutation.mutateAsync(run.id)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to recalculate payroll run')
+      toast.error(error instanceof Error ? error.message : t('payroll.runDetail.feedback.recalculateError'))
     }
   }
 
@@ -761,7 +788,7 @@ export function PayrollRunDetailPage() {
     const descriptor = createPayrollRunEmployeePayslipAccessDescriptor(run, entry)
 
     if (!descriptor) {
-      toast.error('The generated payslip PDF is not available yet.')
+      toast.error(t('payroll.runDetail.feedback.documentUnavailable'))
       return
     }
 
@@ -770,7 +797,7 @@ export function PayrollRunDetailPage() {
     try {
       await openPayslipDocument(descriptor)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not open generated payslip PDF.')
+      toast.error(error instanceof Error ? error.message : t('payroll.runDetail.feedback.openDocumentError'))
     } finally {
       setActiveDocumentActionKey(null)
     }
@@ -784,7 +811,7 @@ export function PayrollRunDetailPage() {
     const descriptor = createPayrollRunEmployeePayslipAccessDescriptor(run, entry)
 
     if (!descriptor) {
-      toast.error('The generated payslip PDF is not available yet.')
+      toast.error(t('payroll.runDetail.feedback.documentUnavailable'))
       return
     }
 
@@ -793,9 +820,7 @@ export function PayrollRunDetailPage() {
     try {
       await downloadPayslipDocument(descriptor)
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not download generated payslip PDF.',
-      )
+      toast.error(error instanceof Error ? error.message : t('payroll.runDetail.feedback.downloadDocumentError'))
     } finally {
       setActiveDocumentActionKey(null)
     }
@@ -804,8 +829,8 @@ export function PayrollRunDetailPage() {
   if (runQuery.isPending && !runQuery.data) {
     return (
       <PayrollLayout
-        title="Payroll Run Detail"
-        subtitle="Inspect payroll run lifecycle, seeded employee entries, and publication readiness."
+        title={t('payroll.runDetail.title')}
+        subtitle={t('payroll.runDetail.subtitle')}
         onSignOut={signOut}
         userEmail={user?.email ?? null}
       >
@@ -817,14 +842,14 @@ export function PayrollRunDetailPage() {
   if (runQuery.isError) {
     return (
       <PayrollLayout
-        title="Payroll Run Detail"
-        subtitle="Inspect payroll run lifecycle, seeded employee entries, and publication readiness."
+        title={t('payroll.runDetail.title')}
+        subtitle={t('payroll.runDetail.subtitle')}
         onSignOut={signOut}
         userEmail={user?.email ?? null}
       >
         <ErrorState
-          title="Could not load payroll run"
-          description="We couldn't load this payroll run right now."
+          title={t('payroll.runDetail.emptyTitle')}
+          description={t('payroll.runDetail.emptyDescription')}
           message={runQuery.error.message}
           onRetry={() => void runQuery.refetch()}
         />
@@ -835,19 +860,19 @@ export function PayrollRunDetailPage() {
   if (!run) {
     return (
       <PayrollLayout
-        title="Payroll Run Detail"
-        subtitle="Inspect payroll run lifecycle, seeded employee entries, and publication readiness."
+        title={t('payroll.runDetail.title')}
+        subtitle={t('payroll.runDetail.subtitle')}
         onSignOut={signOut}
         userEmail={user?.email ?? null}
       >
         <EmptyState
-          title="Payroll run not found"
-          description="This payroll run is unavailable or outside the current payroll scope."
+          title={t('payroll.runDetail.emptyTitle')}
+          description={t('payroll.runDetail.emptyDescription')}
           actions={
             <Button asChild variant="outline">
               <Link to={ROUTES.PAYROLL_PROCESSING}>
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                Back to payroll processing
+                <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
+                {t('actions.backToProcessing')}
               </Link>
             </Button>
           }
@@ -856,24 +881,24 @@ export function PayrollRunDetailPage() {
     )
   }
 
-  const statusMeta = getPayrollProcessingStatusMeta(run.status)
+  const statusMeta = getPayrollProcessingStatusMeta(run.status, t)
 
   return (
     <PayrollLayout
-      title="Payroll Run Detail"
-      subtitle="Inspect payroll run lifecycle, seeded employee entries, and publication readiness."
+      title={t('payroll.runDetail.title')}
+      subtitle={t('payroll.runDetail.subtitle')}
       onSignOut={signOut}
       userEmail={user?.email ?? null}
     >
       <PageHeader
         title={run.code}
-        description="Review the authoritative per-employee payroll calculation snapshot for this run, then move the run through review, finalization, and publication."
+        description={t('payroll.runDetail.headerDescription')}
         className="mb-6"
         backAction={
           <Button asChild variant="outline" size="sm">
             <Link to={ROUTES.PAYROLL_PROCESSING}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Back to processing
+              <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
+              {t('actions.backToProcessing')}
             </Link>
           </Button>
         }
@@ -881,7 +906,7 @@ export function PayrollRunDetailPage() {
           <>
             <StatusBadge tone={statusMeta.tone}>{statusMeta.label}</StatusBadge>
             <StatusBadge tone="neutral" emphasis="outline">
-              {getPayrollRunTypeLabel(run.runType)}
+              {getPayrollRunTypeLabel(run.runType, t)}
             </StatusBadge>
             <StatusBadge tone="neutral" emphasis="outline">
               {run.periodCode}
@@ -892,8 +917,8 @@ export function PayrollRunDetailPage() {
           <>
             <Button asChild variant="outline">
               <Link to={ROUTES.PAYROLL_COMPENSATION}>
-                Open compensation
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {t('payroll.processing.configureCompensation')}
+                <ArrowRight className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')} />
               </Link>
             </Button>
             {run.status === 'CALCULATED' ? (
@@ -903,15 +928,17 @@ export function PayrollRunDetailPage() {
                 disabled={calculateRunMutation.isPending}
                 onClick={() => void handleRecalculateRun()}
               >
-                {calculateRunMutation.isPending ? 'Recalculating...' : 'Recalculate'}
+                {calculateRunMutation.isPending
+                  ? t('payroll.runDetail.feedback.recalculating')
+                  : t('payroll.runDetail.feedback.recalculate')}
               </Button>
             ) : null}
             {nextAction ? (
               <Button type="button" onClick={() => void handleAdvanceRun()}>
                 {nextAction.nextStatus === 'CALCULATED' && calculateRunMutation.isPending
-                  ? 'Calculating...'
+                  ? t('payroll.runDetail.feedback.calculating')
                   : updateRunStatusMutation.isPending
-                    ? 'Updating...'
+                    ? t('payroll.runDetail.feedback.updating')
                     : nextAction.label}
               </Button>
             ) : null}
@@ -921,34 +948,34 @@ export function PayrollRunDetailPage() {
 
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <SummaryCard
-          title="Payroll period"
+          title={t('payroll.runDetail.summaries.payrollPeriodTitle')}
           value={run.periodLabel}
-          helper={formatDateRange(run.periodStart, run.periodEnd)}
+          helper={formatDateRange(run.periodStart, run.periodEnd, locale)}
         />
         <SummaryCard
-          title="Included employees"
+          title={t('payroll.runDetail.summaries.includedEmployeesTitle')}
           value={String(run.calculatedEmployeeCount)}
-          helper="Employee entries included in the calculated payroll totals."
+          helper={t('payroll.runDetail.summaries.includedEmployeesHelper')}
         />
         <SummaryCard
-          title="Excluded employees"
+          title={t('payroll.runDetail.summaries.excludedEmployeesTitle')}
           value={String(run.excludedEmployeeCount)}
-          helper="Entries excluded because they are inactive, missing setup, or marked ineligible."
+          helper={t('payroll.runDetail.summaries.excludedEmployeesHelper')}
         />
         <SummaryCard
-          title="Total gross"
-          value={formatAmount(run.totalGrossPay)}
-          helper="Sum of base salary and fixed allowances for calculated entries."
+          title={t('payroll.runDetail.summaries.totalGrossTitle')}
+          value={formatAmount(run.totalGrossPay, locale)}
+          helper={t('payroll.runDetail.summaries.totalGrossHelper')}
         />
         <SummaryCard
-          title="Total deductions"
-          value={formatAmount(run.totalDeductionsAmount)}
-          helper="Sum of fixed deductions applied during the run calculation."
+          title={t('payroll.runDetail.summaries.totalDeductionsTitle')}
+          value={formatAmount(run.totalDeductionsAmount, locale)}
+          helper={t('payroll.runDetail.summaries.totalDeductionsHelper')}
         />
         <SummaryCard
-          title="Total net"
-          value={formatAmount(run.totalNetPay)}
-          helper="Net pay snapshot stored for this payroll run."
+          title={t('payroll.runDetail.summaries.totalNetTitle')}
+          value={formatAmount(run.totalNetPay, locale)}
+          helper={t('payroll.runDetail.summaries.totalNetHelper')}
         />
       </div>
 
@@ -959,23 +986,21 @@ export function PayrollRunDetailPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <Calculator className="h-4 w-4 text-slate-600" />
-              Calculation notes
+              {t('payroll.runDetail.notesCard.title')}
             </CardTitle>
             <CardDescription>
-              This run uses the simplified fixed-input payroll calculation model introduced in this phase.
+              {t('payroll.runDetail.notesCard.description')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-              Gross pay is calculated as base salary plus fixed allowances. Net pay is calculated as gross pay minus fixed deductions.
+              {t('payroll.runDetail.notesCard.itemOne')}
             </div>
             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-              Exclusion decisions are produced by the backend calculation RPC. Missing compensation setup and payroll-ineligible employees are recorded explicitly for review.
+              {t('payroll.runDetail.notesCard.itemTwo')}
             </div>
             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-              Publishing a run creates canonical payslip records derived from payroll results and
-              automatically generates one PDF document per employee result when the payroll data is
-              complete.
+              {t('payroll.runDetail.notesCard.itemThree')}
             </div>
           </CardContent>
         </Card>
@@ -1003,8 +1028,8 @@ export function PayrollRunDetailPage() {
           </Card>
         ) : activityQuery.isError ? (
           <ErrorState
-            title="Could not load run activity"
-            description="We couldn't load payroll run activity right now."
+            title={t('payroll.runDetail.activity.loadErrorTitle')}
+            description={t('payroll.runDetail.activity.loadErrorDescription')}
             message={activityQuery.error.message}
             onRetry={() => void activityQuery.refetch()}
           />

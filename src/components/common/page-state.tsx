@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { useI18n } from '@/hooks/use-i18n'
 import { cn } from '@/lib/utils'
 
 import { Button } from '@/components/ui/button'
@@ -128,16 +129,18 @@ export function ErrorState({
   icon = AlertTriangle,
   message,
   onRetry,
-  retryLabel = 'Retry',
+  retryLabel,
   actions,
   ...props
 }: ErrorStateProps) {
+  const { t } = useI18n()
+  const resolvedRetryLabel = retryLabel ?? t('common.retry')
   const composedActions =
     onRetry || actions ? (
       <>
         {onRetry ? (
           <Button type="button" variant="outline" onClick={onRetry}>
-            {retryLabel}
+            {resolvedRetryLabel}
           </Button>
         ) : null}
         {actions}

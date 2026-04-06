@@ -20,7 +20,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ROUTES, getPayrollEmployeeSheetRoute } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { PayrollLayout } from '@/layouts/payroll-layout'
+import { cn } from '@/lib/utils'
 import { usePayrollEmployeeQuery } from '@/services/payrollEmployeesService'
 import {
   getEmployeeCategorieProfessionnelleLabel,
@@ -39,12 +41,12 @@ function formatTextValue(value: string | null | undefined): string {
   return normalized && normalized.length > 0 ? normalized : EMPTY_FIELD_VALUE
 }
 
-function formatDateValue(value: string | null | undefined): string {
+function formatDateValue(value: string | null | undefined, locale: string): string {
   if (!value) {
     return EMPTY_FIELD_VALUE
   }
 
-  return new Date(`${value}T00:00:00`).toLocaleDateString()
+  return new Date(`${value}T00:00:00`).toLocaleDateString(locale)
 }
 
 function formatNumberValue(value: number | null | undefined): string {
@@ -102,13 +104,14 @@ function DetailSectionCard({
 export function PayrollEmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { signOut, user } = useAuth()
+  const { isRTL, locale, t } = useI18n()
   const employeeQuery = usePayrollEmployeeQuery(id)
 
   if (employeeQuery.isPending) {
     return (
       <PayrollLayout
-        title="Payroll Employee Detail"
-        subtitle="Read-only payroll employee information."
+        title={t('payroll.employeeDetail.title')}
+        subtitle={t('payroll.employeeDetail.subtitle')}
         onSignOut={signOut}
         userEmail={user?.email ?? null}
       >
@@ -120,14 +123,14 @@ export function PayrollEmployeeDetailPage() {
   if (employeeQuery.isError) {
     return (
       <PayrollLayout
-        title="Payroll Employee Detail"
-        subtitle="Read-only payroll employee information."
+        title={t('payroll.employeeDetail.title')}
+        subtitle={t('payroll.employeeDetail.subtitle')}
         onSignOut={signOut}
         userEmail={user?.email ?? null}
       >
         <ErrorState
-          title="Could not load payroll employee"
-          description="We couldn't load this payroll employee record right now."
+          title={t('payroll.employeeDetail.loadErrorTitle')}
+          description={t('payroll.employeeDetail.loadErrorDescription')}
           message={employeeQuery.error.message}
           onRetry={() => void employeeQuery.refetch()}
         />
@@ -138,19 +141,19 @@ export function PayrollEmployeeDetailPage() {
   if (!employeeQuery.data) {
     return (
       <PayrollLayout
-        title="Payroll Employee Detail"
-        subtitle="Read-only payroll employee information."
+        title={t('payroll.employeeDetail.title')}
+        subtitle={t('payroll.employeeDetail.subtitle')}
         onSignOut={signOut}
         userEmail={user?.email ?? null}
       >
         <EmptyState
-          title="Employee not found"
-          description="This payroll employee record is unavailable or outside the accessible payroll scope."
+          title={t('payroll.employeeDetail.emptyTitle')}
+          description={t('payroll.employeeDetail.emptyDescription')}
           actions={
             <Button asChild variant="outline">
               <Link to={ROUTES.PAYROLL_EMPLOYEES}>
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                Back to employees
+                <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
+                {t('payroll.employeeDetail.backToEmployees')}
               </Link>
             </Button>
           }
@@ -164,38 +167,38 @@ export function PayrollEmployeeDetailPage() {
 
   return (
     <PayrollLayout
-      title="Payroll Employee Detail"
-      subtitle="Read-only payroll employee information."
+      title={t('payroll.employeeDetail.title')}
+      subtitle={t('payroll.employeeDetail.subtitle')}
       onSignOut={signOut}
       userEmail={user?.email ?? null}
     >
       <PageHeader
         title={fullName}
-        description="Payroll users can review payroll-relevant identity, employment, and civil status information here. No admin actions or internal notes are available."
+        description={t('payroll.employeeDetail.headerDescription')}
         className="mb-6"
         backAction={
           <Button asChild variant="outline" size="sm">
             <Link to={ROUTES.PAYROLL_EMPLOYEES}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Back to employees
+              <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
+              {t('payroll.employeeDetail.backToEmployees')}
             </Link>
           </Button>
         }
         badges={
           <>
             <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
-              {employee.isActive ? 'Active' : 'Inactive'}
+              {employee.isActive ? t('status.common.active') : t('status.common.inactive')}
             </StatusBadge>
             <StatusBadge tone="neutral" emphasis="outline">
-              Read-only
+              {t('payroll.employeeDirectory.readOnlyBadge')}
             </StatusBadge>
           </>
         }
         actions={
           <Button asChild variant="outline">
             <Link to={getPayrollEmployeeSheetRoute(employee.id)}>
-              <FileText className="mr-2 h-4 w-4" />
-              Information Sheet
+              <FileText className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+              {t('payroll.employeeDetail.informationSheetAction')}
             </Link>
           </Button>
         }
@@ -223,7 +226,7 @@ export function PayrollEmployeeDetailPage() {
               </p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <StatusBadge tone="brand">
-                  <Building2 className="mr-1.5 h-3.5 w-3.5" />
+                  <Building2 className={cn('h-3.5 w-3.5', isRTL ? 'ml-1.5' : 'mr-1.5')} />
                   {formatTextValue(employee.departementNom)}
                 </StatusBadge>
                 {employee.regionalBranch ? (
@@ -232,7 +235,7 @@ export function PayrollEmployeeDetailPage() {
                   </StatusBadge>
                 ) : null}
                 <StatusBadge tone="info" emphasis="outline">
-                  <IdCard className="mr-1.5 h-3.5 w-3.5" />
+                  <IdCard className={cn('h-3.5 w-3.5', isRTL ? 'ml-1.5' : 'mr-1.5')} />
                   {employee.matricule}
                 </StatusBadge>
               </div>
@@ -240,7 +243,9 @@ export function PayrollEmployeeDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2 rounded-xl border border-slate-200/80 bg-slate-50 p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Payroll summary</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">
+                {t('payroll.employeeDetail.payrollSummaryTitle')}
+              </p>
               <div className="space-y-2">
                 <div className="flex items-start gap-2 text-sm text-slate-700">
                   <Mail className="mt-0.5 h-4 w-4 text-slate-500" />
@@ -258,84 +263,100 @@ export function PayrollEmployeeDetailPage() {
             </div>
 
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-900">
-              Sensitive payroll identifiers remain limited to controlled on-screen payroll detail
-              views. CSV exports, printable sheets, internal HR observations, and public-profile
-              controls are intentionally excluded.
+              {t('payroll.employeeDetail.restrictedWarning')}
             </div>
           </CardContent>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
           <DetailSectionCard
-            title="Identity Information"
-            description="Core identity and contact information available to payroll consultation users."
+            title={t('payroll.employeeDetail.sections.identity.title')}
+            description={t('payroll.employeeDetail.sections.identity.description')}
             icon={UserRound}
           >
-            <DetailRow label="Full name" value={fullName} />
-            <DetailRow label="Sex" value={formatTextValue(getEmployeeSexeLabel(employee.sexe))} />
-            <DetailRow label="Birth date" value={formatDateValue(employee.dateNaissance)} />
-            <DetailRow label="Birth place" value={formatTextValue(employee.lieuNaissance)} />
+            <DetailRow label={t('employee.profile.fields.fullName')} value={fullName} />
             <DetailRow
-              label="Nationality"
+              label={t('employee.profile.fields.sex')}
+              value={formatTextValue(getEmployeeSexeLabel(employee.sexe))}
+            />
+            <DetailRow
+              label={t('employee.profile.fields.birthDate')}
+              value={formatDateValue(employee.dateNaissance, locale)}
+            />
+            <DetailRow
+              label={t('employee.profile.fields.birthPlace')}
+              value={formatTextValue(employee.lieuNaissance)}
+            />
+            <DetailRow
+              label={t('employee.profile.fields.nationality')}
               value={formatTextValue(getEmployeeNationaliteLabel(employee.nationalite))}
             />
-            <DetailRow label="Email" value={formatTextValue(employee.email)} />
-            <DetailRow label="Phone" value={formatTextValue(employee.telephone)} />
+            <DetailRow label={t('common.email')} value={formatTextValue(employee.email)} />
+            <DetailRow label={t('employee.profile.fields.phone')} value={formatTextValue(employee.telephone)} />
           </DetailSectionCard>
 
           <DetailSectionCard
-            title="Employment Information"
-            description="Read-only employment data relevant for payroll preparation."
+            title={t('payroll.employeeDetail.sections.employment.title')}
+            description={t('payroll.employeeDetail.sections.employment.description')}
             icon={BriefcaseBusiness}
           >
-            <DetailRow label="Employee ID" value={employee.matricule} mono />
-            <DetailRow label="Department" value={formatTextValue(employee.departementNom)} />
+            <DetailRow label={t('employee.profile.fields.employeeId')} value={employee.matricule} mono />
+            <DetailRow label={t('employee.profile.fields.department')} value={formatTextValue(employee.departementNom)} />
             <DetailRow
-              label="Regional branch"
+              label={t('employee.profile.fields.regionalBranch')}
               value={formatTextValue(getEmployeeRegionalBranchLabel(employee.regionalBranch))}
             />
             <DetailRow
-              label="Job title"
+              label={t('employee.profile.fields.jobTitle')}
               value={formatTextValue(getEmployeePosteLabel(employee.poste))}
             />
             <DetailRow
-              label="Professional category"
+              label={t('employee.profile.fields.professionalCategory')}
               value={formatTextValue(
                 getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
               )}
             />
             <DetailRow
-              label="Contract type"
+              label={t('employee.profile.fields.contractType')}
               value={formatTextValue(getEmployeeTypeContratLabel(employee.typeContrat))}
             />
-            <DetailRow label="Hire date" value={formatDateValue(employee.dateRecrutement)} />
-            <DetailRow label="Status" value={employee.isActive ? 'Active' : 'Inactive'} />
+            <DetailRow
+              label={t('employee.profile.fields.hireDate')}
+              value={formatDateValue(employee.dateRecrutement, locale)}
+            />
+            <DetailRow
+              label={t('common.status')}
+              value={employee.isActive ? t('status.common.active') : t('status.common.inactive')}
+            />
           </DetailSectionCard>
 
           <DetailSectionCard
-            title="Administrative Information"
-            description="Operational administrative information available to payroll consultation users."
+            title={t('payroll.employeeDetail.sections.administrative.title')}
+            description={t('payroll.employeeDetail.sections.administrative.description')}
             icon={Mail}
           >
-            <DetailRow label="Email" value={formatTextValue(employee.email)} />
-            <DetailRow label="Phone" value={formatTextValue(employee.telephone)} />
-            <DetailRow label="Address" value={formatTextValue(employee.adresse)} />
+            <DetailRow label={t('common.email')} value={formatTextValue(employee.email)} />
+            <DetailRow label={t('employee.profile.fields.phone')} value={formatTextValue(employee.telephone)} />
+            <DetailRow label={t('employee.profile.fields.address')} value={formatTextValue(employee.adresse)} />
           </DetailSectionCard>
 
           <DetailSectionCard
-            title="Family & Payroll-Relevant Information"
-            description="Civil status and payroll-relevant information approved for this role."
+            title={t('payroll.employeeDetail.sections.family.title')}
+            description={t('payroll.employeeDetail.sections.family.description')}
             icon={ShieldCheck}
           >
             <DetailRow
-              label="Marital status"
+              label={t('employee.profile.fields.maritalStatus')}
               value={formatTextValue(
                 getEmployeeSituationFamilialeLabel(employee.situationFamiliale),
               )}
             />
-            <DetailRow label="Number of children" value={formatNumberValue(employee.nombreEnfants)} />
             <DetailRow
-              label="Social security number"
+              label={t('employee.profile.fields.children')}
+              value={formatNumberValue(employee.nombreEnfants)}
+            />
+            <DetailRow
+              label={t('employee.profile.fields.socialSecurityNumber')}
               value={formatTextValue(employee.numeroSecuriteSociale)}
               mono
             />

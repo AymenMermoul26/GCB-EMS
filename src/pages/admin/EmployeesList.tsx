@@ -79,6 +79,8 @@ import {
   getAdminEmployeeRoute,
 } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { useI18n } from '@/hooks/use-i18n'
+import type { TranslateFn } from '@/i18n/messages'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
 import { auditService } from '@/services/auditService'
@@ -139,37 +141,39 @@ const DEFAULT_EMPLOYEE_TABLE_COLUMNS: EmployeeTableColumnPreferences = {
   education: false,
   updated: false,
 }
-const EMPLOYEE_TABLE_COLUMN_OPTIONS: Array<{
+function getEmployeeTableColumnOptions(t: TranslateFn): Array<{
   key: EmployeeTableOptionalColumnKey
   label: string
   description: string
-}> = [
-  {
-    key: 'contract',
-    label: 'Contract summary',
-    description: 'Show contract type in the main employee table.',
-  },
-  {
-    key: 'contact',
-    label: 'Contact details',
-    description: 'Show work email and phone in the table.',
-  },
-  {
-    key: 'nationality',
-    label: 'Nationality',
-    description: 'Show nationality as an optional personal profile column.',
-  },
-  {
-    key: 'education',
-    label: 'Education summary',
-    description: 'Show degree and specialization in the table.',
-  },
-  {
-    key: 'updated',
-    label: 'Last updated',
-    description: 'Show when the employee profile was last updated.',
-  },
-]
+}> {
+  return [
+    {
+      key: 'contract',
+      label: t('admin.employeeList.columns.contract.label'),
+      description: t('admin.employeeList.columns.contract.description'),
+    },
+    {
+      key: 'contact',
+      label: t('admin.employeeList.columns.contact.label'),
+      description: t('admin.employeeList.columns.contact.description'),
+    },
+    {
+      key: 'nationality',
+      label: t('admin.employeeList.columns.nationality.label'),
+      description: t('admin.employeeList.columns.nationality.description'),
+    },
+    {
+      key: 'education',
+      label: t('admin.employeeList.columns.education.label'),
+      description: t('admin.employeeList.columns.education.description'),
+    },
+    {
+      key: 'updated',
+      label: t('admin.employeeList.columns.updated.label'),
+      description: t('admin.employeeList.columns.updated.description'),
+    },
+  ]
+}
 
 interface ExportRow {
   matricule: string
@@ -265,8 +269,8 @@ function readEmployeeTableColumnPreferences(): EmployeeTableColumnPreferences {
   }
 }
 
-function formatUpdatedDate(value: string): string {
-  return new Date(value).toLocaleDateString()
+function formatUpdatedDate(value: string, locale: string): string {
+  return new Date(value).toLocaleDateString(locale)
 }
 
 function formatRegionalBranch(value: string | null | undefined): string | null {
@@ -279,6 +283,7 @@ function formatContractType(value: string | null | undefined): string | null {
 
 export function EmployeesListPage() {
   const navigate = useNavigate()
+  const { t, locale, isRTL } = useI18n()
 
   const [searchInput, setSearchInput] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState<string>('all')
@@ -397,6 +402,7 @@ export function EmployeesListPage() {
     universityFilter !== 'all' ||
     statusFilter !== 'all'
   const enabledOptionalColumnCount = Object.values(tableColumns).filter(Boolean).length
+  const tableColumnOptions = useMemo(() => getEmployeeTableColumnOptions(t), [t])
 
   const handleToggleTableColumn = (key: EmployeeTableOptionalColumnKey, checked: boolean) => {
     setTableColumns((current) => ({
@@ -407,7 +413,7 @@ export function EmployeesListPage() {
 
   const activateMutation = useActivateEmployeeMutation({
     onSuccess: async (employee) => {
-      toast.success('Employee activated.')
+      toast.success(t('admin.employeeList.feedback.activated'))
       setEmployeeStatusTarget(null)
       try {
         await auditService.insertAuditLog({
@@ -432,7 +438,7 @@ export function EmployeesListPage() {
 
   const deactivateMutation = useDeactivateEmployeeMutation({
     onSuccess: async (employee) => {
-      toast.success('Employee deactivated.')
+      toast.success(t('admin.employeeList.feedback.deactivated'))
       setEmployeeStatusTarget(null)
       try {
         await auditService.insertAuditLog({
@@ -515,7 +521,7 @@ export function EmployeesListPage() {
       }
 
       if (exportEmployees.length === 0) {
-        toast.info('No employees to export.')
+        toast.info(t('admin.employeeList.feedback.noEmployeesToExport'))
         return
       }
 
@@ -531,12 +537,14 @@ export function EmployeesListPage() {
       downloadCsv(`ems_employees_${date}.csv`, csv)
 
       if (isCurrentPageOnly) {
-        toast.info('Dataset too large; exported current page.')
+        toast.info(t('admin.employeeList.feedback.exportedCurrentPage'))
       } else {
-        toast.success('CSV export completed.')
+        toast.success(t('admin.employeeList.feedback.exportSuccess'))
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to export CSV')
+      toast.error(
+        error instanceof Error ? error.message : t('admin.employeeList.feedback.exportError'),
+      )
     } finally {
       setExporting(false)
     }
@@ -569,60 +577,80 @@ export function EmployeesListPage() {
 
   return (
     <DashboardLayout
-      title="Employees"
-      subtitle="Employee directory and management workspace."
+      title={t('admin.employeeList.title')}
+      subtitle={t('admin.employeeList.subtitle')}
     >
       <PageHeader
-        title="Employees"
-        description="Manage employees, visibility, and QR tokens."
+        title={t('admin.employeeList.title')}
+        description={t('admin.employeeList.headerDescription')}
         className="sticky top-2 z-10 mb-6"
-        badges={<StatusBadge tone="neutral">{total} total</StatusBadge>}
+        badges={
+          <StatusBadge tone="neutral">
+            {t('admin.employeeList.totalBadge', { count: String(total) })}
+          </StatusBadge>
+        }
         actionsClassName="xl:max-w-3xl"
         actions={
           <>
             <div className="relative min-w-[250px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search
+                className={cn(
+                  'pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground',
+                  isRTL ? 'right-3' : 'left-3',
+                )}
+              />
               <Input
-                aria-label="Search employees"
+                aria-label={t('admin.employeeList.searchAria')}
                 value={searchInput}
                 onChange={(event) => {
                   setSearchInput(event.target.value)
                   setPage(1)
                 }}
-                placeholder="Search by name, employee ID, email, branch, nationality, job title, or education..."
-                className="pl-9"
+                placeholder={t('admin.employeeList.searchPlaceholder')}
+                className={cn(isRTL ? 'pr-9' : 'pl-9')}
               />
             </div>
 
             <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
               <DialogTrigger asChild>
-                <Button type="button" variant="outline" aria-label="Open filters">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filters
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label={t('admin.employeeList.filters.openAria')}
+                >
+                  <Filter className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                  {t('admin.employeeList.filters.button')}
                   {hasActiveFilters ? (
-                    <span className="ml-2 inline-flex h-2.5 w-2.5 rounded-full bg-[#ff6b35]" />
+                    <span
+                      className={cn(
+                        'inline-flex h-2.5 w-2.5 rounded-full bg-[#ff6b35]',
+                        isRTL ? 'mr-2' : 'ml-2',
+                      )}
+                    />
                   ) : null}
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Filter employees</DialogTitle>
+                  <DialogTitle>{t('admin.employeeList.filters.dialogTitle')}</DialogTitle>
                   <DialogDescription>
-                    Narrow down results by department, branch, nationality, job title, education background, and active status.
+                    {t('admin.employeeList.filters.dialogDescription')}
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-slate-900">Core directory filters</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {t('admin.employeeList.filters.coreTitle')}
+                    </p>
                     <p className="text-xs text-slate-500">
-                      Use these first for operational directory browsing.
+                      {t('admin.employeeList.filters.coreDescription')}
                     </p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Department</p>
+                      <p className="text-sm font-medium">{t('common.department')}</p>
                       <Select
                         value={departmentFilter}
                         onValueChange={(value) => {
@@ -631,10 +659,10 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select department" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectDepartment')} />
                         </SelectTrigger>
                         <SelectContent>
-                        <SelectItem value="all">All departments</SelectItem>
+                        <SelectItem value="all">{t('admin.employeeList.filters.allDepartments')}</SelectItem>
                         {(departmentsQuery.data ?? []).map((department) => (
                           <SelectItem key={department.id} value={department.id}>
                             {getDepartmentDisplayName(department.nom) ?? department.nom}
@@ -645,7 +673,9 @@ export function EmployeesListPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Regional branch</p>
+                      <p className="text-sm font-medium">
+                        {t('employee.profile.fields.regionalBranch')}
+                      </p>
                       <Select
                         value={branchFilter}
                         onValueChange={(value) => {
@@ -654,10 +684,10 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select regional branch" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectRegionalBranch')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All regional branches</SelectItem>
+                          <SelectItem value="all">{t('admin.employeeList.filters.allRegionalBranches')}</SelectItem>
                           {EMPLOYEE_REGIONAL_BRANCH_OPTIONS.map((branch) => (
                             <SelectItem key={branch} value={branch}>
                               {EMPLOYEE_REGIONAL_BRANCH_LABELS[branch]}
@@ -668,7 +698,7 @@ export function EmployeesListPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Status</p>
+                      <p className="text-sm font-medium">{t('common.status')}</p>
                       <Select
                         value={statusFilter}
                         onValueChange={(value: StatusFilter) => {
@@ -677,18 +707,18 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectStatus')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All statuses</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="all">{t('admin.employeeList.filters.allStatuses')}</SelectItem>
+                          <SelectItem value="active">{t('status.common.active')}</SelectItem>
+                          <SelectItem value="inactive">{t('status.common.inactive')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Job title</p>
+                      <p className="text-sm font-medium">{t('common.jobTitle')}</p>
                       <Select
                         value={jobTitleFilter}
                         onValueChange={(value) => {
@@ -697,10 +727,10 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a job title" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectJobTitle')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All job titles</SelectItem>
+                          <SelectItem value="all">{t('admin.employeeList.filters.allJobTitles')}</SelectItem>
                           {EMPLOYEE_POSTE_OPTIONS.map((option) => (
                             <SelectItem key={option} value={option}>
                               {EMPLOYEE_POSTE_LABELS[option]}
@@ -712,15 +742,17 @@ export function EmployeesListPage() {
                   </div>
 
                   <div className="space-y-2 pt-1">
-                    <p className="text-sm font-semibold text-slate-900">Advanced profile filters</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {t('admin.employeeList.filters.advancedTitle')}
+                    </p>
                     <p className="text-xs text-slate-500">
-                      Richer profile attributes stay filterable without becoming default table columns.
+                      {t('admin.employeeList.filters.advancedDescription')}
                     </p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Nationality</p>
+                      <p className="text-sm font-medium">{t('employee.profile.fields.nationality')}</p>
                       <Select
                         value={nationalityFilter}
                         onValueChange={(value) => {
@@ -729,10 +761,10 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a nationality" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectNationality')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All nationalities</SelectItem>
+                          <SelectItem value="all">{t('admin.employeeList.filters.allNationalities')}</SelectItem>
                           {EMPLOYEE_NATIONALITE_OPTIONS.map((option) => (
                             <SelectItem key={option} value={option}>
                               {EMPLOYEE_NATIONALITE_LABELS[option]}
@@ -743,7 +775,7 @@ export function EmployeesListPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Degree / Diploma</p>
+                      <p className="text-sm font-medium">{t('employee.profile.fields.degree')}</p>
                       <Select
                         value={degreeFilter}
                         onValueChange={(value) => {
@@ -752,10 +784,10 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a degree" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectDegree')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All degrees</SelectItem>
+                          <SelectItem value="all">{t('admin.employeeList.filters.allDegrees')}</SelectItem>
                           {EMPLOYEE_DIPLOME_OPTIONS.map((option) => (
                             <SelectItem key={option} value={option}>
                               {EMPLOYEE_DIPLOME_LABELS[option]}
@@ -766,7 +798,7 @@ export function EmployeesListPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Specialization</p>
+                      <p className="text-sm font-medium">{t('employee.profile.fields.specialization')}</p>
                       <Select
                         value={specializationFilter}
                         onValueChange={(value) => {
@@ -775,10 +807,10 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a specialization" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectSpecialization')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All specializations</SelectItem>
+                          <SelectItem value="all">{t('admin.employeeList.filters.allSpecializations')}</SelectItem>
                           {EMPLOYEE_SPECIALITE_OPTIONS.map((option) => (
                             <SelectItem key={option} value={option}>
                               {EMPLOYEE_SPECIALITE_LABELS[option]}
@@ -789,7 +821,7 @@ export function EmployeesListPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">University</p>
+                      <p className="text-sm font-medium">{t('employee.profile.fields.university')}</p>
                       <Select
                         value={universityFilter}
                         onValueChange={(value) => {
@@ -798,10 +830,10 @@ export function EmployeesListPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a university" />
+                          <SelectValue placeholder={t('admin.employeeList.filters.selectUniversity')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All universities</SelectItem>
+                          <SelectItem value="all">{t('admin.employeeList.filters.allUniversities')}</SelectItem>
                           {EMPLOYEE_UNIVERSITE_OPTIONS.map((option) => (
                             <SelectItem key={option} value={option}>
                               {EMPLOYEE_UNIVERSITE_LABELS[option]}
@@ -813,7 +845,7 @@ export function EmployeesListPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">Page size</p>
+                    <p className="text-sm font-medium">{t('admin.employeeList.filters.pageSize')}</p>
                     <Select
                       value={String(pageSize)}
                       onValueChange={(value) => {
@@ -822,7 +854,7 @@ export function EmployeesListPage() {
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select page size" />
+                        <SelectValue placeholder={t('admin.employeeList.filters.selectPageSize')} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="10">10</SelectItem>
@@ -835,10 +867,10 @@ export function EmployeesListPage() {
 
                 <DialogFooter className="mt-2 gap-2 sm:justify-between">
                   <Button type="button" variant="outline" onClick={handleClearFilters}>
-                    Clear filters
+                    {t('actions.clearFilters')}
                   </Button>
                   <Button type="button" onClick={() => setIsFilterDialogOpen(false)}>
-                    Apply filters
+                    {t('admin.employeeList.filters.apply')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -850,8 +882,8 @@ export function EmployeesListPage() {
               onClick={handleExportCsv}
               disabled={exporting || employeesQuery.isPending}
             >
-              <FileDown className="mr-2 h-4 w-4" />
-              {exporting ? 'Exporting...' : 'Export CSV'}
+              <FileDown className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+              {exporting ? t('admin.employeeList.export.exporting') : t('admin.employeeList.export.action')}
             </Button>
 
             <Button
@@ -859,38 +891,49 @@ export function EmployeesListPage() {
               className={BRAND_BUTTON_CLASS_NAME}
               onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
             >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Employee
+              <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+              {t('admin.employeeList.addEmployee')}
             </Button>
           </>
         }
       >
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            Showing {from}-{to} of {total}
-            {employeesQuery.isFetching ? ' (updating...)' : ''}
+            {t('admin.employeeList.showingRange', {
+              from: String(from),
+              to: String(to),
+              total: String(total),
+              updating: employeesQuery.isFetching ? t('admin.employeeList.updatingSuffix') : '',
+            })}
           </p>
           <div className="flex flex-wrap items-center gap-2 self-start">
             {viewMode === 'table' ? (
               <Dialog open={isColumnDialogOpen} onOpenChange={setIsColumnDialogOpen}>
                 <DialogTrigger asChild>
                   <Button type="button" size="sm" variant="outline">
-                    Table columns
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                      {enabledOptionalColumnCount} optional
+                    {t('admin.employeeList.columns.button')}
+                    <span
+                      className={cn(
+                        'rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600',
+                        isRTL ? 'mr-2' : 'ml-2',
+                      )}
+                    >
+                      {t('admin.employeeList.columns.optionalCount', {
+                        count: String(enabledOptionalColumnCount),
+                      })}
                     </span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
-                    <DialogTitle>Table columns</DialogTitle>
+                    <DialogTitle>{t('admin.employeeList.columns.dialogTitle')}</DialogTitle>
                     <DialogDescription>
-                      Keep the employee directory concise by default and enable richer profile columns only when needed.
+                      {t('admin.employeeList.columns.dialogDescription')}
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-4">
-                    {EMPLOYEE_TABLE_COLUMN_OPTIONS.map((column) => (
+                    {tableColumnOptions.map((column) => (
                       <div
                         key={column.key}
                         className="flex items-start justify-between gap-4 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3"
@@ -918,10 +961,10 @@ export function EmployeesListPage() {
                       variant="outline"
                       onClick={() => setTableColumns(DEFAULT_EMPLOYEE_TABLE_COLUMNS)}
                     >
-                      Reset defaults
+                      {t('admin.employeeList.columns.resetDefaults')}
                     </Button>
                     <Button type="button" onClick={() => setIsColumnDialogOpen(false)}>
-                      Done
+                      {t('admin.employeeList.columns.done')}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -936,8 +979,8 @@ export function EmployeesListPage() {
                 className={viewMode === 'grid' ? 'bg-slate-900 text-white hover:bg-slate-800' : ''}
                 onClick={() => setViewMode('grid')}
               >
-                <LayoutGrid className="mr-2 h-4 w-4" />
-                Grid
+                <LayoutGrid className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('admin.employeeList.viewModes.grid')}
               </Button>
               <Button
                 type="button"
@@ -946,8 +989,8 @@ export function EmployeesListPage() {
                 className={viewMode === 'table' ? 'bg-slate-900 text-white hover:bg-slate-800' : ''}
                 onClick={() => setViewMode('table')}
               >
-                <List className="mr-2 h-4 w-4" />
-                Table
+                <List className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('admin.employeeList.viewModes.table')}
               </Button>
             </div>
           </div>
@@ -957,8 +1000,8 @@ export function EmployeesListPage() {
       {employeesQuery.isError ? (
         <ErrorState
           className="mb-6"
-          title="Could not load employees"
-          description="We couldn't load the employee directory right now."
+          title={t('admin.employeeList.loadErrorTitle')}
+          description={t('admin.employeeList.loadErrorDescription')}
           message={employeesQuery.error.message}
           onRetry={() => void employeesQuery.refetch()}
         />
@@ -973,18 +1016,18 @@ export function EmployeesListPage() {
           {hasActiveFilters ? (
             <SearchEmptyState
               className="mx-auto mt-2 max-w-xl"
-              title="No employees found"
-              description="Try changing your search terms or filters."
+              title={t('admin.employeeList.searchEmptyTitle')}
+              description={t('admin.employeeList.searchEmptyDescription')}
               actions={
                 <>
                   <Button variant="outline" onClick={handleClearFilters}>
-                    Clear filters
+                    {t('actions.clearFilters')}
                   </Button>
                   <Button
                     className={BRAND_BUTTON_CLASS_NAME}
                     onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
                   >
-                    Add Employee
+                    {t('admin.employeeList.addEmployee')}
                   </Button>
                 </>
               }
@@ -992,14 +1035,14 @@ export function EmployeesListPage() {
           ) : (
             <EmptyState
               className="mx-auto mt-2 max-w-xl"
-              title="No employees yet"
-              description="Add the first employee to start managing the directory."
+              title={t('admin.employeeList.emptyTitle')}
+              description={t('admin.employeeList.emptyDescription')}
               actions={
                 <Button
                   className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white hover:brightness-95"
                   onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES_NEW)}
                 >
-                  Add Employee
+                  {t('admin.employeeList.addEmployee')}
                 </Button>
               }
             />
@@ -1060,12 +1103,12 @@ export function EmployeesListPage() {
                               employee.isActive ? 'text-muted-foreground' : 'text-slate-500',
                             )}
                           >
-                            {getEmployeePosteLabel(employee.poste) ?? 'No role assigned'}
+                            {getEmployeePosteLabel(employee.poste) ?? t('admin.employeeList.noRoleAssigned')}
                           </p>
                         </div>
                       </div>
                       <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
-                        {employee.isActive ? 'Active' : 'Inactive'}
+                        {employee.isActive ? t('status.common.active') : t('status.common.inactive')}
                       </StatusBadge>
                     </div>
 
@@ -1118,7 +1161,7 @@ export function EmployeesListPage() {
                             employee.isActive ? 'text-muted-foreground' : 'text-slate-500',
                           )}
                         >
-                          {isEmptyValue(employee.email) ? 'No email' : employee.email}
+                          {isEmptyValue(employee.email) ? t('common.noEmail') : employee.email}
                         </span>
                       </div>
 
@@ -1135,7 +1178,7 @@ export function EmployeesListPage() {
                             employee.isActive ? 'text-muted-foreground' : 'text-slate-500',
                           )}
                         >
-                          {isEmptyValue(employee.telephone) ? 'No phone' : employee.telephone}
+                          {isEmptyValue(employee.telephone) ? t('common.notProvided') : employee.telephone}
                         </span>
                       </div>
                     </div>
@@ -1147,8 +1190,8 @@ export function EmployeesListPage() {
                         className="w-full"
                         onClick={() => handleOpenEmployeeDetails(employee.id)}
                       >
-                        <Eye className="mr-1 h-4 w-4" />
-                        View
+                        <Eye className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                        {t('actions.open')}
                       </Button>
                       <Button
                         size="sm"
@@ -1156,8 +1199,8 @@ export function EmployeesListPage() {
                         className="w-full"
                         onClick={() => handleOpenEmployeeEdit(employee.id)}
                       >
-                        <UserPen className="mr-1 h-4 w-4" />
-                        Edit
+                        <UserPen className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                        {t('admin.employeeList.actions.edit')}
                       </Button>
                       <Button
                         size="sm"
@@ -1166,8 +1209,8 @@ export function EmployeesListPage() {
                         onClick={() => handleOpenEmployeeQr(employee.id)}
                         disabled={!employee.isActive}
                       >
-                        <QrCode className="mr-1 h-4 w-4" />
-                        QR
+                        <QrCode className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                        {t('admin.employeeList.actions.qr')}
                       </Button>
                       <Button
                         size="sm"
@@ -1182,11 +1225,13 @@ export function EmployeesListPage() {
                         onClick={() => setEmployeeStatusTarget(employee)}
                       >
                         {employee.isActive ? (
-                          <UserX className="mr-1 h-4 w-4" />
+                          <UserX className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
                         ) : (
-                          <UserCheck className="mr-1 h-4 w-4" />
+                          <UserCheck className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
                         )}
-                        {employee.isActive ? 'Deactivate' : 'Activate'}
+                        {employee.isActive
+                          ? t('admin.employeeList.actions.deactivate')
+                          : t('admin.employeeList.actions.activate')}
                       </Button>
                     </div>
                   </CardContent>
@@ -1198,21 +1243,21 @@ export function EmployeesListPage() {
               <Table className="min-w-[1100px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[240px]">Employee</TableHead>
-                    <TableHead>Employee ID</TableHead>
-                    <TableHead className="min-w-[220px]">Department / Branch</TableHead>
-                    <TableHead className="min-w-[180px]">Job Title</TableHead>
-                    {tableColumns.contract ? <TableHead className="min-w-[150px]">Contract</TableHead> : null}
-                    {tableColumns.contact ? <TableHead className="min-w-[220px]">Contact</TableHead> : null}
+                    <TableHead className="min-w-[240px]">{t('common.employee')}</TableHead>
+                    <TableHead>{t('employee.profile.fields.employeeId')}</TableHead>
+                    <TableHead className="min-w-[220px]">{t('admin.employeeList.table.departmentBranch')}</TableHead>
+                    <TableHead className="min-w-[180px]">{t('common.jobTitle')}</TableHead>
+                    {tableColumns.contract ? <TableHead className="min-w-[150px]">{t('employee.profile.fields.contractType')}</TableHead> : null}
+                    {tableColumns.contact ? <TableHead className="min-w-[220px]">{t('admin.employeeList.table.contact')}</TableHead> : null}
                     {tableColumns.nationality ? (
-                      <TableHead className="min-w-[140px]">Nationality</TableHead>
+                      <TableHead className="min-w-[140px]">{t('employee.profile.fields.nationality')}</TableHead>
                     ) : null}
                     {tableColumns.education ? (
-                      <TableHead className="min-w-[220px]">Education</TableHead>
+                      <TableHead className="min-w-[220px]">{t('admin.employeeList.table.education')}</TableHead>
                     ) : null}
-                    {tableColumns.updated ? <TableHead className="min-w-[120px]">Updated</TableHead> : null}
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[250px]">Actions</TableHead>
+                    {tableColumns.updated ? <TableHead className="min-w-[120px]">{t('employee.profile.fields.updatedAt')}</TableHead> : null}
+                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead className="w-[250px]">{t('admin.employeeList.table.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1258,7 +1303,7 @@ export function EmployeesListPage() {
                               {employee.prenom} {employee.nom}
                             </p>
                             <p className="truncate text-xs text-slate-500">
-                              {isEmptyValue(employee.email) ? 'No email' : employee.email}
+                              {isEmptyValue(employee.email) ? t('common.noEmail') : employee.email}
                             </p>
                           </div>
                         </div>
@@ -1289,10 +1334,10 @@ export function EmployeesListPage() {
                         <TableCell>
                           <div className="space-y-1 text-sm text-slate-700">
                             <p className="truncate">
-                              {isEmptyValue(employee.email) ? 'No email' : employee.email}
+                              {isEmptyValue(employee.email) ? t('common.noEmail') : employee.email}
                             </p>
                             <p className="truncate text-xs text-slate-500">
-                              {isEmptyValue(employee.telephone) ? 'No phone' : employee.telephone}
+                              {isEmptyValue(employee.telephone) ? t('common.notProvided') : employee.telephone}
                             </p>
                           </div>
                         </TableCell>
@@ -1303,9 +1348,9 @@ export function EmployeesListPage() {
                       {tableColumns.education ? (
                         <TableCell>
                           <div className="space-y-1">
-                            <p>{getEmployeeDiplomeLabel(employee.diplome) ?? 'Not provided'}</p>
+                            <p>{getEmployeeDiplomeLabel(employee.diplome) ?? t('common.notProvided')}</p>
                             <p className="text-xs text-slate-500">
-                              {getEmployeeSpecialiteLabel(employee.specialite) ?? 'No specialization'}
+                              {getEmployeeSpecialiteLabel(employee.specialite) ?? t('common.notProvided')}
                             </p>
                           </div>
                         </TableCell>
@@ -1313,14 +1358,14 @@ export function EmployeesListPage() {
                       {tableColumns.updated ? (
                         <TableCell
                           className="text-sm text-slate-600"
-                          title={new Date(employee.updatedAt).toLocaleString()}
+                          title={new Date(employee.updatedAt).toLocaleString(locale)}
                         >
-                          {formatUpdatedDate(employee.updatedAt)}
+                          {formatUpdatedDate(employee.updatedAt, locale)}
                         </TableCell>
                       ) : null}
                       <TableCell>
                         <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
-                          {employee.isActive ? 'Active' : 'Inactive'}
+                          {employee.isActive ? t('status.common.active') : t('status.common.inactive')}
                         </StatusBadge>
                       </TableCell>
                       <TableCell>
@@ -1330,16 +1375,16 @@ export function EmployeesListPage() {
                             variant="outline"
                             onClick={() => handleOpenEmployeeDetails(employee.id)}
                           >
-                            <Eye className="mr-1 h-4 w-4" />
-                            View
+                            <Eye className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                            {t('actions.open')}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleOpenEmployeeEdit(employee.id)}
                           >
-                            <UserPen className="mr-1 h-4 w-4" />
-                            Edit
+                            <UserPen className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                            {t('admin.employeeList.actions.edit')}
                           </Button>
                           <Button
                             size="sm"
@@ -1347,8 +1392,8 @@ export function EmployeesListPage() {
                             onClick={() => handleOpenEmployeeQr(employee.id)}
                             disabled={!employee.isActive}
                           >
-                            <QrCode className="mr-1 h-4 w-4" />
-                            QR
+                            <QrCode className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                            {t('admin.employeeList.actions.qr')}
                           </Button>
                           <Button
                             size="sm"
@@ -1362,11 +1407,13 @@ export function EmployeesListPage() {
                             onClick={() => setEmployeeStatusTarget(employee)}
                           >
                             {employee.isActive ? (
-                              <UserX className="mr-1 h-4 w-4" />
+                              <UserX className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
                             ) : (
-                              <UserCheck className="mr-1 h-4 w-4" />
+                              <UserCheck className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
                             )}
-                            {employee.isActive ? 'Deactivate' : 'Activate'}
+                            {employee.isActive
+                              ? t('admin.employeeList.actions.deactivate')
+                              : t('admin.employeeList.actions.activate')}
                           </Button>
                         </div>
                       </TableCell>
@@ -1379,7 +1426,12 @@ export function EmployeesListPage() {
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Page {page} - Showing {from}-{to} of {total}
+              {t('admin.employeeList.pagination.pageSummary', {
+                page: String(page),
+                from: String(from),
+                to: String(to),
+                total: String(total),
+              })}
             </p>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button
@@ -1389,7 +1441,7 @@ export function EmployeesListPage() {
                 disabled={!canGoPrev || employeesQuery.isFetching}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
               >
-                Prev
+                {t('admin.employeeList.pagination.prev')}
               </Button>
               <Button
                 variant="outline"
@@ -1398,7 +1450,7 @@ export function EmployeesListPage() {
                 disabled={!canGoNext || employeesQuery.isFetching}
                 onClick={() => setPage((value) => value + 1)}
               >
-                Next
+                {t('admin.employeeList.pagination.next')}
               </Button>
             </div>
           </div>
@@ -1416,19 +1468,25 @@ export function EmployeesListPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {employeeStatusTarget?.isActive ? 'Deactivate employee?' : 'Activate employee?'}
+              {employeeStatusTarget?.isActive
+                ? t('admin.employeeList.statusDialog.deactivateTitle')
+                : t('admin.employeeList.statusDialog.activateTitle')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {employeeStatusTarget
                 ? employeeStatusTarget.isActive
-                  ? `Deactivate ${employeeStatusTarget.prenom} ${employeeStatusTarget.nom}? This employee will be marked inactive and treated as unavailable in the system. Their active QR token will be revoked.`
-                  : `Activate ${employeeStatusTarget.prenom} ${employeeStatusTarget.nom}? This employee will be restored as active and available in the system.`
-                : 'Confirm status change.'}
+                  ? t('admin.employeeList.statusDialog.deactivateDescription', {
+                      employee: `${employeeStatusTarget.prenom} ${employeeStatusTarget.nom}`,
+                    })
+                  : t('admin.employeeList.statusDialog.activateDescription', {
+                      employee: `${employeeStatusTarget.prenom} ${employeeStatusTarget.nom}`,
+                    })
+                : t('admin.employeeList.statusDialog.fallbackDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isStatusMutationPending}>
-              Cancel
+              {t('actions.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
@@ -1442,9 +1500,9 @@ export function EmployeesListPage() {
             >
               {isStatusMutationPending
                 ? employeeStatusTarget?.isActive
-                  ? 'Deactivating...'
-                  : 'Activating...'
-                : 'Confirm'}
+                  ? t('admin.employeeList.statusDialog.deactivating')
+                  : t('admin.employeeList.statusDialog.activating')
+                : t('admin.employeeList.statusDialog.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

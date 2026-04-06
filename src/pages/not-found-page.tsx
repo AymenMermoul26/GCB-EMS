@@ -3,18 +3,21 @@ import { Link } from 'react-router-dom'
 
 import { ErrorPageShell } from '@/components/common/error-page-shell'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/hooks/use-i18n'
 import { useRecoveryRoute } from '@/hooks/use-recovery-route'
+import { cn } from '@/lib/utils'
 
 export function NotFoundPage() {
+  const { t, isRTL } = useI18n()
   const { recoveryRoute, primaryActionLabel, goBack } = useRecoveryRoute()
 
   return (
     <ErrorPageShell
       code="404"
-      badgeLabel="Route not found"
+      badgeLabel={t('errors.notFound.badge')}
       icon={<AlertTriangle className="h-4 w-4" aria-hidden />}
-      title="Page not found"
-      description="The page you're looking for doesn't exist or may have been moved."
+      title={t('errors.notFound.title')}
+      description={t('errors.notFound.description')}
       actions={
         <>
           <Button
@@ -22,13 +25,13 @@ export function NotFoundPage() {
             className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition hover:opacity-95 hover:shadow-md"
           >
             <Link to={recoveryRoute}>
-              <Home className="mr-2 h-4 w-4" aria-hidden />
+              <Home className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} aria-hidden />
               {primaryActionLabel}
             </Link>
           </Button>
           <Button variant="outline" onClick={goBack}>
-            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-            Go back
+            <ArrowLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} aria-hidden />
+            {t('actions.goBack')}
           </Button>
         </>
       }

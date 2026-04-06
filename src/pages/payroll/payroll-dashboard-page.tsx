@@ -373,6 +373,8 @@ function QuickLinkCard({
   href: string
   primary?: boolean
 }) {
+  const { isRTL } = useI18n()
+
   return (
     <Button
       asChild
@@ -390,7 +392,13 @@ function QuickLinkCard({
             {description}
           </p>
         </div>
-        <ArrowRight className={`h-4 w-4 shrink-0 ${primary ? 'text-white' : 'text-slate-400'}`} />
+        <ArrowRight
+          className={cn(
+            'h-4 w-4 shrink-0',
+            primary ? 'text-white' : 'text-slate-400',
+            isRTL && 'rotate-180',
+          )}
+        />
       </Link>
     </Button>
   )
@@ -483,7 +491,9 @@ function DashboardRecentChangesCard({
                         item.isRead ? 'text-slate-500' : 'text-rose-100/90',
                       )}
                     >
-                      Changed fields: {changedFieldsPreview}
+                      {t('payroll.dashboard.changedFieldsLabel', {
+                        value: changedFieldsPreview,
+                      })}
                     </p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">

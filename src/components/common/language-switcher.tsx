@@ -19,7 +19,10 @@ export function LanguageSwitcher({
 
   if (variant === 'sidebar') {
     return (
-      <div className={cn('space-y-2', className)}>
+      <div
+        className={cn('space-y-2', className)}
+        data-testid="language-switcher-sidebar"
+      >
         {!compact ? (
           <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
             <Languages className="h-3.5 w-3.5" />
@@ -42,6 +45,7 @@ export function LanguageSwitcher({
                 type="button"
                 variant={isActive ? 'default' : 'outline'}
                 size="sm"
+                data-testid={`language-switcher-option-${option.value}`}
                 className={cn(
                   'rounded-xl border-slate-200 text-xs font-semibold',
                   compact ? 'h-9 w-full px-0' : 'h-9 px-2',
@@ -69,6 +73,7 @@ export function LanguageSwitcher({
         className,
       )}
       aria-label={t('language.label')}
+      data-testid="language-switcher-auth"
     >
       {languages.map((option) => {
         const isActive = option.value === language
@@ -79,6 +84,7 @@ export function LanguageSwitcher({
             type="button"
             onClick={() => setLanguage(option.value)}
             aria-pressed={isActive}
+            data-testid={`language-switcher-option-${option.value}`}
             className={cn(
               'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
               isActive

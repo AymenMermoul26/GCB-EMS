@@ -64,6 +64,7 @@ import {
   getPublicProfileRoute,
 } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
 import { cn } from '@/lib/utils'
 import {
@@ -94,7 +95,7 @@ import {
   useEmployeeVisibilityQuery,
 } from '@/services/visibilityService'
 import {
-  EMPLOYEE_VISIBILITY_FIELD_LABELS,
+  getEmployeeVisibilityFieldLabel,
   getPublicProfileVisibilityRequestStatusMeta,
   type AdminPublicProfileVisibilityRequestItem,
   type EmployeeVisibilityFieldKey,
@@ -114,7 +115,7 @@ import {
 } from '@/types/employee'
 import { getDepartmentDisplayName } from '@/types/department'
 import { PUBLIC_QR_VISIBILITY_FIELDS } from '@/types/employee-governance'
-import { REQUEST_FIELD_LABELS } from '@/utils/modification-requests'
+import { getRequestFieldLabel } from '@/utils/modification-requests'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { downloadCanvasAsPng } from '@/utils/qr'
 
@@ -124,21 +125,23 @@ function getInitials(prenom: string, nom: string) {
 }
 
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null, locale: string, emptyLabel: string): string {
   if (!value) {
-    return 'No expiration'
+    return emptyLabel
   }
 
-  return new Date(value).toLocaleString()
+  return new Date(value).toLocaleString(locale)
 }
 
-function formatVisibilityFieldList(fieldKeys: string[]): string {
+function formatVisibilityFieldList(fieldKeys: string[], t: ReturnType<typeof useI18n>['t']): string {
   if (fieldKeys.length === 0) {
-    return 'No public fields selected'
+    return t('admin.employeeDetail.visibility.noPublicFields')
   }
 
   return fieldKeys
-    .map((fieldKey) => EMPLOYEE_VISIBILITY_FIELD_LABELS[fieldKey as EmployeeVisibilityFieldKey] ?? fieldKey)
+    .map((fieldKey) =>
+      getEmployeeVisibilityFieldLabel(fieldKey as EmployeeVisibilityFieldKey, t) ?? fieldKey,
+    )
     .join(', ')
 }
 
@@ -150,36 +153,56 @@ function findOpenVisibilityRequest(
   )
 }
 
-function formatOptionalValue(value: string | null | undefined): string {
-  return sanitizeEmployeeTextValue(value) ?? 'Not provided'
+function formatOptionalValue(
+  value: string | null | undefined,
+  emptyLabel: string,
+): string {
+  return sanitizeEmployeeTextValue(value) ?? emptyLabel
 }
 
-function formatEmploymentValue(value: string | null | undefined): string {
-  return sanitizeEmployeeTextValue(value) ?? 'Not provided'
+function formatEmploymentValue(
+  value: string | null | undefined,
+  emptyLabel: string,
+): string {
+  return sanitizeEmployeeTextValue(value) ?? emptyLabel
 }
 
-function formatEmploymentDate(value: string | null | undefined): string {
+function formatEmploymentDate(
+  value: string | null | undefined,
+  locale: string,
+  emptyLabel: string,
+): string {
   if (!value) {
-    return 'Not provided'
+    return emptyLabel
   }
 
-  return new Date(`${value}T00:00:00`).toLocaleDateString()
+  return new Date(`${value}T00:00:00`).toLocaleDateString(locale)
 }
 
-function formatCivilValue(value: string | null | undefined): string {
-  return sanitizeEmployeeTextValue(value) ?? 'Not provided'
+function formatCivilValue(
+  value: string | null | undefined,
+  emptyLabel: string,
+): string {
+  return sanitizeEmployeeTextValue(value) ?? emptyLabel
 }
 
-function formatCivilDate(value: string | null | undefined): string {
+function formatCivilDate(
+  value: string | null | undefined,
+  locale: string,
+  emptyLabel: string,
+): string {
   if (!value) {
-    return 'Not provided'
+    return emptyLabel
   }
 
-  return new Date(`${value}T00:00:00`).toLocaleDateString()
+  return new Date(`${value}T00:00:00`).toLocaleDateString(locale)
 }
 
-function formatAdministrativeNumber(value: number | null | undefined): string {
-  return value === null || value === undefined ? 'Not provided' : String(value)
+function formatAdministrativeNumber(
+  value: number | null | undefined,
+  emptyLabel: string,
+): string {
+  return value === null || value === undefined ? emptyLabel : String(value)
 }
 
 function isValidEmail(value: string): boolean {
@@ -190,14 +213,23 @@ function getInviteSuccessMessage(params: {
   email: string
   resend: boolean
   deliveryType?: 'invite' | 'magiclink'
+  t: ReturnType<typeof useI18n>['t']
 }): string {
-  const actionLabel = params.resend ? 'resent' : 'sent'
+  const actionLabel = params.resend
+    ? params.t('admin.employeeDetail.account.inviteResent')
+    : params.t('admin.employeeDetail.account.inviteSent')
 
   if (params.deliveryType === 'magiclink') {
-    return `Access email ${actionLabel} to ${params.email}.`
+    return params.t('admin.employeeDetail.feedback.accessEmailDelivered', {
+      action: actionLabel,
+      email: params.email,
+    })
   }
 
-  return `Invitation ${actionLabel} to ${params.email}.`
+  return params.t('admin.employeeDetail.feedback.invitationDelivered', {
+    action: actionLabel,
+    email: params.email,
+  })
 }
 
 function requestStatusBadgeClass(status: string): string {
@@ -231,6 +263,7 @@ export function AdminEmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const { t, locale, isRTL } = useI18n()
   const employeeId = id ?? ''
 
   const queryClient = useQueryClient()
@@ -251,7 +284,7 @@ export function AdminEmployeeDetailPage() {
 
   const activateMutation = useActivateEmployeeMutation({
     onSuccess: async (employee) => {
-      toast.success('Employee activated.')
+      toast.success(t('admin.employeeDetail.feedback.activated'))
       setEmployeeStatusAction(null)
       queryClient.setQueryData(['employee', employee.id], employee)
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
@@ -277,7 +310,7 @@ export function AdminEmployeeDetailPage() {
 
   const deactivateMutation = useDeactivateEmployeeMutation({
     onSuccess: async (employee) => {
-      toast.success('Employee deactivated.')
+      toast.success(t('admin.employeeDetail.feedback.deactivated'))
       setEmployeeStatusAction(null)
       queryClient.setQueryData(['employee', employee.id], employee)
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
@@ -312,10 +345,11 @@ export function AdminEmployeeDetailPage() {
             email: result.email,
             resend: false,
             deliveryType: result.email_delivery_type,
+            t,
           }),
         )
       } else {
-        toast.info(`Account is linked for ${result.email}, but no invitation email was sent.`)
+        toast.info(t('admin.employeeDetail.feedback.accountLinkedWithoutInvite', { email: result.email }))
       }
       setAccountEmailInput(result.email)
     },
@@ -331,10 +365,11 @@ export function AdminEmployeeDetailPage() {
             email: result.email,
             resend: true,
             deliveryType: result.email_delivery_type,
+            t,
           }),
         )
       } else {
-        toast.info(`Account is linked for ${result.email}, but no new email was sent.`)
+        toast.info(t('admin.employeeDetail.feedback.accountLinkedWithoutNewInvite', { email: result.email }))
       }
       setAccountEmailInput(result.email)
     },
@@ -356,10 +391,12 @@ export function AdminEmployeeDetailPage() {
   const qrCanvasId = `employee-qr-${employeeId || 'unknown'}`
   const isInviting = inviteAccountMutation.isPending || resendInviteMutation.isPending
   const needsQrRefresh = qrRefreshRequiredQuery.data ?? false
+  const notProvidedLabel = t('common.notProvided')
+  const notAvailableLabel = t('common.notAvailable')
 
   const departmentName = useMemo(() => {
     if (!employee) {
-      return 'Not provided'
+      return notProvidedLabel
     }
 
     return (
@@ -367,7 +404,7 @@ export function AdminEmployeeDetailPage() {
         departmentsQuery.data?.find((department) => department.id === employee.departementId)?.nom,
       ) ?? employee.departementId
     )
-  }, [departmentsQuery.data, employee])
+  }, [departmentsQuery.data, employee, notProvidedLabel])
 
   const visibilityMap = useMemo(() => {
     const map = new Map<string, boolean>()
@@ -420,7 +457,7 @@ export function AdminEmployeeDetailPage() {
     }
 
     if (!employee.isActive) {
-      toast.error('Inactive employees cannot generate public QR links.')
+      toast.error(t('admin.employeeDetail.feedback.inactiveQrError'))
       return
     }
 
@@ -428,7 +465,11 @@ export function AdminEmployeeDetailPage() {
 
     try {
       await generateTokenMutation.mutateAsync(employee.id)
-      toast.success(hadActiveToken ? 'QR token regenerated.' : 'QR token generated.')
+      toast.success(
+        hadActiveToken
+          ? t('admin.employeeDetail.feedback.qrRegenerated')
+          : t('admin.employeeDetail.feedback.qrGenerated'),
+      )
 
       if (user?.id) {
         try {
@@ -443,7 +484,7 @@ export function AdminEmployeeDetailPage() {
         }
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not generate QR token')
+      toast.error(error instanceof Error ? error.message : t('admin.employeeDetail.feedback.qrGenerateError'))
     }
   }
 
@@ -455,31 +496,31 @@ export function AdminEmployeeDetailPage() {
     try {
       const revokedToken = await revokeTokenMutation.mutateAsync(employee.id)
       if (revokedToken) {
-        toast.success('Active QR token revoked.')
+        toast.success(t('admin.employeeDetail.feedback.qrRevoked'))
       } else {
-        toast.success('No active QR token found.')
+        toast.success(t('admin.employeeDetail.feedback.noActiveQrToken'))
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not revoke QR token')
+      toast.error(error instanceof Error ? error.message : t('admin.employeeDetail.feedback.qrRevokeError'))
     }
   }
   const onCopyPublicLink = async () => {
     if (!publicProfileUrl) {
-      toast.error('No active public profile link is available.')
+      toast.error(t('admin.employeeDetail.feedback.noPublicLink'))
       return
     }
 
     try {
       await copyTextToClipboard(publicProfileUrl)
-      toast.success('Public link copied.')
+      toast.success(t('admin.employeeDetail.feedback.publicLinkCopied'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not copy link')
+      toast.error(error instanceof Error ? error.message : t('admin.employeeDetail.feedback.copyLinkError'))
     }
   }
 
   const onOpenPublicPreview = () => {
     if (!publicProfileUrl) {
-      toast.error('No active public profile link is available.')
+      toast.error(t('admin.employeeDetail.feedback.noPublicLink'))
       return
     }
 
@@ -488,15 +529,15 @@ export function AdminEmployeeDetailPage() {
 
   const onCopyEmployeeEmail = async () => {
     if (!employee?.email) {
-      toast.error('Email is not set for this employee.')
+      toast.error(t('admin.employeeDetail.feedback.noEmployeeEmail'))
       return
     }
 
     try {
       await copyTextToClipboard(employee.email)
-      toast.success('Email copied.')
+      toast.success(t('admin.employeeDetail.feedback.emailCopied'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not copy email')
+      toast.error(error instanceof Error ? error.message : t('admin.employeeDetail.feedback.copyEmailError'))
     }
   }
 
@@ -507,9 +548,9 @@ export function AdminEmployeeDetailPage() {
 
     try {
       await copyTextToClipboard(employee.matricule)
-      toast.success('Employee ID copied.')
+      toast.success(t('admin.employeeDetail.feedback.employeeIdCopied'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not copy employee ID')
+      toast.error(error instanceof Error ? error.message : t('admin.employeeDetail.feedback.copyEmployeeIdError'))
     }
   }
 
@@ -520,9 +561,9 @@ export function AdminEmployeeDetailPage() {
 
     try {
       downloadCanvasAsPng(qrCanvasId, `ems_public_qr_${employee.matricule}.png`)
-      toast.success('QR downloaded.')
+      toast.success(t('admin.employeeDetail.feedback.qrDownloaded'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not download QR')
+      toast.error(error instanceof Error ? error.message : t('admin.employeeDetail.feedback.qrDownloadError'))
     }
   }
 
@@ -534,7 +575,7 @@ export function AdminEmployeeDetailPage() {
     const normalizedEmail = effectiveInviteEmail
 
     if (!isValidEmail(normalizedEmail)) {
-      toast.error('Please enter a valid email address before sending an invitation.')
+      toast.error(t('admin.employeeDetail.feedback.validInvitationEmailRequired'))
       return
     }
 
@@ -552,7 +593,7 @@ export function AdminEmployeeDetailPage() {
     const normalizedEmail = effectiveInviteEmail
 
     if (!isValidEmail(normalizedEmail)) {
-      toast.error('Please enter a valid email address before resending the invitation.')
+      toast.error(t('admin.employeeDetail.feedback.validInvitationEmailRequired'))
       return
     }
 
@@ -566,7 +607,7 @@ export function AdminEmployeeDetailPage() {
   const normalizedAccountEmail = accountEmailSource.trim().toLowerCase()
   const fallbackProfileEmail = employee?.email?.trim().toLowerCase() ?? ''
   const effectiveInviteEmail = normalizedAccountEmail || fallbackProfileEmail
-  const displayAccountEmail = normalizedAccountEmail || fallbackProfileEmail || 'Not available'
+  const displayAccountEmail = normalizedAccountEmail || fallbackProfileEmail || notAvailableLabel
   const canTriggerInvite =
     !isInviting &&
     effectiveInviteEmail.length > 0 &&
@@ -574,12 +615,15 @@ export function AdminEmployeeDetailPage() {
 
   if (!id) {
     return (
-      <DashboardLayout title="Employee Profile" subtitle="Invalid route parameter.">
+      <DashboardLayout
+        title={t('admin.employeeDetail.title')}
+        subtitle={t('admin.employeeDetail.invalidRouteSubtitle')}
+      >
         <Card>
           <CardContent className="space-y-3 p-6">
-            <p className="text-sm text-destructive">Employee id is missing.</p>
+            <p className="text-sm text-destructive">{t('admin.employeeDetail.invalidRouteMessage')}</p>
             <Button variant="outline" onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}>
-              Back to employees
+              {t('admin.employeeDetail.backToEmployees')}
             </Button>
           </CardContent>
         </Card>
@@ -590,8 +634,8 @@ export function AdminEmployeeDetailPage() {
   if (employeeQuery.isPending) {
     return (
       <DashboardLayout
-        title="Employee Profile"
-        subtitle="Loading employee details..."
+        title={t('admin.employeeDetail.title')}
+        subtitle={t('admin.employeeDetail.loadingSubtitle')}
       >
         <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
           <Card className="rounded-2xl">
@@ -617,12 +661,12 @@ export function AdminEmployeeDetailPage() {
   if (employeeQuery.isError) {
     return (
       <DashboardLayout
-        title="Employee Profile"
-        subtitle="Could not load employee details."
+        title={t('admin.employeeDetail.title')}
+        subtitle={t('admin.employeeDetail.loadErrorSubtitle')}
       >
         <ErrorState
-          title="Could not load employee"
-          description="We couldn't load this employee profile right now."
+          title={t('admin.employeeDetail.loadErrorTitle')}
+          description={t('admin.employeeDetail.loadErrorDescription')}
           message={employeeQuery.error.message}
           onRetry={() => void employeeQuery.refetch()}
         />
@@ -633,16 +677,16 @@ export function AdminEmployeeDetailPage() {
   if (!employee) {
     return (
       <DashboardLayout
-        title="Employee Profile"
-        subtitle="Employee not found."
+        title={t('admin.employeeDetail.title')}
+        subtitle={t('admin.employeeDetail.emptySubtitle')}
       >
         <EmptyState
-          title="Employee not found"
-          description="The requested employee record could not be found."
+          title={t('admin.employeeDetail.emptyTitle')}
+          description={t('admin.employeeDetail.emptyDescription')}
           actions={
             <Button variant="outline" onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to employees
+              <ArrowLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
+              {t('admin.employeeDetail.backToEmployees')}
             </Button>
           }
         />
@@ -652,12 +696,12 @@ export function AdminEmployeeDetailPage() {
 
   return (
     <DashboardLayout
-      title="Employee Profile"
-      subtitle="Employee details, QR profile, visibility, and audit activity."
+      title={t('admin.employeeDetail.title')}
+      subtitle={t('admin.employeeDetail.subtitle')}
     >
       <PageHeader
-        title="Employee Profile"
-        description="Employee details, QR profile, visibility, and audit activity."
+        title={t('admin.employeeDetail.title')}
+        description={t('admin.employeeDetail.headerDescription')}
         className="sticky top-2 z-20 mb-6"
         backAction={
           <Button
@@ -666,8 +710,8 @@ export function AdminEmployeeDetailPage() {
             className="px-0 text-muted-foreground"
             onClick={() => navigate(ROUTES.ADMIN_EMPLOYEES)}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to employees
+            <ArrowLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
+            {t('admin.employeeDetail.backToEmployees')}
           </Button>
         }
         actions={
@@ -678,8 +722,8 @@ export function AdminEmployeeDetailPage() {
                 className={BRAND_BUTTON_CLASS_NAME}
                 onClick={() => navigate(getAdminEmployeeEditRoute(employee.id))}
               >
-                <UserPen className="mr-2 h-4 w-4" />
-                Edit Employee
+                <UserPen className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('admin.employeeDetail.actions.editEmployee')}
               </Button>
             ) : (
               <Button
@@ -689,11 +733,13 @@ export function AdminEmployeeDetailPage() {
                 onClick={() => setEmployeeStatusAction('activate')}
               >
                 {activateMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <UserCheck className="mr-2 h-4 w-4" />
+                  <UserCheck className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                {activateMutation.isPending ? 'Activating...' : "Activate Employee"}
+                {activateMutation.isPending
+                  ? t('admin.employeeDetail.actions.activating')
+                  : t('admin.employeeDetail.actions.activateEmployee')}
               </Button>
             )}
             {employee.isActive ? (
@@ -704,8 +750,8 @@ export function AdminEmployeeDetailPage() {
                 disabled={isStatusMutationPending}
                 onClick={() => setEmployeeStatusAction('deactivate')}
               >
-                <UserX className="mr-2 h-4 w-4" />
-                Deactivate Employee
+                <UserX className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('admin.employeeDetail.actions.deactivateEmployee')}
               </Button>
             ) : null}
             <Button
@@ -718,11 +764,11 @@ export function AdminEmployeeDetailPage() {
               }}
             >
               {generateTokenMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : (
-                <RefreshCcw className="mr-2 h-4 w-4" />
+                <RefreshCcw className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               )}
-              Regenerate QR
+              {t('admin.employeeDetail.actions.regenerateQr')}
             </Button>
             <EmployeeBadgeDialog
               employee={{
@@ -772,15 +818,20 @@ export function AdminEmployeeDetailPage() {
 
             <Dialog open={isMoreActionsOpen} onOpenChange={setIsMoreActionsOpen}>
               <DialogTrigger asChild>
-                <Button type="button" variant="outline" size="icon" aria-label="More actions">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={t('admin.employeeDetail.actions.moreActionsTitle')}
+                >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-sm">
                 <DialogHeader>
-                  <DialogTitle>More actions</DialogTitle>
+                  <DialogTitle>{t('admin.employeeDetail.actions.moreActionsTitle')}</DialogTitle>
                   <DialogDescription>
-                    Quick actions for this employee profile.
+                    {t('admin.employeeDetail.actions.moreActionsDescription')}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-2">
@@ -793,8 +844,8 @@ export function AdminEmployeeDetailPage() {
                       setIsMoreActionsOpen(false)
                     }}
                   >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Copy Email
+                    <Mail className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                    {t('admin.employeeDetail.actions.copyEmail')}
                   </Button>
                   <Button
                     type="button"
@@ -805,8 +856,8 @@ export function AdminEmployeeDetailPage() {
                       setIsMoreActionsOpen(false)
                     }}
                   >
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy Employee ID
+                    <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                    {t('admin.employeeDetail.actions.copyEmployeeId')}
                   </Button>
                   <Button
                     type="button"
@@ -818,8 +869,8 @@ export function AdminEmployeeDetailPage() {
                       setIsMoreActionsOpen(false)
                     }}
                   >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Open Public Profile
+                    <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                    {t('admin.employeeDetail.actions.openPublicProfile')}
                   </Button>
                   <Button
                     type="button"
@@ -836,11 +887,13 @@ export function AdminEmployeeDetailPage() {
                     }}
                   >
                     {employee.isActive ? (
-                      <UserX className="mr-2 h-4 w-4" />
+                      <UserX className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                     ) : (
-                      <UserCheck className="mr-2 h-4 w-4" />
+                      <UserCheck className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                     )}
-                    {employee.isActive ? "Deactivate Employee" : "Activate Employee"}
+                    {employee.isActive
+                      ? t('admin.employeeDetail.actions.deactivateEmployee')
+                      : t('admin.employeeDetail.actions.activateEmployee')}
                   </Button>
                 </div>
               </DialogContent>
@@ -900,45 +953,54 @@ export function AdminEmployeeDetailPage() {
                     {employee.prenom} {employee.nom}
                   </p>
                   <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
-                    {employee.isActive ? 'Active' : 'Inactive'}
+                    {employee.isActive ? t('status.common.active') : t('status.common.inactive')}
                   </StatusBadge>
                 </div>
               </div>
 
               <div className="space-y-2 text-sm">
-                <InfoLine label="Employee ID" value={employee.matricule} mono />
-                <InfoLine label="Department" value={departmentName} />
+                <InfoLine label={t('employee.profile.fields.employeeId')} value={employee.matricule} mono />
+                <InfoLine label={t('common.department')} value={departmentName} />
                 <InfoLine
-                  label="Regional Branch"
+                  label={t('employee.profile.fields.regionalBranch')}
                   value={formatEmploymentValue(
                     getEmployeeRegionalBranchLabel(employee.regionalBranch),
+                    notProvidedLabel,
                   )}
                 />
                 <InfoLine
-                  label="Job Title"
-                  value={formatOptionalValue(getEmployeePosteLabel(employee.poste))}
-                />
-                <InfoLine label="Sex" value={formatCivilValue(getEmployeeSexeLabel(employee.sexe))} />
-                <InfoLine label="Birth Date" value={formatCivilDate(employee.dateNaissance)} />
-                <InfoLine
-                  label="Nationality"
-                  value={formatCivilValue(getEmployeeNationaliteLabel(employee.nationalite))}
+                  label={t('common.jobTitle')}
+                  value={formatOptionalValue(getEmployeePosteLabel(employee.poste), notProvidedLabel)}
                 />
                 <InfoLine
-                  label="Category"
+                  label={t('employee.profile.fields.sex')}
+                  value={formatCivilValue(getEmployeeSexeLabel(employee.sexe), notProvidedLabel)}
+                />
+                <InfoLine
+                  label={t('employee.profile.fields.birthDate')}
+                  value={formatCivilDate(employee.dateNaissance, locale, notProvidedLabel)}
+                />
+                <InfoLine
+                  label={t('employee.profile.fields.nationality')}
+                  value={formatCivilValue(getEmployeeNationaliteLabel(employee.nationalite), notProvidedLabel)}
+                />
+                <InfoLine
+                  label={t('employee.profile.fields.professionalCategory')}
                   value={formatEmploymentValue(
                     getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
+                    notProvidedLabel,
                   )}
                 />
                 <InfoLine
-                  label="Contract"
+                  label={t('employee.profile.fields.contractType')}
                   value={formatEmploymentValue(
                     getEmployeeTypeContratLabel(employee.typeContrat),
+                    notProvidedLabel,
                   )}
                 />
                 <InfoLine
-                  label="Hire Date"
-                  value={formatEmploymentDate(employee.dateRecrutement)}
+                  label={t('employee.profile.fields.hireDate')}
+                  value={formatEmploymentDate(employee.dateRecrutement, locale, notProvidedLabel)}
                 />
               </div>
 
@@ -947,22 +1009,22 @@ export function AdminEmployeeDetailPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Mail className="h-4 w-4" />
-                  <span className="truncate">{formatOptionalValue(employee.email)}</span>
+                  <span className="truncate">{formatOptionalValue(employee.email, notProvidedLabel)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-4 w-4" />
-                  <span className="truncate">{formatOptionalValue(employee.telephone)}</span>
+                  <span className="truncate">{formatOptionalValue(employee.telephone, notProvidedLabel)}</span>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => void onCopyEmployeeEmail()}>
-                  <Copy className="mr-1 h-4 w-4" />
-                  Copy Email
+                  <Copy className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                  {t('admin.employeeDetail.actions.copyEmail')}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => void onCopyEmployeeMatricule()}>
-                  <Copy className="mr-1 h-4 w-4" />
-                  Copy Employee ID
+                  <Copy className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
+                  {t('admin.employeeDetail.actions.copyEmployeeId')}
                 </Button>
                 <Button
                   size="sm"
@@ -976,11 +1038,13 @@ export function AdminEmployeeDetailPage() {
                   onClick={() => setEmployeeStatusAction(employee.isActive ? 'deactivate' : 'activate')}
                 >
                   {employee.isActive ? (
-                    <UserX className="mr-1 h-4 w-4" />
+                    <UserX className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
                   ) : (
-                    <UserCheck className="mr-1 h-4 w-4" />
+                    <UserCheck className={cn('h-4 w-4', isRTL ? 'ml-1' : 'mr-1')} />
                   )}
-                  {employee.isActive ? 'Deactivate' : 'Activate'}
+                  {employee.isActive
+                    ? t('admin.employeeDetail.actions.deactivate')
+                    : t('admin.employeeDetail.actions.activate')}
                 </Button>
               </div>
             </CardContent>
@@ -988,9 +1052,9 @@ export function AdminEmployeeDetailPage() {
 
           {needsQrRefresh ? (
             <Alert>
-              <AlertTitle className="text-amber-800">QR refresh needed</AlertTitle>
+              <AlertTitle className="text-amber-800">{t('admin.employeeDetail.qr.refreshNeededTitle')}</AlertTitle>
               <AlertDescription className="text-amber-700">
-                Employee information changed. Regenerate the QR to keep the public profile in sync.
+                {t('admin.employeeDetail.qr.refreshNeededDescription')}
               </AlertDescription>
             </Alert>
           ) : null}
@@ -999,15 +1063,15 @@ export function AdminEmployeeDetailPage() {
         <div>
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
             <TabsList className="w-full justify-start gap-1 overflow-x-auto">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="qr-visibility">QR & Visibility</TabsTrigger>
-              <TabsTrigger value="requests">Requests</TabsTrigger>
+              <TabsTrigger value="overview">{t('admin.employeeDetail.tabs.overview')}</TabsTrigger>
+              <TabsTrigger value="qr-visibility">{t('admin.employeeDetail.tabs.qrVisibility')}</TabsTrigger>
+              <TabsTrigger value="requests">{t('admin.employeeDetail.tabs.requests')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-4">
               {isInactive ? (
                 <div className="rounded-xl border border-slate-300 bg-slate-100/90 p-3 text-sm text-slate-700">
-                  This employee is currently inactive. Reactivate the profile to make it available in the system again.
+                  {t('admin.employeeDetail.inactiveBanner')}
                 </div>
               ) : null}
 
@@ -1016,89 +1080,93 @@ export function AdminEmployeeDetailPage() {
                 className="scroll-mt-32 rounded-2xl border border-slate-200/80 shadow-sm"
               >
                 <CardHeader>
-                  <CardTitle>Overview</CardTitle>
+                  <CardTitle>{t('admin.employeeDetail.sections.overview.title')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
-                    <InfoGrid label="Last Name" value={employee.nom} />
-                    <InfoGrid label="First Name" value={employee.prenom} />
+                    <InfoGrid label={t('requests.fields.nom')} value={employee.nom} />
+                    <InfoGrid label={t('requests.fields.prenom')} value={employee.prenom} />
                     <InfoGrid
-                      label="Sex"
-                      value={formatCivilValue(getEmployeeSexeLabel(employee.sexe))}
+                      label={t('employee.profile.fields.sex')}
+                      value={formatCivilValue(getEmployeeSexeLabel(employee.sexe), notProvidedLabel)}
                     />
                     <InfoGrid
-                      label="Birth Date"
-                      value={formatCivilDate(employee.dateNaissance)}
+                      label={t('employee.profile.fields.birthDate')}
+                      value={formatCivilDate(employee.dateNaissance, locale, notProvidedLabel)}
                     />
                     <InfoGrid
-                      label="Birth Place"
-                      value={formatCivilValue(employee.lieuNaissance)}
+                      label={t('employee.profile.fields.birthPlace')}
+                      value={formatCivilValue(employee.lieuNaissance, notProvidedLabel)}
                     />
                     <InfoGrid
-                      label="Nationality"
-                      value={formatCivilValue(getEmployeeNationaliteLabel(employee.nationalite))}
+                      label={t('employee.profile.fields.nationality')}
+                      value={formatCivilValue(getEmployeeNationaliteLabel(employee.nationalite), notProvidedLabel)}
                     />
-                    <InfoGrid label="Employee ID" value={employee.matricule} mono />
+                    <InfoGrid label={t('employee.profile.fields.employeeId')} value={employee.matricule} mono />
                     <InfoGrid
-                      label="Job Title"
-                      value={formatOptionalValue(getEmployeePosteLabel(employee.poste))}
+                      label={t('common.jobTitle')}
+                      value={formatOptionalValue(getEmployeePosteLabel(employee.poste), notProvidedLabel)}
                     />
-                    <InfoGrid label="Department" value={departmentName} />
+                    <InfoGrid label={t('common.department')} value={departmentName} />
                     <InfoGrid
-                      label="Regional Branch"
+                      label={t('employee.profile.fields.regionalBranch')}
                       value={formatEmploymentValue(
                         getEmployeeRegionalBranchLabel(employee.regionalBranch),
+                        notProvidedLabel,
                       )}
                     />
                     <InfoGrid
-                      label="Professional Category"
+                      label={t('employee.profile.fields.professionalCategory')}
                       value={formatEmploymentValue(
                         getEmployeeCategorieProfessionnelleLabel(employee.categorieProfessionnelle),
+                        notProvidedLabel,
                       )}
                     />
                     <InfoGrid
-                      label="Contract Type"
+                      label={t('employee.profile.fields.contractType')}
                       value={formatEmploymentValue(
                         getEmployeeTypeContratLabel(employee.typeContrat),
+                        notProvidedLabel,
                       )}
                     />
                     <InfoGrid
-                      label="Hire Date"
-                      value={formatEmploymentDate(employee.dateRecrutement)}
+                      label={t('employee.profile.fields.hireDate')}
+                      value={formatEmploymentDate(employee.dateRecrutement, locale, notProvidedLabel)}
                     />
-                    <InfoGrid label="Email" value={formatOptionalValue(employee.email)} />
-                    <InfoGrid label="Phone" value={formatOptionalValue(employee.telephone)} />
-                    <InfoGrid label="Created At" value={formatDateTime(employee.createdAt)} />
-                    <InfoGrid label="Updated At" value={formatDateTime(employee.updatedAt)} />
-                    <InfoGrid label="Account Role" value={employeeProfile?.role ?? 'Not linked'} />
+                    <InfoGrid label={t('common.email')} value={formatOptionalValue(employee.email, notProvidedLabel)} />
+                    <InfoGrid label={t('employee.profile.fields.phone')} value={formatOptionalValue(employee.telephone, notProvidedLabel)} />
+                    <InfoGrid label={t('common.created')} value={formatDateTime(employee.createdAt, locale, notAvailableLabel)} />
+                    <InfoGrid label={t('employee.profile.fields.updatedAt')} value={formatDateTime(employee.updatedAt, locale, notAvailableLabel)} />
+                    <InfoGrid label={t('employee.profile.fields.role')} value={employeeProfile?.role ?? t('admin.employeeDetail.account.notLinked')} />
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="rounded-2xl border border-amber-200/80 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Administrative Information</CardTitle>
+                  <CardTitle>{t('admin.employeeDetail.sections.administrative.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Sensitive HR and payroll-related data. Keep these details visible only to authorized administrators.
+                    {t('admin.employeeDetail.sections.administrative.description')}
                   </div>
 
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
                     <InfoGrid
-                      label="Marital Status"
+                      label={t('employee.profile.fields.maritalStatus')}
                       value={formatCivilValue(
                         getEmployeeSituationFamilialeLabel(employee.situationFamiliale),
+                        notProvidedLabel,
                       )}
                     />
                     <InfoGrid
-                      label="Number of Children"
-                      value={formatAdministrativeNumber(employee.nombreEnfants)}
+                      label={t('employee.profile.fields.children')}
+                      value={formatAdministrativeNumber(employee.nombreEnfants, notProvidedLabel)}
                     />
-                    <InfoGrid label="Address" value={formatCivilValue(employee.adresse)} />
+                    <InfoGrid label={t('employee.profile.fields.address')} value={formatCivilValue(employee.adresse, notProvidedLabel)} />
                     <InfoGrid
-                      label="Social Security Number"
-                      value={formatCivilValue(employee.numeroSecuriteSociale)}
+                      label={t('employee.profile.fields.socialSecurityNumber')}
+                      value={formatCivilValue(employee.numeroSecuriteSociale, notProvidedLabel)}
                     />
                   </div>
                 </CardContent>
@@ -1106,30 +1174,30 @@ export function AdminEmployeeDetailPage() {
 
               <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Education & Career Background</CardTitle>
+                  <CardTitle>{t('admin.employeeDetail.sections.education.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 text-sm sm:grid-cols-3">
                     <InfoGrid
-                      label="Degree"
-                      value={formatCivilValue(getEmployeeDiplomeLabel(employee.diplome))}
+                      label={t('employee.profile.fields.degree')}
+                      value={formatCivilValue(getEmployeeDiplomeLabel(employee.diplome), notProvidedLabel)}
                     />
                     <InfoGrid
-                      label="Specialization"
-                      value={formatCivilValue(getEmployeeSpecialiteLabel(employee.specialite))}
+                      label={t('employee.profile.fields.specialization')}
+                      value={formatCivilValue(getEmployeeSpecialiteLabel(employee.specialite), notProvidedLabel)}
                     />
                     <InfoGrid
-                      label="University"
-                      value={formatCivilValue(getEmployeeUniversiteLabel(employee.universite))}
+                      label={t('employee.profile.fields.university')}
+                      value={formatCivilValue(getEmployeeUniversiteLabel(employee.universite), notProvidedLabel)}
                     />
                   </div>
 
                   <div className="rounded-lg border bg-slate-50/50 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Career History
+                      {t('employee.profile.fields.careerHistory')}
                     </p>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
-                      {formatCivilValue(employee.historiquePostes)}
+                      {formatCivilValue(employee.historiquePostes, notProvidedLabel)}
                     </p>
                   </div>
                 </CardContent>
@@ -1137,30 +1205,30 @@ export function AdminEmployeeDetailPage() {
 
               <Card className="rounded-2xl border border-amber-200/80 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Internal Notes</CardTitle>
+                  <CardTitle>{t('admin.employeeDetail.sections.internalNotes.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Notes reserved for HR/admin. This content is not shown to employees or in public profile flows.
+                    {t('admin.employeeDetail.sections.internalNotes.description')}
                   </div>
 
                   <div className="rounded-lg border bg-slate-50/50 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Observations
+                      {t('admin.employeeDetail.sections.internalNotes.observations')}
                     </p>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
-                      {formatCivilValue(employee.observations)}
+                      {formatCivilValue(employee.observations, notProvidedLabel)}
                     </p>
                   </div>
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
                 <CardHeader className="space-y-2">
-                  <CardTitle>Edit Employee</CardTitle>
+                  <CardTitle>{t('admin.employeeDetail.sections.edit.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
-                    Edit this employee from the dedicated update page. The form loads the current record so HR can update only the fields that changed.
+                    {t('admin.employeeDetail.sections.edit.description')}
                   </div>
                   {employee.isActive ? (
                     <Button
@@ -1168,12 +1236,12 @@ export function AdminEmployeeDetailPage() {
                       className={BRAND_BUTTON_CLASS_NAME}
                       onClick={() => navigate(getAdminEmployeeEditRoute(employee.id))}
                     >
-                      <UserPen className="mr-2 h-4 w-4" />
-                      Open edit page
+                      <UserPen className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                      {t('admin.employeeDetail.sections.edit.openPage')}
                     </Button>
                   ) : (
                     <div className="rounded-xl border border-slate-300 bg-slate-100/90 px-4 py-3 text-sm text-slate-700">
-                      Reactivate this employee before editing the record.
+                      {t('admin.employeeDetail.sections.edit.reactivateFirst')}
                     </div>
                   )}
                 </CardContent>
@@ -1183,7 +1251,7 @@ export function AdminEmployeeDetailPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
-                    Account Access
+                    {t('admin.employeeDetail.account.title')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1196,7 +1264,7 @@ export function AdminEmployeeDetailPage() {
 
                   {employeeProfileQuery.isError ? (
                     <Alert variant="destructive">
-                      <AlertTitle>Account data unavailable</AlertTitle>
+                      <AlertTitle>{t('admin.employeeDetail.account.unavailableTitle')}</AlertTitle>
                       <AlertDescription className="space-y-2">
                         <p>{employeeProfileQuery.error.message}</p>
                         <Button
@@ -1204,7 +1272,7 @@ export function AdminEmployeeDetailPage() {
                           size="sm"
                           onClick={() => void employeeProfileQuery.refetch()}
                         >
-                          Retry
+                          {t('common.retry')}
                         </Button>
                       </AlertDescription>
                     </Alert>
@@ -1215,11 +1283,11 @@ export function AdminEmployeeDetailPage() {
                       {employeeProfile?.userId ? (
                         <div className="space-y-2 rounded-md border p-3 text-sm">
                           <div className="flex items-center justify-between">
-                            <p className="font-medium">Linked account</p>
-                            <Badge variant="secondary">Linked</Badge>
+                            <p className="font-medium">{t('admin.employeeDetail.account.linkedAccount')}</p>
+                            <Badge variant="secondary">{t('admin.employeeDetail.account.linkedBadge')}</Badge>
                           </div>
                           <p>
-                            <span className="font-medium">Email:</span> {displayAccountEmail}
+                            <span className="font-medium">{t('common.email')}:</span> {displayAccountEmail}
                           </p>
                           <p className="break-all text-xs text-muted-foreground">
                             user_id: {employeeProfile.userId}
@@ -1227,22 +1295,22 @@ export function AdminEmployeeDetailPage() {
                         </div>
                       ) : (
                         <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                          No authentication account linked yet.
+                          {t('admin.employeeDetail.account.notLinkedYet')}
                         </div>
                       )}
 
                       <div className="space-y-2">
-                        <Label htmlFor="account-email-input">Invitation Email</Label>
+                        <Label htmlFor="account-email-input">{t('admin.employeeDetail.account.invitationEmail')}</Label>
                         <Input
                           id="account-email-input"
                           type="email"
                           value={accountEmailSource}
                           onChange={(event) => setAccountEmailInput(event.target.value)}
-                          placeholder="employe@entreprise.com"
+                          placeholder={t('admin.employeeDetail.account.invitationEmailPlaceholder')}
                           disabled={isInviting}
                         />
                         {normalizedAccountEmail.length > 0 && !isValidEmail(normalizedAccountEmail) ? (
-                          <p className="text-xs text-destructive">Enter a valid email address.</p>
+                          <p className="text-xs text-destructive">{t('validation.validEmail')}</p>
                         ) : null}
                       </div>
 
@@ -1255,11 +1323,13 @@ export function AdminEmployeeDetailPage() {
                           onClick={() => void onResendInvite()}
                         >
                           {isInviting ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                           ) : (
-                            <Send className="mr-2 h-4 w-4" />
+                            <Send className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                           )}
-                          {isInviting ? 'Sending...' : "Resend Invitation"}
+                          {isInviting
+                            ? t('admin.employeeDetail.account.sending')
+                            : t('admin.employeeDetail.account.resendInvitation')}
                         </Button>
                       ) : (
                         <Button
@@ -1269,11 +1339,13 @@ export function AdminEmployeeDetailPage() {
                           onClick={() => void onSendInvite()}
                         >
                           {isInviting ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                           ) : (
-                            <Send className="mr-2 h-4 w-4" />
+                            <Send className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                           )}
-                          {isInviting ? 'Sending...' : "Send Invitation"}
+                          {isInviting
+                            ? t('admin.employeeDetail.account.sending')
+                            : t('admin.employeeDetail.account.sendInvitation')}
                         </Button>
                       )}
                     </>
@@ -1288,9 +1360,11 @@ export function AdminEmployeeDetailPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <QrCode className="h-4 w-4" />
-                      QR Token
+                      {t('admin.employeeDetail.qr.title')}
                       {needsQrRefresh ? (
-                        <Badge className="border-transparent bg-red-600 text-white">Refresh needed</Badge>
+                        <Badge className="border-transparent bg-red-600 text-white">
+                          {t('admin.employeeDetail.qr.refreshNeededBadge')}
+                        </Badge>
                       ) : null}
                     </CardTitle>
                   </CardHeader>
@@ -1304,7 +1378,7 @@ export function AdminEmployeeDetailPage() {
 
                     {employeeTokenQuery.isError ? (
                       <Alert variant="destructive">
-                        <AlertTitle>Could not load QR token</AlertTitle>
+                        <AlertTitle>{t('admin.employeeDetail.qr.loadErrorTitle')}</AlertTitle>
                         <AlertDescription className="space-y-2">
                           <p>{employeeTokenQuery.error.message}</p>
                           <Button
@@ -1312,7 +1386,7 @@ export function AdminEmployeeDetailPage() {
                             size="sm"
                             onClick={() => void employeeTokenQuery.refetch()}
                           >
-                            Retry
+                            {t('common.retry')}
                           </Button>
                         </AlertDescription>
                       </Alert>
@@ -1322,10 +1396,10 @@ export function AdminEmployeeDetailPage() {
                         {token ? (
                           <div className="space-y-2 rounded-xl border p-3 text-sm">
                             <p className="break-all">
-                              <span className="font-medium">Token:</span> {token.token}
+                              <span className="font-medium">{t('admin.employeeDetail.qr.token')}:</span> {token.token}
                             </p>
                             <p>
-                              <span className="font-medium">Status:</span>{' '}
+                              <span className="font-medium">{t('common.status')}:</span>{' '}
                               <Badge
                                 className={
                                   token.statutToken === 'ACTIF'
@@ -1333,17 +1407,19 @@ export function AdminEmployeeDetailPage() {
                                     : 'border-transparent bg-slate-100 text-slate-700'
                                 }
                               >
-                                {token.statutToken}
+                                {token.statutToken === 'ACTIF'
+                                  ? t('status.common.active')
+                                  : t('status.common.inactive')}
                               </Badge>
                             </p>
                             <p>
-                              <span className="font-medium">Expires at:</span>{' '}
-                              {formatDateTime(token.expiresAt)}
+                              <span className="font-medium">{t('admin.employeeDetail.qr.expiresAt')}:</span>{' '}
+                              {formatDateTime(token.expiresAt, locale, notAvailableLabel)}
                             </p>
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">
-                            No QR token has been generated yet.
+                            {t('admin.employeeDetail.qr.noToken')}
                           </p>
                         )}
 
@@ -1359,11 +1435,13 @@ export function AdminEmployeeDetailPage() {
                             onClick={() => void onGenerateOrRegenerateToken()}
                           >
                             {generateTokenMutation.isPending ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                             ) : (
-                              <RefreshCcw className="mr-2 h-4 w-4" />
+                              <RefreshCcw className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                             )}
-                            {token && token.statutToken === 'ACTIF' ? 'Regenerate QR' : 'Generate QR'}
+                            {token && token.statutToken === 'ACTIF'
+                              ? t('admin.employeeDetail.actions.regenerateQr')
+                              : t('admin.employeeDetail.actions.generateQr')}
                           </Button>
 
                           <AlertDialog>
@@ -1382,14 +1460,14 @@ export function AdminEmployeeDetailPage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Revoke le jeton QR actif ?</AlertDialogTitle>
+                                <AlertDialogTitle>{t('admin.employeeDetail.qr.revokeTitle')}</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will immediately deactivate the current public profile link.
+                                  {t('admin.employeeDetail.qr.revokeDescription')}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel disabled={revokeTokenMutation.isPending}>
-                                  Cancel
+                                  {t('actions.cancel')}
                                 </AlertDialogCancel>
                                 <AlertDialogAction
                                   disabled={revokeTokenMutation.isPending}
@@ -1398,7 +1476,9 @@ export function AdminEmployeeDetailPage() {
                                     void onRevokeToken()
                                   }}
                                 >
-                                  {revokeTokenMutation.isPending ? 'Revoking...' : 'Confirm'}
+                                  {revokeTokenMutation.isPending
+                                    ? t('admin.employeeDetail.qr.revoking')
+                                    : t('admin.employeeDetail.qr.confirm')}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -1408,7 +1488,9 @@ export function AdminEmployeeDetailPage() {
                         {publicProfileUrl ? (
                           <>
                             <div className="rounded-xl border p-3">
-                              <p className="mb-1 text-xs text-muted-foreground">Public Profile URL</p>
+                              <p className="mb-1 text-xs text-muted-foreground">
+                                {t('admin.employeeDetail.qr.publicProfileUrl')}
+                              </p>
                               <p className="break-all text-sm">{publicProfileUrl}</p>
                             </div>
 
@@ -1424,22 +1506,22 @@ export function AdminEmployeeDetailPage() {
 
                             <div className="flex flex-wrap gap-2">
                               <Button type="button" variant="outline" onClick={() => void onCopyPublicLink()}>
-                                <Copy className="mr-2 h-4 w-4" />
-                                Copy Link
+                                <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                {t('admin.employeeDetail.qr.copyLink')}
                               </Button>
                               <Button type="button" variant="outline" onClick={onDownloadQr}>
-                                <Download className="mr-2 h-4 w-4" />
-                                Download QR
+                                <Download className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                {t('admin.employeeDetail.qr.downloadQr')}
                               </Button>
                               <Button type="button" variant="outline" onClick={onOpenPublicPreview}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                Open Public Profile
+                                <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                {t('admin.employeeDetail.actions.openPublicProfile')}
                               </Button>
                             </div>
                           </>
                         ) : (
                           <p className="text-xs text-muted-foreground">
-                            Generate an active token to enable public profile preview.
+                            {t('admin.employeeDetail.qr.generateToPreview')}
                           </p>
                         )}
                       </>
@@ -1451,7 +1533,7 @@ export function AdminEmployeeDetailPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4" />
-                      Public Visibility
+                      {t('admin.employeeDetail.visibility.title')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -1465,7 +1547,7 @@ export function AdminEmployeeDetailPage() {
 
                     {visibilityQuery.isError ? (
                       <Alert variant="destructive">
-                        <AlertTitle>Visibility unavailable</AlertTitle>
+                        <AlertTitle>{t('admin.employeeDetail.visibility.unavailableTitle')}</AlertTitle>
                         <AlertDescription className="space-y-2">
                           <p>{visibilityQuery.error.message}</p>
                           <Button
@@ -1473,7 +1555,7 @@ export function AdminEmployeeDetailPage() {
                             size="sm"
                             onClick={() => void visibilityQuery.refetch()}
                           >
-                            Retry
+                            {t('common.retry')}
                           </Button>
                         </AlertDescription>
                       </Alert>
@@ -1486,20 +1568,20 @@ export function AdminEmployeeDetailPage() {
                             key={field.key}
                             className="flex items-center justify-between rounded-md border px-3 py-2"
                           >
-                            <p className="text-sm">{field.label}</p>
+                            <p className="text-sm">{getEmployeeVisibilityFieldLabel(field.key, t)}</p>
                             <StatusBadge
                               tone={visibilityMap.get(field.key) ? 'success' : 'neutral'}
                               emphasis="outline"
                             >
-                              {visibilityMap.get(field.key) ? 'Published' : 'Hidden'}
+                              {visibilityMap.get(field.key) ? t('status.common.published') : t('status.common.hidden')}
                             </StatusBadge>
                           </div>
                         ))}
 
                         <Alert className="border-slate-200 bg-slate-50">
-                          <AlertTitle>Employee-owned visibility workflow</AlertTitle>
+                          <AlertTitle>{t('admin.employeeDetail.visibility.workflowTitle')}</AlertTitle>
                           <AlertDescription>
-                            Employees submit public visibility requests from their QR page. HR reviews those requests in the request center before any change reaches the live QR profile.
+                            {t('admin.employeeDetail.visibility.workflowDescription')}
                           </AlertDescription>
                         </Alert>
 
@@ -1512,7 +1594,7 @@ export function AdminEmployeeDetailPage() {
 
                         {visibilityRequestsQuery.isError ? (
                           <Alert variant="destructive">
-                            <AlertTitle>Visibility request history unavailable</AlertTitle>
+                            <AlertTitle>{t('admin.employeeDetail.visibility.historyUnavailableTitle')}</AlertTitle>
                             <AlertDescription className="space-y-2">
                               <p>{visibilityRequestsQuery.error.message}</p>
                               <Button
@@ -1520,7 +1602,7 @@ export function AdminEmployeeDetailPage() {
                                 size="sm"
                                 onClick={() => void visibilityRequestsQuery.refetch()}
                               >
-                                Retry
+                                {t('common.retry')}
                               </Button>
                             </AlertDescription>
                           </Alert>
@@ -1531,23 +1613,25 @@ export function AdminEmployeeDetailPage() {
                             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                               <div className="flex flex-wrap items-center gap-2">
                                 <StatusBadge
-                                  tone={getPublicProfileVisibilityRequestStatusMeta(openVisibilityRequest.status).tone}
+                                  tone={getPublicProfileVisibilityRequestStatusMeta(openVisibilityRequest.status, t).tone}
                                 >
-                                  {getPublicProfileVisibilityRequestStatusMeta(openVisibilityRequest.status).label}
+                                  {getPublicProfileVisibilityRequestStatusMeta(openVisibilityRequest.status, t).label}
                                 </StatusBadge>
                                 <p className="text-xs text-amber-900/80">
-                                  Submitted {new Date(openVisibilityRequest.createdAt).toLocaleString()}
+                                  {t('admin.employeeDetail.visibility.submittedAt', {
+                                    value: new Date(openVisibilityRequest.createdAt).toLocaleString(locale),
+                                  })}
                                 </p>
                               </div>
                               <p className="mt-3 text-xs font-medium uppercase tracking-wide text-amber-900/70">
-                                Requested public visibility
+                                {t('admin.employeeDetail.visibility.requestedVisibility')}
                               </p>
                               <p className="mt-2 text-sm text-amber-950">
-                                {formatVisibilityFieldList(openVisibilityRequest.requestedFieldKeys)}
+                                {formatVisibilityFieldList(openVisibilityRequest.requestedFieldKeys, t)}
                               </p>
                               {openVisibilityRequest.requestNote ? (
                                 <p className="mt-3 text-sm text-amber-950">
-                                  <span className="font-medium">Employee note:</span> {openVisibilityRequest.requestNote}
+                                  <span className="font-medium">{t('admin.employeeDetail.visibility.employeeNote')}:</span> {openVisibilityRequest.requestNote}
                                 </p>
                               ) : null}
                             </div>
@@ -1555,31 +1639,35 @@ export function AdminEmployeeDetailPage() {
                             <div className="rounded-xl border p-4">
                               <div className="flex flex-wrap items-center gap-2">
                                 <StatusBadge
-                                  tone={getPublicProfileVisibilityRequestStatusMeta(latestVisibilityRequest.status).tone}
+                                  tone={getPublicProfileVisibilityRequestStatusMeta(latestVisibilityRequest.status, t).tone}
                                 >
-                                  {getPublicProfileVisibilityRequestStatusMeta(latestVisibilityRequest.status).label}
+                                  {getPublicProfileVisibilityRequestStatusMeta(latestVisibilityRequest.status, t).label}
                                 </StatusBadge>
                                 <p className="text-xs text-muted-foreground">
-                                  Reviewed {latestVisibilityRequest.reviewedAt ? new Date(latestVisibilityRequest.reviewedAt).toLocaleString() : 'Not reviewed'}
+                                  {t('admin.employeeDetail.visibility.reviewedAt', {
+                                    value: latestVisibilityRequest.reviewedAt
+                                      ? new Date(latestVisibilityRequest.reviewedAt).toLocaleString(locale)
+                                      : t('common.notReviewed'),
+                                  })}
                                 </p>
                               </div>
                               <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Most recent requested visibility
+                                {t('admin.employeeDetail.visibility.mostRecentRequestedVisibility')}
                               </p>
                               <p className="mt-2 text-sm text-slate-700">
-                                {formatVisibilityFieldList(latestVisibilityRequest.requestedFieldKeys)}
+                                {formatVisibilityFieldList(latestVisibilityRequest.requestedFieldKeys, t)}
                               </p>
                               {latestVisibilityRequest.reviewNote ? (
                                 <p className="mt-3 text-sm text-slate-700">
-                                  <span className="font-medium">HR review note:</span> {latestVisibilityRequest.reviewNote}
+                                  <span className="font-medium">{t('admin.employeeDetail.visibility.hrReviewNote')}:</span> {latestVisibilityRequest.reviewNote}
                                 </p>
                               ) : null}
                             </div>
                           ) : (
                             <EmptyState
                               surface="plain"
-                              title="No visibility requests yet"
-                              description="This employee has not submitted a public profile visibility request yet."
+                              title={t('admin.employeeDetail.visibility.emptyTitle')}
+                              description={t('admin.employeeDetail.visibility.emptyDescription')}
                             />
                           )
                         ) : null}
@@ -1589,7 +1677,7 @@ export function AdminEmployeeDetailPage() {
                           variant="outline"
                           onClick={() => navigate(ROUTES.ADMIN_REQUESTS)}
                         >
-                          Open Request Center
+                          {t('admin.employeeDetail.visibility.openRequestCenter')}
                         </Button>
                       </>
                     ) : null}
@@ -1601,7 +1689,7 @@ export function AdminEmployeeDetailPage() {
             <TabsContent value="requests" className="space-y-4">
               <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Modification Requests</CardTitle>
+                  <CardTitle>{t('admin.employeeDetail.requests.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {employeeRequestsQuery.isPending ? (
@@ -1613,7 +1701,7 @@ export function AdminEmployeeDetailPage() {
 
                   {employeeRequestsQuery.isError ? (
                     <Alert variant="destructive">
-                      <AlertTitle>Could not load requests</AlertTitle>
+                      <AlertTitle>{t('admin.employeeDetail.requests.loadErrorTitle')}</AlertTitle>
                       <AlertDescription className="space-y-2">
                         <p>{employeeRequestsQuery.error.message}</p>
                         <Button
@@ -1621,7 +1709,7 @@ export function AdminEmployeeDetailPage() {
                           size="sm"
                           onClick={() => void employeeRequestsQuery.refetch()}
                         >
-                          Retry
+                          {t('common.retry')}
                         </Button>
                       </AlertDescription>
                     </Alert>
@@ -1635,19 +1723,21 @@ export function AdminEmployeeDetailPage() {
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div>
                                 <p className="text-sm font-medium">
-                                  {REQUEST_FIELD_LABELS[request.champCible]}: {formatOptionalValue(request.ancienneValeur)} ? {formatOptionalValue(request.nouvelleValeur)}
+                                  {getRequestFieldLabel(request.champCible, t)}:{' '}
+                                  {formatOptionalValue(request.ancienneValeur, notProvidedLabel)} ?{' '}
+                                  {formatOptionalValue(request.nouvelleValeur, notProvidedLabel)}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {new Date(request.createdAt).toLocaleString()}
+                                  {new Date(request.createdAt).toLocaleString(locale)}
                                 </p>
                               </div>
                               <Badge className={requestStatusBadgeClass(request.statutDemande)}>
-                                {request.statutDemande}
+                                {t(`status.modification.${request.statutDemande}`)}
                               </Badge>
                             </div>
                             {request.commentaireTraitement ? (
                               <p className="mt-2 text-xs text-muted-foreground">
-                                Admin comment: {request.commentaireTraitement}
+                                {t('admin.employeeDetail.requests.adminComment')}: {request.commentaireTraitement}
                               </p>
                             ) : null}
                           </div>
@@ -1657,12 +1747,12 @@ export function AdminEmployeeDetailPage() {
                           variant="outline"
                           onClick={() => navigate(ROUTES.ADMIN_REQUESTS)}
                         >
-                          Open Request Center
+                          {t('admin.employeeDetail.visibility.openRequestCenter')}
                         </Button>
                       </div>
                     ) : (
                       <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                        No modification requests.
+                        {t('admin.employeeDetail.requests.empty')}
                       </div>
                     )
                   ) : null}
@@ -1684,16 +1774,22 @@ export function AdminEmployeeDetailPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {employeeStatusAction === 'deactivate' ? "Deactivate Employee?" : "Activate Employee?"}
+              {employeeStatusAction === 'deactivate'
+                ? t('admin.employeeDetail.statusDialog.deactivateTitle')
+                : t('admin.employeeDetail.statusDialog.activateTitle')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {employeeStatusAction === 'deactivate'
-                ? `Deactivate ${employee.prenom} ${employee.nom}? This employee will be marked inactive and unavailable in the system. The active QR token will be revoked.`
-                : `Activate ${employee.prenom} ${employee.nom}? This employee will be restored as active and available in the system.`}
+                ? t('admin.employeeDetail.statusDialog.deactivateDescription', {
+                    employee: `${employee.prenom} ${employee.nom}`,
+                  })
+                : t('admin.employeeDetail.statusDialog.activateDescription', {
+                    employee: `${employee.prenom} ${employee.nom}`,
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isStatusMutationPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isStatusMutationPending}>{t('actions.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={isStatusMutationPending}
               onClick={(event) => {
@@ -1703,9 +1799,9 @@ export function AdminEmployeeDetailPage() {
             >
               {isStatusMutationPending
                 ? employeeStatusAction === 'deactivate'
-                  ? 'Deactivating...'
-                  : 'Activating...'
-                : 'Confirm'}
+                  ? t('admin.employeeDetail.statusDialog.deactivating')
+                  : t('admin.employeeDetail.statusDialog.activating')
+                : t('admin.employeeDetail.statusDialog.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

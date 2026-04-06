@@ -46,6 +46,7 @@ import {
 import { ROUTES, getPayrollEmployeeRoute } from '@/constants/routes'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { PayrollLayout } from '@/layouts/payroll-layout'
 import {
   usePayrollEmployeesDirectoryQuery,
@@ -64,27 +65,33 @@ import type {
   PayrollEmployeeListItem,
   PayrollEmployeeStatusFilter,
 } from '@/types/payroll'
+import type { TranslateFn } from '@/i18n/messages'
 
-function formatDepartmentName(employee: PayrollEmployeeListItem): string {
-  return getDepartmentDisplayName(employee.departementNom)?.trim() || 'Department not assigned'
+function formatDepartmentName(employee: PayrollEmployeeListItem, t: TranslateFn): string {
+  return (
+    getDepartmentDisplayName(employee.departementNom)?.trim() ||
+    t('payroll.employeeDirectory.fallbacks.departmentNotAssigned')
+  )
 }
 
-function formatRegionalBranch(value: string | null | undefined): string {
+function formatRegionalBranch(value: string | null | undefined, t: TranslateFn): string {
   const normalized = getEmployeeRegionalBranchLabel(value)?.trim()
   if (!normalized) {
-    return 'Branch not assigned'
+    return t('payroll.employeeDirectory.fallbacks.branchNotAssigned')
   }
 
   return normalized
 }
 
-function formatJobTitle(value: string | null | undefined): string {
+function formatJobTitle(value: string | null | undefined, t: TranslateFn): string {
   const normalized = getEmployeePosteLabel(value)?.trim()
-  return normalized && normalized.length > 0 ? normalized : 'Job title not set'
+  return normalized && normalized.length > 0
+    ? normalized
+    : t('payroll.employeeDirectory.fallbacks.jobTitleNotSet')
 }
 
-function formatContractType(value: string | null | undefined): string {
-  return getEmployeeTypeContratLabel(value) ?? 'Not set'
+function formatContractType(value: string | null | undefined, t: TranslateFn): string {
+  return getEmployeeTypeContratLabel(value) ?? t('common.notSet')
 }
 
 function buildFullName(employee: PayrollEmployeeListItem): string {
@@ -123,6 +130,7 @@ function buildContractTypeOptions(employees: PayrollEmployeeListItem[]) {
 
 export function PayrollEmployeesPage() {
   const { signOut, user } = useAuth()
+  const { isRTL, t } = useI18n()
   const [searchInput, setSearchInput] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('all')
   const [branchFilter, setBranchFilter] = useState('all')
@@ -223,50 +231,59 @@ export function PayrollEmployeesPage() {
 
   return (
     <PayrollLayout
-      title="Payroll Employees"
-      subtitle="Read-only payroll employee consultation."
+      title={t('payroll.employeeDirectory.title')}
+      subtitle={t('payroll.employeeDirectory.subtitle')}
       onSignOut={signOut}
       userEmail={user?.email ?? null}
     >
       <PageHeader
-        title="Payroll Employees"
-        description="Search and review payroll-relevant employee information without admin editing, QR controls, or internal HR notes."
+        title={t('payroll.employeeDirectory.title')}
+        description={t('payroll.employeeDirectory.headerDescription')}
         className="mb-6"
         badges={
           <>
             <StatusBadge tone="neutral" emphasis="outline">
-              Read-only
+              {t('payroll.employeeDirectory.readOnlyBadge')}
             </StatusBadge>
-            <StatusBadge tone="brand">{employees.length} matched</StatusBadge>
+            <StatusBadge tone="brand">
+              {t('payroll.employeeDirectory.matchedBadge', {
+                count: String(employees.length),
+              })}
+            </StatusBadge>
           </>
         }
         actions={
           <Button asChild variant="outline">
             <Link to={exportCenterHref}>
-              <FileDown className="mr-2 h-4 w-4" />
-              Export center
+              <FileDown className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+              {t('payroll.employeeDirectory.exportCenter')}
             </Link>
           </Button>
         }
       >
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_220px_220px_180px_220px_auto]">
           <div className="relative xl:col-span-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search
+              className={cn(
+                'pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400',
+                isRTL ? 'right-3' : 'left-3',
+              )}
+            />
             <Input
-              aria-label="Search payroll employees"
+              aria-label={t('payroll.employeeDirectory.searchAria')}
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by name, employee ID, or email..."
-              className="pl-9"
+              placeholder={t('payroll.employeeDirectory.searchPlaceholder')}
+              className={cn(isRTL ? 'pr-9' : 'pl-9')}
             />
           </div>
 
           <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-            <SelectTrigger aria-label="Filter by department">
-              <SelectValue placeholder="Department" />
+            <SelectTrigger aria-label={t('payroll.employeeDirectory.filters.departmentAria')}>
+              <SelectValue placeholder={t('common.department')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All departments</SelectItem>
+              <SelectItem value="all">{t('payroll.employeeDirectory.filters.allDepartments')}</SelectItem>
               {departmentOptions.map((department) => (
                 <SelectItem key={department.id} value={department.id}>
                   {department.nom}
@@ -276,11 +293,11 @@ export function PayrollEmployeesPage() {
           </Select>
 
           <Select value={branchFilter} onValueChange={setBranchFilter}>
-            <SelectTrigger aria-label="Filter by regional branch">
-              <SelectValue placeholder="Regional branch" />
+            <SelectTrigger aria-label={t('payroll.employeeDirectory.filters.branchAria')}>
+              <SelectValue placeholder={t('employee.profile.fields.regionalBranch')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All regional branches</SelectItem>
+              <SelectItem value="all">{t('payroll.employeeDirectory.filters.allBranches')}</SelectItem>
               {EMPLOYEE_REGIONAL_BRANCH_OPTIONS.map((branch) => (
                 <SelectItem key={branch} value={branch}>
                   {EMPLOYEE_REGIONAL_BRANCH_LABELS[branch]}
@@ -293,25 +310,25 @@ export function PayrollEmployeesPage() {
             value={statusFilter}
             onValueChange={(value: PayrollEmployeeStatusFilter) => setStatusFilter(value)}
           >
-            <SelectTrigger aria-label="Filter by status">
-              <SelectValue placeholder="Status" />
+            <SelectTrigger aria-label={t('payroll.employeeDirectory.filters.statusAria')}>
+              <SelectValue placeholder={t('common.status')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All statuses</SelectItem>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="INACTIVE">Inactive</SelectItem>
+              <SelectItem value="ALL">{t('payroll.employeeDirectory.filters.allStatuses')}</SelectItem>
+              <SelectItem value="ACTIVE">{t('status.common.active')}</SelectItem>
+              <SelectItem value="INACTIVE">{t('status.common.inactive')}</SelectItem>
             </SelectContent>
           </Select>
 
           <Select value={contractFilter} onValueChange={setContractFilter}>
-            <SelectTrigger aria-label="Filter by contract type">
-              <SelectValue placeholder="Contract type" />
+            <SelectTrigger aria-label={t('payroll.employeeDirectory.filters.contractTypeAria')}>
+              <SelectValue placeholder={t('employee.profile.fields.contractType')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All contract types</SelectItem>
+              <SelectItem value="all">{t('payroll.employeeDirectory.filters.allContractTypes')}</SelectItem>
               {contractOptions.map((contractType) => (
                 <SelectItem key={contractType} value={contractType}>
-                  {formatContractType(contractType)}
+                  {formatContractType(contractType, t)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -323,8 +340,8 @@ export function PayrollEmployeesPage() {
             onClick={handleClearFilters}
             disabled={!hasActiveFilters}
           >
-            <Filter className="mr-2 h-4 w-4" />
-            Clear filters
+            <Filter className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+            {t('actions.clearFilters')}
           </Button>
         </div>
       </PageHeader>
@@ -334,7 +351,7 @@ export function PayrollEmployeesPage() {
           <CardHeader className="space-y-2 pb-3">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <UserRound className="h-4 w-4 text-slate-600" />
-              Accessible employees
+              {t('payroll.employeeDirectory.summaries.accessibleEmployeesTitle')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -342,7 +359,7 @@ export function PayrollEmployeesPage() {
               {formatSummaryValue(totalAccessibleEmployees)}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Employees currently available to payroll consultation.
+              {t('payroll.employeeDirectory.summaries.accessibleEmployeesHelper')}
             </p>
           </CardContent>
         </Card>
@@ -351,7 +368,7 @@ export function PayrollEmployeesPage() {
           <CardHeader className="space-y-2 pb-3">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <ShieldCheck className="h-4 w-4 text-slate-600" />
-              Active employees
+              {t('payroll.employeeDirectory.summaries.activeEmployeesTitle')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -359,7 +376,7 @@ export function PayrollEmployeesPage() {
               {formatSummaryValue(activeEmployeesCount)}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Active employee records visible to payroll users.
+              {t('payroll.employeeDirectory.summaries.activeEmployeesHelper')}
             </p>
           </CardContent>
         </Card>
@@ -368,7 +385,7 @@ export function PayrollEmployeesPage() {
           <CardHeader className="space-y-2 pb-3">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <Building2 className="h-4 w-4 text-slate-600" />
-              Department coverage
+              {t('payroll.employeeDirectory.summaries.departmentCoverageTitle')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -376,7 +393,7 @@ export function PayrollEmployeesPage() {
               {formatSummaryValue(departmentCoverageCount)}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Departments represented in the payroll consultation scope.
+              {t('payroll.employeeDirectory.summaries.departmentCoverageHelper')}
             </p>
           </CardContent>
         </Card>
@@ -385,8 +402,8 @@ export function PayrollEmployeesPage() {
       {payrollEmployeesQuery.isError ? (
         <ErrorState
           className="mb-6"
-          title="Could not load payroll employees"
-          description="We couldn't load the payroll employee directory right now."
+          title={t('payroll.employeeDirectory.loadErrorTitle')}
+          description={t('payroll.employeeDirectory.loadErrorDescription')}
           message={payrollEmployeesQuery.error.message}
           onRetry={() => {
             void payrollEmployeesQuery.refetch()
@@ -402,18 +419,18 @@ export function PayrollEmployeesPage() {
       employees.length === 0 ? (
         hasActiveFilters ? (
           <SearchEmptyState
-            title="No payroll employees found"
-            description="Try changing your search terms or filters."
+            title={t('payroll.employeeDirectory.searchEmptyTitle')}
+            description={t('payroll.employeeDirectory.searchEmptyDescription')}
             actions={
               <Button type="button" variant="outline" onClick={handleClearFilters}>
-                Clear filters
+                {t('actions.clearFilters')}
               </Button>
             }
           />
         ) : (
           <EmptyState
-            title="No payroll employees available"
-            description="No employee records are currently available for payroll consultation."
+            title={t('payroll.employeeDirectory.emptyTitle')}
+            description={t('payroll.employeeDirectory.emptyDescription')}
           />
         )
       ) : null}
@@ -424,12 +441,15 @@ export function PayrollEmployeesPage() {
         <>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-600">
-              Showing {employees.length} payroll employee
-              {employees.length === 1 ? '' : 's'}
-              {payrollEmployeesQuery.isFetching ? ' (updating...)' : ''}
+              {t('payroll.employeeDirectory.showingCount', {
+                count: String(employees.length),
+                updating: payrollEmployeesQuery.isFetching
+                  ? t('payroll.employeeDirectory.updatingSuffix')
+                  : '',
+              })}
             </p>
             <StatusBadge tone="neutral" emphasis="outline">
-              Consultation only
+              {t('payroll.employeeDirectory.consultationOnly')}
             </StatusBadge>
           </div>
 
@@ -437,13 +457,15 @@ export function PayrollEmployeesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Employee ID</TableHead>
-                  <TableHead>Department / Branch</TableHead>
-                  <TableHead>Job title</TableHead>
-                  <TableHead>Contract type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[140px] text-right">Action</TableHead>
+                  <TableHead>{t('common.employee')}</TableHead>
+                  <TableHead>{t('employee.profile.fields.employeeId')}</TableHead>
+                  <TableHead>{t('payroll.employeeDirectory.table.departmentBranch')}</TableHead>
+                  <TableHead>{t('common.jobTitle')}</TableHead>
+                  <TableHead>{t('employee.profile.fields.contractType')}</TableHead>
+                  <TableHead>{t('common.status')}</TableHead>
+                  <TableHead className={cn('w-[140px]', isRTL ? 'text-left' : 'text-right')}>
+                    {t('payroll.employeeDirectory.table.action')}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -459,7 +481,7 @@ export function PayrollEmployeesPage() {
                             {buildFullName(employee)}
                           </p>
                           <p className="truncate text-xs text-slate-500">
-                            Payroll employee record
+                            {t('payroll.employeeDirectory.table.employeeRecord')}
                           </p>
                         </div>
                       </div>
@@ -469,24 +491,26 @@ export function PayrollEmployeesPage() {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <p>{formatDepartmentName(employee)}</p>
+                        <p>{formatDepartmentName(employee, t)}</p>
                         <p className="text-xs text-slate-500">
-                          {formatRegionalBranch(employee.regionalBranch)}
+                          {formatRegionalBranch(employee.regionalBranch, t)}
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>{formatJobTitle(employee.poste)}</TableCell>
-                    <TableCell>{formatContractType(employee.typeContrat)}</TableCell>
+                    <TableCell>{formatJobTitle(employee.poste, t)}</TableCell>
+                    <TableCell>{formatContractType(employee.typeContrat, t)}</TableCell>
                     <TableCell>
                       <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
-                        {employee.isActive ? 'Active' : 'Inactive'}
+                        {employee.isActive ? t('status.common.active') : t('status.common.inactive')}
                       </StatusBadge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className={cn(isRTL ? 'text-left' : 'text-right')}>
                       <Button asChild size="sm" variant="outline">
                         <Link to={getPayrollEmployeeRoute(employee.id)}>
-                          Open
-                          <ArrowRight className="ml-2 h-4 w-4" />
+                          {t('actions.open')}
+                          <ArrowRight
+                            className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')}
+                          />
                         </Link>
                       </Button>
                     </TableCell>
@@ -510,12 +534,12 @@ export function PayrollEmployeesPage() {
                           {buildFullName(employee)}
                         </p>
                         <p className="truncate text-xs text-slate-500">
-                          {formatJobTitle(employee.poste)}
+                          {formatJobTitle(employee.poste, t)}
                         </p>
                       </div>
                     </div>
                     <StatusBadge tone={employee.isActive ? 'success' : 'neutral'}>
-                      {employee.isActive ? 'Active' : 'Inactive'}
+                      {employee.isActive ? t('status.common.active') : t('status.common.inactive')}
                     </StatusBadge>
                   </div>
 
@@ -527,22 +551,24 @@ export function PayrollEmployeesPage() {
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-slate-400" />
                       <div className="min-w-0">
-                        <p className="truncate">{formatDepartmentName(employee)}</p>
+                        <p className="truncate">{formatDepartmentName(employee, t)}</p>
                         <p className="truncate text-xs text-slate-500">
-                          {formatRegionalBranch(employee.regionalBranch)}
+                          {formatRegionalBranch(employee.regionalBranch, t)}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <BriefcaseBusiness className="h-4 w-4 text-slate-400" />
-                      <span>{formatContractType(employee.typeContrat)}</span>
+                      <span>{formatContractType(employee.typeContrat, t)}</span>
                     </div>
                   </div>
 
                   <Button asChild variant="outline" className="w-full">
                     <Link to={getPayrollEmployeeRoute(employee.id)}>
-                      Open payroll detail
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      {t('payroll.employeeDirectory.mobileOpenDetail')}
+                      <ArrowRight
+                        className={cn('h-4 w-4', isRTL ? 'mr-2 rotate-180' : 'ml-2')}
+                      />
                     </Link>
                   </Button>
                 </CardContent>

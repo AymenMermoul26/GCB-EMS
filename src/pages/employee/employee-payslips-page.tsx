@@ -50,7 +50,9 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/use-auth'
+import { useI18n } from '@/hooks/use-i18n'
 import { DashboardLayout } from '@/layouts/dashboard-layout'
+import { cn } from '@/lib/utils'
 import {
   createAvailablePayslipDocumentAccessDescriptor,
   createEmployeePublishedPayslipAccessDescriptor,
@@ -79,16 +81,16 @@ import {
   getPayrollProcessingStatusMeta,
 } from '@/types/payroll'
 
-function formatTimestamp(value: string | null | undefined): string {
+function formatTimestamp(value: string | null | undefined, locale: string): string {
   if (!value) {
     return '\u2014'
   }
 
-  return new Date(value).toLocaleString()
+  return new Date(value).toLocaleString(locale)
 }
 
-function formatDateRange(start: string, end: string): string {
-  return `${new Date(`${start}T00:00:00`).toLocaleDateString()} - ${new Date(`${end}T00:00:00`).toLocaleDateString()}`
+function formatDateRange(start: string, end: string, locale: string): string {
+  return `${new Date(`${start}T00:00:00`).toLocaleDateString(locale)} - ${new Date(`${end}T00:00:00`).toLocaleDateString(locale)}`
 }
 
 function formatFileSize(value: number | null): string {
@@ -138,12 +140,13 @@ function RequestRow({
   onOpenDocument: (request: EmployeePayslipRequestItem) => Promise<void>
   onDownloadDocument: (request: EmployeePayslipRequestItem) => Promise<void>
 }) {
-  const statusMeta = getPayslipRequestStatusMeta(request.status)
+  const { t, locale, isRTL } = useI18n()
+  const statusMeta = getPayslipRequestStatusMeta(request.status, t)
   const canonicalPayslipStatusMeta = request.canonicalPayslipStatus
-    ? getPayrollProcessingStatusMeta(request.canonicalPayslipStatus)
+    ? getPayrollProcessingStatusMeta(request.canonicalPayslipStatus, t)
     : null
   const representationModeLabel = request.canonicalDocumentRepresentationMode
-    ? getPayslipDocumentRepresentationModeLabel(request.canonicalDocumentRepresentationMode)
+    ? getPayslipDocumentRepresentationModeLabel(request.canonicalDocumentRepresentationMode, t)
     : null
   const deliveredDescriptor = createPayslipRequestDeliveredDocumentAccessDescriptor(request)
   const canonicalDescriptor = createPayslipRequestCanonicalDocumentAccessDescriptor(request)
@@ -167,13 +170,19 @@ function RequestRow({
           </div>
 
           <p className="mt-2 text-sm text-slate-600">
-            {formatDateRange(request.periodStart, request.periodEnd)}
+            {formatDateRange(request.periodStart, request.periodEnd, locale)}
           </p>
 
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span>Submitted {formatTimestamp(request.createdAt)}</span>
-            <span>Reviewed {formatTimestamp(request.reviewedAt)}</span>
-            <span>Fulfilled {formatTimestamp(request.fulfilledAt)}</span>
+            <span>
+              {t('common.submitted')} {formatTimestamp(request.createdAt, locale)}
+            </span>
+            <span>
+              {t('common.reviewed')} {formatTimestamp(request.reviewedAt, locale)}
+            </span>
+            <span>
+              {t('common.fulfilled')} {formatTimestamp(request.fulfilledAt, locale)}
+            </span>
           </div>
 
             <div className="mt-4">
@@ -193,7 +202,7 @@ function RequestRow({
           {request.requestNote ? (
             <div className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3 text-sm leading-6 text-slate-700">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Request note
+                {t('employee.payslips.requestRow.requestNote')}
               </p>
               <p className="mt-2">{request.requestNote}</p>
             </div>
@@ -202,7 +211,7 @@ function RequestRow({
           {request.reviewNote ? (
             <div className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3 text-sm leading-6 text-slate-700">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Payroll review note
+                {t('employee.payslips.requestRow.reviewNote')}
               </p>
               <p className="mt-2">{request.reviewNote}</p>
             </div>
@@ -212,16 +221,22 @@ function RequestRow({
         <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm text-slate-600 lg:w-[300px]">
           {hasDeliveredDocument ? (
             <>
-              <p className="font-medium text-slate-900">Delivered document representation</p>
+              <p className="font-medium text-slate-900">
+                {t('employee.payslips.requestRow.deliveredDocumentTitle')}
+              </p>
               <p className="mt-1 break-all">{request.documentFileName}</p>
               <p className="mt-2 text-xs text-slate-500">
-                Published {formatTimestamp(request.documentPublishedAt)}
+                {t('employee.payslips.requestRow.deliveredPublished', {
+                  value: formatTimestamp(request.documentPublishedAt, locale),
+                })}
               </p>
             </>
           ) : request.canonicalPayslipId ? (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-medium text-slate-900">Canonical generated payslip</p>
+                <p className="font-medium text-slate-900">
+                  {t('employee.payslips.requestRow.canonicalDocumentTitle')}
+                </p>
                 {canonicalPayslipStatusMeta ? (
                   <StatusBadge tone={canonicalPayslipStatusMeta.tone} emphasis="outline">
                     {canonicalPayslipStatusMeta.label}
@@ -230,34 +245,33 @@ function RequestRow({
               </div>
               <p className="mt-2">
                 {request.canonicalDocumentReady
-                  ? 'This payroll-derived payslip already has a secure generated PDF available in your account. Payroll may still close this request separately for request-history traceability.'
-                  : 'The payroll-derived payslip record exists, but the generated PDF representation is still pending.'}
+                  ? t('employee.payslips.requestRow.canonicalAvailable')
+                  : t('employee.payslips.requestRow.canonicalPending')}
               </p>
               {fileName ? <p className="mt-2 break-all text-xs text-slate-500">{fileName}</p> : null}
               {fileSizeBytes ? (
-                <p className="mt-1 text-xs text-slate-500">Size {formatFileSize(fileSizeBytes)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {t('common.size')} {formatFileSize(fileSizeBytes)}
+                </p>
               ) : null}
               {representationModeLabel ? (
                 <p className="mt-2 text-xs text-slate-500">{representationModeLabel}</p>
               ) : null}
               <p className="mt-2 text-xs text-slate-500">
-                Published {formatTimestamp(request.canonicalPayslipPublishedAt)}
+                {t('common.published')} {formatTimestamp(request.canonicalPayslipPublishedAt, locale)}
               </p>
             </>
           ) : request.canonicalSourcePayrollRunEmployeId ? (
             <>
-              <p className="font-medium text-slate-900">Payroll result source ready</p>
+              <p className="font-medium text-slate-900">
+                {t('employee.payslips.requestRow.canonicalSourceReadyTitle')}
+              </p>
               <p className="mt-2">
-                Payroll has a published payroll result for this period. The generated PDF becomes
-                available here as soon as document generation finishes and publication makes it
-                visible to your account.
+                {t('employee.payslips.requestRow.canonicalSourceReadyDescription')}
               </p>
             </>
           ) : (
-            <p>
-              This request stays visible here while payroll reviews the request and links it to a
-              payroll-derived payslip record.
-            </p>
+            <p>{t('employee.payslips.requestRow.awaitingReviewDescription')}</p>
           )}
 
           {primaryDescriptor ? (
@@ -270,11 +284,11 @@ function RequestRow({
                 onClick={() => void onOpenDocument(request)}
               >
                 {isOpening ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <ExternalLink className="mr-2 h-4 w-4" />
+                  <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                Open PDF
+                {t('actions.open')} PDF
               </Button>
               <Button
                 type="button"
@@ -283,11 +297,11 @@ function RequestRow({
                 onClick={() => void onDownloadDocument(request)}
               >
                 {isDownloading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <FolderOpen className="mr-2 h-4 w-4" />
+                  <FolderOpen className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                Download PDF
+                {t('actions.download')} PDF
               </Button>
             </div>
           ) : null}
@@ -308,6 +322,7 @@ function AvailableDocumentRow({
   onOpen: (document: AvailablePayslipDocumentItem) => Promise<void>
   onDownload: (document: AvailablePayslipDocumentItem) => Promise<void>
 }) {
+  const { t, locale, isRTL } = useI18n()
   const sourceLabel = getPayslipDocumentSourceLabel(document.source)
   const isOpening = activeActionKey === `${document.id}:open`
   const isDownloading = activeActionKey === `${document.id}:download`
@@ -318,7 +333,7 @@ function AvailableDocumentRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-slate-950">{document.payrollPeriodLabel}</p>
-            <StatusBadge tone="success">Available</StatusBadge>
+            <StatusBadge tone="success">{t('employee.payslips.documentsSection.availableBadge')}</StatusBadge>
             <StatusBadge tone="neutral" emphasis="outline">
               {sourceLabel}
             </StatusBadge>
@@ -328,13 +343,13 @@ function AvailableDocumentRow({
           </div>
 
           <p className="mt-2 text-sm text-slate-600">
-            {formatDateRange(document.periodStart, document.periodEnd)}
+            {formatDateRange(document.periodStart, document.periodEnd, locale)}
           </p>
 
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
             <span>{document.fileName}</span>
-            <span>Published {formatTimestamp(document.publishedAt)}</span>
-            <span>Size {formatFileSize(document.fileSizeBytes)}</span>
+            <span>{t('common.published')} {formatTimestamp(document.publishedAt, locale)}</span>
+            <span>{t('common.size')} {formatFileSize(document.fileSizeBytes)}</span>
           </div>
         </div>
 
@@ -346,8 +361,12 @@ function AvailableDocumentRow({
             disabled={Boolean(activeActionKey)}
             onClick={() => void onOpen(document)}
           >
-            {isOpening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
-            Open
+            {isOpening ? (
+              <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+            ) : (
+              <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+            )}
+            {t('actions.open')}
           </Button>
           <Button
             type="button"
@@ -355,8 +374,12 @@ function AvailableDocumentRow({
             disabled={Boolean(activeActionKey)}
             onClick={() => void onDownload(document)}
           >
-            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderOpen className="mr-2 h-4 w-4" />}
-            Download
+            {isDownloading ? (
+              <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+            ) : (
+              <FolderOpen className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+            )}
+            {t('actions.download')}
           </Button>
         </div>
       </div>
@@ -375,9 +398,11 @@ function PublishedPayslipRow({
   onOpenDocument: (payslip: EmployeePayslipListItem) => Promise<void>
   onDownloadDocument: (payslip: EmployeePayslipListItem) => Promise<void>
 }) {
-  const statusMeta = getPayrollProcessingStatusMeta(payslip.status)
+  const { t, locale, isRTL } = useI18n()
+  const statusMeta = getPayrollProcessingStatusMeta(payslip.status, t)
   const representationModeLabel = getPayslipDocumentRepresentationModeLabel(
     payslip.documentRepresentationMode,
+    t,
   )
   const documentDescriptor = createEmployeePublishedPayslipAccessDescriptor(payslip)
   const isOpening = activeActionKey === `${payslip.id}:open`
@@ -395,12 +420,12 @@ function PublishedPayslipRow({
             </StatusBadge>
           </div>
           <p className="mt-2 text-sm text-slate-600">
-            {formatDateRange(payslip.periodStart, payslip.periodEnd)}
+            {formatDateRange(payslip.periodStart, payslip.periodEnd, locale)}
           </p>
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span>Published {formatTimestamp(payslip.publishedAt)}</span>
-            <span>Created {formatTimestamp(payslip.createdAt)}</span>
-            <span>Generated {formatTimestamp(payslip.documentGeneratedAt)}</span>
+            <span>{t('common.published')} {formatTimestamp(payslip.publishedAt, locale)}</span>
+            <span>{t('common.created')} {formatTimestamp(payslip.createdAt, locale)}</span>
+            <span>{t('common.generated')} {formatTimestamp(payslip.documentGeneratedAt, locale)}</span>
           </div>
           <div className="mt-4">
             <PayslipWorkflowTimeline
@@ -417,21 +442,22 @@ function PublishedPayslipRow({
         <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm text-slate-600 lg:w-[300px]">
           {payslip.documentReady ? (
             <>
-              <p className="font-medium text-slate-900">Generated payslip PDF available</p>
+              <p className="font-medium text-slate-900">
+                {t('employee.payslips.publishedSection.pdfAvailableTitle')}
+              </p>
               {payslip.fileName ? <p className="mt-1 break-all">{payslip.fileName}</p> : null}
               <p className="mt-1 text-xs text-slate-500">{representationModeLabel}</p>
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                <span>Size {formatFileSize(payslip.documentFileSizeBytes)}</span>
+                <span>{t('common.size')} {formatFileSize(payslip.documentFileSizeBytes)}</span>
                 <span>{payslip.documentContentType ?? 'application/pdf'}</span>
               </div>
             </>
           ) : (
             <>
-              <p className="font-medium text-slate-900">Canonical payslip record published</p>
-              <p className="mt-1">
-                Payroll data is available for this period, even though the generated PDF
-                representation is not available yet.
+              <p className="font-medium text-slate-900">
+                {t('employee.payslips.publishedSection.recordPublishedTitle')}
               </p>
+              <p className="mt-1">{t('employee.payslips.publishedSection.recordPublishedDescription')}</p>
             </>
           )}
 
@@ -445,11 +471,11 @@ function PublishedPayslipRow({
                 onClick={() => void onOpenDocument(payslip)}
               >
                 {isOpening ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <ExternalLink className="mr-2 h-4 w-4" />
+                  <ExternalLink className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                Open PDF
+                {t('actions.open')} PDF
               </Button>
               <Button
                 type="button"
@@ -458,11 +484,11 @@ function PublishedPayslipRow({
                 onClick={() => void onDownloadDocument(payslip)}
               >
                 {isDownloading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
                 ) : (
-                  <FolderOpen className="mr-2 h-4 w-4" />
+                  <FolderOpen className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                 )}
-                Download PDF
+                {t('actions.download')} PDF
               </Button>
             </div>
           ) : null}
@@ -494,6 +520,7 @@ function sortPublishedPayslips(items: EmployeePayslipListItem[]) {
 
 export function EmployeePayslipsPage() {
   const { user } = useAuth()
+  const { t, locale, isRTL } = useI18n()
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false)
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('')
   const [requestNote, setRequestNote] = useState('')
@@ -523,7 +550,7 @@ export function EmployeePayslipsPage() {
 
   const createRequestMutation = useCreatePayslipRequestMutation(user?.id, {
     onSuccess: () => {
-      toast.success('Payslip request submitted.')
+      toast.success(t('employee.payslips.feedback.requestSubmitSuccess'))
       setIsRequestDialogOpen(false)
       setSelectedPeriodId('')
       setRequestNote('')
@@ -536,7 +563,7 @@ export function EmployeePayslipsPage() {
 
   const handleSubmitRequest = async () => {
     if (!selectedPeriodId) {
-      toast.error('Select a payroll period before submitting your request.')
+      toast.error(t('employee.payslips.feedback.selectPeriodError'))
       return
     }
 
@@ -547,7 +574,7 @@ export function EmployeePayslipsPage() {
       })
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to submit payslip request.',
+        error instanceof Error ? error.message : t('employee.payslips.feedback.requestSubmitError'),
       )
     }
   }
@@ -558,7 +585,7 @@ export function EmployeePayslipsPage() {
     failureMessage: string,
   ) => {
     if (!descriptor) {
-      toast.error('This payslip PDF is not available yet.')
+      toast.error(t('employee.payslips.feedback.documentUnavailable'))
       return
     }
 
@@ -604,19 +631,19 @@ export function EmployeePayslipsPage() {
 
   return (
     <DashboardLayout
-      title="Payslips"
-      subtitle="Request, track, and access payroll-derived payslip records and their available document representations."
+      title={t('employee.payslips.title')}
+      subtitle={t('employee.payslips.subtitle')}
     >
       <PageHeader
-        title="Payslips"
-        description="Request a payslip for an existing payroll period, follow payroll review status, and access only the payroll-derived payslip records and document representations published to your own employee account."
+        title={t('employee.payslips.title')}
+        description={t('employee.payslips.headerDescription')}
         className="mb-6"
         actions={
           <>
             <Button asChild variant="outline">
               <Link to={ROUTES.EMPLOYEE_PROFILE}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to profile
+                <ArrowLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
+                {t('actions.backToProfile')}
               </Link>
             </Button>
             <Button
@@ -626,11 +653,11 @@ export function EmployeePayslipsPage() {
               onClick={() => setIsRequestDialogOpen(true)}
             >
               {createRequestMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : (
-                <FileText className="mr-2 h-4 w-4" />
+                <FileText className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               )}
-              Request payslip
+              {t('employee.payslips.dialog.title')}
             </Button>
           </>
         }
@@ -642,24 +669,24 @@ export function EmployeePayslipsPage() {
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
-              title="My requests"
+              title={t('employee.payslips.summary.myRequestsTitle')}
               value={String(payslipRequests.length)}
-              helper="Payslip requests you have submitted from your employee account."
+              helper={t('employee.payslips.summary.myRequestsHelper')}
             />
             <SummaryCard
-              title="Pending review"
+              title={t('employee.payslips.summary.pendingReviewTitle')}
               value={String(pendingRequestCount)}
-              helper="Requests still waiting on payroll review or fulfillment."
+              helper={t('employee.payslips.summary.pendingReviewHelper')}
             />
             <SummaryCard
-              title="Available documents"
+              title={t('employee.payslips.summary.availableDocumentsTitle')}
               value={String(availableDocuments.length)}
-              helper="PDF representations currently available to preview and download."
+              helper={t('employee.payslips.summary.availableDocumentsHelper')}
             />
             <SummaryCard
-              title="Latest delivery"
-              value={formatTimestamp(latestDocumentTimestamp)}
-              helper="Most recent payslip document publication available in your account."
+              title={t('employee.payslips.summary.latestDeliveryTitle')}
+              value={formatTimestamp(latestDocumentTimestamp, locale)}
+              helper={t('employee.payslips.summary.latestDeliveryHelper')}
             />
           </div>
 
@@ -667,22 +694,18 @@ export function EmployeePayslipsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
                 <ShieldCheck className="h-4 w-4 text-slate-600" />
-                Access boundary
+                {t('employee.payslips.boundary.title')}
               </CardTitle>
               <CardDescription>
-                Employee self-service stays restricted to your own requests and your own published
-                payslip documents.
+                {t('employee.payslips.boundary.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                You cannot access draft payroll runs, payroll calculation details for other
-                employees, unpublished payslip records, or unpublished document representations.
+                {t('employee.payslips.boundary.itemOne')}
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-                Canonical payslip records come from published payroll data. Preview and download
-                become available only after the generated PDF representation is attached to that
-                record and published to your employee account.
+                {t('employee.payslips.boundary.itemTwo')}
               </div>
             </CardContent>
           </Card>
@@ -690,10 +713,10 @@ export function EmployeePayslipsPage() {
           <Card className={`${SURFACE_CARD_CLASS_NAME} mb-6`}>
             <CardHeader>
               <CardTitle className="text-base font-semibold text-slate-950">
-                My payslip requests
+                {t('employee.payslips.requestsSection.title')}
               </CardTitle>
               <CardDescription>
-                Follow the payroll review lifecycle for the payslips you requested.
+                {t('employee.payslips.requestsSection.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -703,8 +726,8 @@ export function EmployeePayslipsPage() {
                 <ErrorState
                   surface="plain"
                   align="left"
-                  title="Could not load payslip requests"
-                  description="We couldn't load your payslip request history right now."
+                  title={t('employee.payslips.requestsSection.loadErrorTitle')}
+                  description={t('employee.payslips.requestsSection.loadErrorDescription')}
                   message={payslipRequestsQuery.error.message}
                   onRetry={() => void payslipRequestsQuery.refetch()}
                 />
@@ -712,8 +735,8 @@ export function EmployeePayslipsPage() {
                 <EmptyState
                   surface="plain"
                   align="left"
-                  title="No payslip requests yet"
-                  description="Use the request action above whenever you need payroll to review and deliver an available payslip document for an eligible period."
+                  title={t('employee.payslips.requestsSection.emptyTitle')}
+                  description={t('employee.payslips.requestsSection.emptyDescription')}
                 />
               ) : (
                 <div className="space-y-3">
@@ -727,7 +750,7 @@ export function EmployeePayslipsPage() {
                           `${item.id}:open`,
                           createPayslipRequestDeliveredDocumentAccessDescriptor(item) ??
                             createPayslipRequestCanonicalDocumentAccessDescriptor(item),
-                          'Could not open payslip PDF.',
+                          t('employee.payslips.feedback.openDocumentError'),
                         )
                       }
                       onDownloadDocument={(item) =>
@@ -735,7 +758,7 @@ export function EmployeePayslipsPage() {
                           `${item.id}:download`,
                           createPayslipRequestDeliveredDocumentAccessDescriptor(item) ??
                             createPayslipRequestCanonicalDocumentAccessDescriptor(item),
-                          'Could not download payslip PDF.',
+                          t('employee.payslips.feedback.downloadDocumentError'),
                         )
                       }
                     />
@@ -748,12 +771,10 @@ export function EmployeePayslipsPage() {
           <Card className={`${SURFACE_CARD_CLASS_NAME} mb-6`}>
             <CardHeader>
               <CardTitle className="text-base font-semibold text-slate-950">
-                Available payslip documents
+                {t('employee.payslips.documentsSection.title')}
               </CardTitle>
               <CardDescription>
-                Preview or download only the payslip documents published to your own employee
-                account, whether they came directly from payroll publication or from request
-                delivery history.
+                {t('employee.payslips.documentsSection.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -763,8 +784,8 @@ export function EmployeePayslipsPage() {
                 <ErrorState
                   surface="plain"
                   align="left"
-                  title="Could not load payslip documents"
-                  description="We couldn't load your available payslip documents right now."
+                  title={t('employee.payslips.documentsSection.loadErrorTitle')}
+                  description={t('employee.payslips.documentsSection.loadErrorDescription')}
                   message={availableDocumentsQuery.error.message}
                   onRetry={() => void availableDocumentsQuery.refetch()}
                 />
@@ -772,8 +793,8 @@ export function EmployeePayslipsPage() {
                 <EmptyState
                   surface="plain"
                   align="left"
-                  title="No payslip documents available"
-                  description="Generated payroll PDFs and request-delivery document records will appear here once they are published to your account."
+                  title={t('employee.payslips.documentsSection.emptyTitle')}
+                  description={t('employee.payslips.documentsSection.emptyDescription')}
                 />
               ) : (
                 <div className="space-y-3">
@@ -786,14 +807,14 @@ export function EmployeePayslipsPage() {
                         handleOpenDocument(
                           `${item.id}:open`,
                           createAvailablePayslipDocumentAccessDescriptor(item),
-                          'Could not open payslip document.',
+                          t('employee.payslips.feedback.openAvailableDocumentError'),
                         )
                       }
                       onDownload={(item) =>
                         handleDownloadDocument(
                           `${item.id}:download`,
                           createAvailablePayslipDocumentAccessDescriptor(item),
-                          'Could not download payslip document.',
+                          t('employee.payslips.feedback.downloadAvailableDocumentError'),
                         )
                       }
                     />
@@ -806,11 +827,10 @@ export function EmployeePayslipsPage() {
           <Card className={SURFACE_CARD_CLASS_NAME}>
             <CardHeader>
               <CardTitle className="text-base font-semibold text-slate-950">
-                Published payslip records
+                {t('employee.payslips.publishedSection.title')}
               </CardTitle>
               <CardDescription>
-                Canonical payslip records remain visible here even before a PDF representation is
-                generated and attached.
+                {t('employee.payslips.publishedSection.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -820,8 +840,8 @@ export function EmployeePayslipsPage() {
                 <ErrorState
                   surface="plain"
                   align="left"
-                  title="Could not load published payslips"
-                  description="We couldn't load your published payslip records right now."
+                  title={t('employee.payslips.publishedSection.loadErrorTitle')}
+                  description={t('employee.payslips.publishedSection.loadErrorDescription')}
                   message={publishedPayslipsQuery.error.message}
                   onRetry={() => void publishedPayslipsQuery.refetch()}
                 />
@@ -829,8 +849,8 @@ export function EmployeePayslipsPage() {
                 <EmptyState
                   surface="plain"
                   align="left"
-                  title="No published payslip records yet"
-                  description="Payroll-derived payslip records will appear here once payroll completes publication for your account."
+                  title={t('employee.payslips.publishedSection.emptyTitle')}
+                  description={t('employee.payslips.publishedSection.emptyDescription')}
                 />
               ) : (
                 <div className="space-y-3">
@@ -843,14 +863,14 @@ export function EmployeePayslipsPage() {
                         handleOpenDocument(
                           `${item.id}:open`,
                           createEmployeePublishedPayslipAccessDescriptor(item),
-                          'Could not open generated payslip PDF.',
+                          t('employee.payslips.feedback.openGeneratedDocumentError'),
                         )
                       }
                       onDownloadDocument={(item) =>
                         handleDownloadDocument(
                           `${item.id}:download`,
                           createEmployeePublishedPayslipAccessDescriptor(item),
-                          'Could not download generated payslip PDF.',
+                          t('employee.payslips.feedback.downloadGeneratedDocumentError'),
                         )
                       }
                     />
@@ -874,20 +894,18 @@ export function EmployeePayslipsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request Payslip</DialogTitle>
+            <DialogTitle>{t('employee.payslips.dialog.title')}</DialogTitle>
             <DialogDescription>
-              Submit a payroll request for one available payroll period. The request stays in your
-              account until payroll reviews it and delivers any available document representation
-              for the payroll-derived payslip record.
+              {t('employee.payslips.dialog.description')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="payslipRequestPeriod">Payroll period</Label>
+              <Label htmlFor="payslipRequestPeriod">{t('employee.payslips.dialog.payrollPeriodLabel')}</Label>
               <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
                 <SelectTrigger id="payslipRequestPeriod">
-                  <SelectValue placeholder="Select a payroll period" />
+                  <SelectValue placeholder={t('employee.payslips.dialog.payrollPeriodPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {requestPeriods.map((period) => (
@@ -900,18 +918,18 @@ export function EmployeePayslipsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="payslipRequestNote">Note</Label>
+              <Label htmlFor="payslipRequestNote">{t('employee.payslips.dialog.noteLabel')}</Label>
               <Textarea
                 id="payslipRequestNote"
                 value={requestNote}
                 onChange={(event) => setRequestNote(event.target.value)}
-                placeholder="Add an optional note for payroll review."
+                placeholder={t('employee.payslips.dialog.notePlaceholder')}
                 rows={4}
               />
             </div>
 
             {requestPeriodsQuery.isPending ? (
-              <p className="text-sm text-slate-500">Loading available payroll periods...</p>
+              <p className="text-sm text-slate-500">{t('employee.payslips.dialog.loadingPeriods')}</p>
             ) : null}
 
             {requestPeriodsQuery.isError ? (
@@ -922,7 +940,7 @@ export function EmployeePayslipsPage() {
             !requestPeriodsQuery.isError &&
             requestPeriods.length === 0 ? (
               <p className="text-sm text-slate-500">
-                No payroll periods are currently available for a new payslip request.
+                {t('employee.payslips.dialog.noPeriods')}
               </p>
             ) : null}
           </div>
@@ -947,11 +965,11 @@ export function EmployeePayslipsPage() {
               onClick={() => void handleSubmitRequest()}
             >
               {createRequestMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
               ) : (
-                <FileText className="mr-2 h-4 w-4" />
+                <FileText className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               )}
-              Submit request
+              {t('actions.submit')}
             </Button>
           </DialogFooter>
         </DialogContent>
