@@ -1,0 +1,2 @@
+To sign in, use a web browser to open the page https://login.microsoft.com/device and enter the code L2B9Q4GE7 to authenticate.
+ERROR: No subscriptions found for mermoulaymen474432@outlook.com.

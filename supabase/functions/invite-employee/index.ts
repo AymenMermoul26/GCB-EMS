@@ -395,23 +395,39 @@ function normalizeUrlValue(value: string | null | undefined): string | null {
   }
 }
 
+function buildLoginRedirectUrl(baseUrl: string | null | undefined): string | null {
+  const normalizedBase = normalizeUrlValue(baseUrl)
+  if (!normalizedBase) {
+    return null
+  }
+
+  try {
+    return new URL('/login', normalizedBase).toString()
+  } catch {
+    return null
+  }
+}
+
 function resolveInviteRedirectUrl(request: Request): string | undefined {
-  const configuredRedirect = normalizeUrlValue(Deno.env.get('INVITE_REDIRECT_URL'))
+  const configuredRedirect =
+    normalizeUrlValue(Deno.env.get('INVITE_REDIRECT_URL')) ??
+    buildLoginRedirectUrl(Deno.env.get('APP_BASE_URL'))
+
   if (configuredRedirect) {
     return configuredRedirect
   }
 
-  const originHeader = normalizeUrlValue(request.headers.get('origin'))
+  const originHeader = buildLoginRedirectUrl(request.headers.get('origin'))
   if (originHeader) {
-    return `${originHeader}/login`
+    return originHeader
   }
 
   const refererHeader = request.headers.get('referer')?.trim()
   if (refererHeader) {
     try {
-      const refererOrigin = normalizeUrlValue(new URL(refererHeader).origin)
+      const refererOrigin = buildLoginRedirectUrl(new URL(refererHeader).origin)
       if (refererOrigin) {
-        return `${refererOrigin}/login`
+        return refererOrigin
       }
     } catch {
       // Ignore malformed referer and fall back to Supabase project defaults.

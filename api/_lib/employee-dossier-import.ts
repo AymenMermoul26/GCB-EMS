@@ -78,9 +78,8 @@ const FIELD_ALIASES: Record<EmployeeDossierSourceFieldKey, string[]> = {
 interface ExtractionEnv {
   supabaseUrl: string
   supabaseAnonKey: string
-  supabaseServiceRoleKey: string
-  azureEndpoint: string
-  azureApiKey: string
+  azureEndpoint: string | null
+  azureApiKey: string | null
   azureModelId: string
 }
 
@@ -135,29 +134,32 @@ function getServerEnv(): ExtractionEnv {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
   const supabaseAnonKey =
     process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const azureEndpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
   const azureApiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
-      'Supabase server configuration is incomplete. Set SUPABASE_SERVICE_ROLE_KEY and the project URL/anon key variables.',
-    )
-  }
-
-  if (!azureEndpoint || !azureApiKey) {
-    throw new Error(
-      'Azure Document Intelligence is not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY.',
+      'Supabase server configuration is incomplete. Set the project URL and anon key variables.',
     )
   }
 
   return {
     supabaseUrl,
     supabaseAnonKey,
-    supabaseServiceRoleKey,
-    azureEndpoint: azureEndpoint.replace(/\/+$/, ''),
+    azureEndpoint: azureEndpoint ? azureEndpoint.replace(/\/+$/, '') : null,
     azureApiKey,
     azureModelId: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID,
+  }
+}
+
+function requireAzureConfiguration(
+  env: ExtractionEnv,
+): asserts env is ExtractionEnv & { azureEndpoint: string; azureApiKey: string } {
+  if (!env.azureEndpoint || !env.azureApiKey) {
+    throw new Response(
+      'Azure Document Intelligence is not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY in Vercel before using dossier import.',
+      { status: 503 },
+    )
   }
 }
 
@@ -179,34 +181,32 @@ function extractBearerToken(request: Request): string | null {
 async function authenticateAdminRequest(
   request: Request,
   env: ExtractionEnv,
-): Promise<{ userId: string }> {
+): Promise<{ userId: string; accessToken: string }> {
   const token = extractBearerToken(request)
 
   if (!token) {
     throw new Response('Unauthorized. Missing bearer token.', { status: 401 })
   }
 
-  const authClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+  const authenticatedClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
   })
 
-  const { data: authData, error: authError } = await authClient.auth.getUser(token)
+  const { data: authData, error: authError } = await authenticatedClient.auth.getUser(token)
 
   if (authError || !authData.user?.id) {
     throw new Response('Unauthorized. Invalid session token.', { status: 401 })
   }
 
-  const adminClient = createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-
-  const { data: roleData, error: roleError } = await adminClient
+  const { data: roleData, error: roleError } = await authenticatedClient
     .from('ProfilUtilisateur')
     .select('role')
     .eq('user_id', authData.user.id)
@@ -223,7 +223,21 @@ async function authenticateAdminRequest(
     throw new Response('Forbidden. Admin RH role required.', { status: 403 })
   }
 
-  return { userId: authData.user.id }
+  return { userId: authData.user.id, accessToken: token }
+}
+
+function createAuthenticatedSupabaseClient(env: ExtractionEnv, accessToken: string) {
+  return createClient(env.supabaseUrl, env.supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  })
 }
 
 function isSupportedMimeType(mimeType: string): mimeType is (typeof EMPLOYEE_DOSSIER_MIME_TYPES)[number] {
@@ -262,7 +276,7 @@ async function parseUpload(request: Request): Promise<File> {
 
 async function submitAzureAnalyzeRequest(
   file: File,
-  env: ExtractionEnv,
+  env: ExtractionEnv & { azureEndpoint: string; azureApiKey: string },
 ): Promise<string> {
   const analyzeUrl = new URL(
     `${env.azureEndpoint}/documentintelligence/documentModels/${env.azureModelId}:analyze`,
@@ -307,7 +321,7 @@ function delay(ms: number): Promise<void> {
 
 async function pollAzureAnalyzeResult(
   operationLocation: string,
-  env: ExtractionEnv,
+  env: ExtractionEnv & { azureEndpoint: string; azureApiKey: string },
 ): Promise<AzureAnalyzeResult> {
   const startedAt = Date.now()
 
@@ -591,13 +605,11 @@ function matchDepartmentId(
   }
 }
 
-async function listDepartments(env: ExtractionEnv): Promise<DepartmentRow[]> {
-  const adminClient = createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
+async function listDepartments(
+  env: ExtractionEnv,
+  accessToken: string,
+): Promise<DepartmentRow[]> {
+  const adminClient = createAuthenticatedSupabaseClient(env, accessToken)
 
   const { data, error } = await adminClient
     .from('Departement')
@@ -1016,9 +1028,10 @@ export async function handleEmployeeDossierExtractRequest(
     }
 
     const env = getServerEnv()
-    await authenticateAdminRequest(request, env)
+    const authContext = await authenticateAdminRequest(request, env)
     const uploadedFile = await parseUpload(request)
-    const departments = await listDepartments(env)
+    requireAzureConfiguration(env)
+    const departments = await listDepartments(env, authContext.accessToken)
     const operationLocation = await submitAzureAnalyzeRequest(uploadedFile, env)
     const analyzeResult = await pollAzureAnalyzeResult(operationLocation, env)
     const response = buildExtractionResponse(analyzeResult, departments)
@@ -1032,7 +1045,10 @@ export async function handleEmployeeDossierExtractRequest(
     console.error('Employee dossier extract endpoint failed', error)
     return jsonResponse(
       {
-        error: 'Employee dossier extraction failed unexpectedly. Continue with manual entry.',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Employee dossier extraction failed unexpectedly. Continue with manual entry.',
       },
       500,
     )

@@ -39,12 +39,14 @@ VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_APP_NAME=GCB EMS
 VITE_PUBLIC_BASE_URL=https://your-app.vercel.app
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+INVITE_REDIRECT_URL=https://your-app.vercel.app/login
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=your-azure-document-intelligence-key
 AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID=prebuilt-layout
 AZURE_DOCUMENT_INTELLIGENCE_API_VERSION=2024-11-30
 ```
+
+For hosted Supabase edge functions, set `INVITE_REDIRECT_URL` as a Supabase project secret so employee invite emails always redirect to the deployed app instead of a local fallback URL.
 
 ## OCR dossier import
 
