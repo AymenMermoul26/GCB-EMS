@@ -30,9 +30,7 @@ interface NotificationLookupRow {
 
 interface InviteResolutionResult {
   userId: string
-  emailSent: boolean
-  emailDeliveryType?: InviteEmailDeliveryType
-  requiresExistingUserAccessEmail?: boolean
+  emailDeliveryType: InviteEmailDeliveryType
 }
 
 type InviteTriggerSource = 'invite' | 'resend_invite'
@@ -88,6 +86,11 @@ function getEmployeeFullName(employee: EmployeRow): string {
   return `${employee.prenom} ${employee.nom}`.replace(/\s+/g, ' ').trim()
 }
 
+function normalizeText(value: string | null | undefined): string | null {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : null
+}
+
 async function insertInviteAuditLog(params: {
   adminClient: ReturnType<typeof createClient>
   actorUserId: string
@@ -99,6 +102,7 @@ async function insertInviteAuditLog(params: {
   authUserId?: string | null
   mustChangePassword?: boolean
   failureReason?: string
+  provider?: 'gmail_api' | 'supabase_auth'
 }): Promise<{ logged: boolean; warning?: string }> {
   const timestamp = new Date().toISOString()
   const detailsJson: Record<string, unknown> = {
@@ -108,7 +112,7 @@ async function insertInviteAuditLog(params: {
     matricule: params.employee.matricule,
     email_type: 'employee_invite',
     trigger_source: params.triggerSource,
-    provider: 'supabase_auth',
+    provider: params.provider ?? 'gmail_api',
     status: params.action === 'EMPLOYEE_INVITE_SENT' ? 'sent' : 'failed',
   }
 
@@ -190,35 +194,15 @@ async function findAuthUserIdByEmail(
   return null
 }
 
-async function inviteOrResolveAuthUser(
+async function createOrResolveAuthUser(
   adminClient: ReturnType<typeof createClient>,
   normalizedEmail: string,
-  redirectTo?: string,
 ): Promise<InviteResolutionResult> {
-  const inviteResult = await adminClient.auth.admin.inviteUserByEmail(
-    normalizedEmail,
-    redirectTo ? { redirectTo } : undefined,
-  )
-
-  if (!inviteResult.error && inviteResult.data.user?.id) {
-    return {
-      userId: inviteResult.data.user.id,
-      emailSent: true,
-      emailDeliveryType: 'invite',
-    }
-  }
-
-  if (inviteResult.error && !isAlreadyRegisteredError(inviteResult.error.message)) {
-    throw new InviteFlowError(inviteResult.error.message, true)
-  }
-
   const existingUserId = await findAuthUserIdByEmail(adminClient, normalizedEmail)
   if (existingUserId) {
     return {
       userId: existingUserId,
-      emailSent: false,
       emailDeliveryType: 'magiclink',
-      requiresExistingUserAccessEmail: true,
     }
   }
 
@@ -236,9 +220,7 @@ async function inviteOrResolveAuthUser(
     if (fallbackUserId) {
       return {
         userId: fallbackUserId,
-        emailSent: false,
         emailDeliveryType: 'magiclink',
-        requiresExistingUserAccessEmail: true,
       }
     }
 
@@ -251,27 +233,7 @@ async function inviteOrResolveAuthUser(
 
   return {
     userId: createResult.data.user.id,
-    emailSent: false,
-    emailDeliveryType: 'magiclink',
-    requiresExistingUserAccessEmail: true,
-  }
-}
-
-async function sendExistingUserAccessEmail(
-  adminClient: ReturnType<typeof createClient>,
-  normalizedEmail: string,
-  redirectTo?: string,
-): Promise<void> {
-  const { error } = await adminClient.auth.signInWithOtp({
-    email: normalizedEmail,
-    options: {
-      shouldCreateUser: false,
-      ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
-    },
-  })
-
-  if (error) {
-    throw new InviteFlowError(error.message, true)
+    emailDeliveryType: 'invite',
   }
 }
 
@@ -393,6 +355,299 @@ function normalizeUrlValue(value: string | null | undefined): string | null {
   } catch {
     return null
   }
+}
+
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ').trim()
+}
+
+function base64UrlEncodeText(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  const chunkSize = 0x8000
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function buildRawMimeMessage(params: {
+  from: string
+  to: string
+  subject: string
+  html: string
+  replyTo?: string | null
+}): string {
+  const headers = [
+    `From: ${sanitizeHeaderValue(params.from)}`,
+    `To: ${sanitizeHeaderValue(params.to)}`,
+    `Subject: ${sanitizeHeaderValue(params.subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+  ]
+
+  if (params.replyTo) {
+    headers.push(`Reply-To: ${sanitizeHeaderValue(params.replyTo)}`)
+  }
+
+  return `${headers.join('\r\n')}\r\n\r\n${params.html}`
+}
+
+async function getGmailAccessToken(params: {
+  clientId: string
+  clientSecret: string
+  refreshToken: string
+}): Promise<string> {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      refresh_token: params.refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  })
+
+  let parsedBody: Record<string, unknown> | null = null
+  try {
+    parsedBody = (await response.json()) as Record<string, unknown> | null
+  } catch {
+    parsedBody = null
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof parsedBody?.error_description === 'string'
+        ? parsedBody.error_description
+        : typeof parsedBody?.error === 'string'
+          ? parsedBody.error
+          : 'Could not obtain a Gmail API access token.'
+    throw new InviteFlowError(message, true)
+  }
+
+  const accessToken =
+    typeof parsedBody?.access_token === 'string' ? parsedBody.access_token : null
+
+  if (!accessToken) {
+    throw new InviteFlowError('Gmail API access token response was invalid.', true)
+  }
+
+  return accessToken
+}
+
+async function sendEmailViaGmail(params: {
+  clientId: string
+  clientSecret: string
+  refreshToken: string
+  senderEmail: string
+  replyTo?: string | null
+  recipientEmail: string
+  subject: string
+  html: string
+}): Promise<void> {
+  const accessToken = await getGmailAccessToken({
+    clientId: params.clientId,
+    clientSecret: params.clientSecret,
+    refreshToken: params.refreshToken,
+  })
+
+  const rawMessage = buildRawMimeMessage({
+    from: params.senderEmail,
+    to: params.recipientEmail,
+    subject: params.subject,
+    html: params.html,
+    replyTo: params.replyTo,
+  })
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      raw: base64UrlEncodeText(rawMessage),
+    }),
+  })
+
+  if (!response.ok) {
+    let failureReason = 'Invite email delivery failed through Gmail API.'
+
+    try {
+      const body = (await response.json()) as Record<string, unknown> | null
+      const errorObject =
+        body && typeof body.error === 'object' && body.error !== null
+          ? (body.error as Record<string, unknown>)
+          : null
+      const bodyMessage =
+        typeof errorObject?.message === 'string'
+          ? errorObject.message
+          : typeof body?.error === 'string'
+            ? body.error
+            : null
+
+      if (bodyMessage) {
+        failureReason = bodyMessage
+      }
+    } catch {
+      // Ignore JSON parsing failure and keep the generic Gmail failure reason.
+    }
+
+    throw new InviteFlowError(failureReason, true)
+  }
+}
+
+async function generateEmployeeAccessLink(params: {
+  adminClient: ReturnType<typeof createClient>
+  email: string
+  deliveryType: InviteEmailDeliveryType
+  redirectTo?: string
+}): Promise<string> {
+  const { data, error } = await params.adminClient.auth.admin.generateLink({
+    type: params.deliveryType,
+    email: params.email,
+    options: params.redirectTo ? { redirectTo: params.redirectTo } : undefined,
+  })
+
+  if (error) {
+    throw new InviteFlowError(error.message, true)
+  }
+
+  const actionLink = data.properties?.action_link?.trim()
+  if (!actionLink) {
+    throw new InviteFlowError('Invite link generation returned an empty action link.', true)
+  }
+
+  return actionLink
+}
+
+function applyRedirectToActionLink(actionLink: string, redirectTo?: string): string {
+  if (!redirectTo) {
+    return actionLink
+  }
+
+  try {
+    const parsedLink = new URL(actionLink)
+    parsedLink.searchParams.set('redirect_to', redirectTo)
+    return parsedLink.toString()
+  } catch {
+    return actionLink
+  }
+}
+
+function buildInviteEmailSubject(params: {
+  employee: EmployeRow
+  deliveryType: InviteEmailDeliveryType
+}): string {
+  const fullName = getEmployeeFullName(params.employee)
+
+  if (params.deliveryType === 'invite') {
+    return `Activate your GCB EMS account${fullName ? `, ${fullName}` : ''}`
+  }
+
+  return `Your GCB EMS access link${fullName ? `, ${fullName}` : ''}`
+}
+
+function renderInviteEmailHtml(params: {
+  employee: EmployeRow
+  actionLink: string
+  deliveryType: InviteEmailDeliveryType
+  redirectTo?: string
+}): string {
+  const fullName = getEmployeeFullName(params.employee)
+  const intro =
+    params.deliveryType === 'invite'
+      ? 'Your employee account has been prepared in GCB EMS. Use the secure link below to sign in for the first time.'
+      : 'Use the secure link below to access your GCB EMS account.'
+  const nextStep =
+    params.deliveryType === 'invite'
+      ? 'After sign-in, you will be asked to set a strong password before continuing.'
+      : 'If your account still requires a password update, the app will guide you to the security step after sign-in.'
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:24px;background:#f6f7fb;font-family:Arial,sans-serif;color:#0f172a;">
+    <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;">
+      <div style="padding:24px 28px;background:linear-gradient(135deg,#10172d 0%,#1b2442 100%);color:#ffffff;">
+        <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.75;">GCB EMS</div>
+        <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;">Employee account access</h1>
+      </div>
+      <div style="padding:28px;">
+        <p style="margin:0 0 16px;font-size:16px;line-height:1.7;">Hello${fullName ? ` ${fullName}` : ''},</p>
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">${intro}</p>
+        <p style="margin:0 0 24px;font-size:15px;line-height:1.7;">${nextStep}</p>
+        <div style="margin:0 0 24px;">
+          <a href="${sanitizeHeaderValue(params.actionLink)}" style="display:inline-block;background:#f97316;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px;">Open GCB EMS</a>
+        </div>
+        <p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#475569;">If the button does not open, use this secure link:</p>
+        <p style="margin:0 0 20px;font-size:13px;line-height:1.7;word-break:break-all;">
+          <a href="${sanitizeHeaderValue(params.actionLink)}" style="color:#2563eb;text-decoration:underline;">${sanitizeHeaderValue(params.actionLink)}</a>
+        </p>
+        ${
+          params.redirectTo
+            ? `<p style="margin:0;font-size:12px;line-height:1.7;color:#64748b;">Expected app destination after verification: ${sanitizeHeaderValue(params.redirectTo)}</p>`
+            : ''
+        }
+      </div>
+    </div>
+  </body>
+</html>`
+}
+
+async function sendEmployeeAccessEmail(params: {
+  adminClient: ReturnType<typeof createClient>
+  recipientEmail: string
+  employee: EmployeRow
+  deliveryType: InviteEmailDeliveryType
+  redirectTo?: string
+}): Promise<void> {
+  const gmailClientId = normalizeText(Deno.env.get('GMAIL_OAUTH_CLIENT_ID'))
+  const gmailClientSecret = normalizeText(Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET'))
+  const gmailRefreshToken = normalizeText(Deno.env.get('GMAIL_OAUTH_REFRESH_TOKEN'))
+  const gmailSenderEmail = normalizeText(Deno.env.get('GMAIL_SENDER_EMAIL'))
+  const inviteReplyTo =
+    normalizeText(Deno.env.get('INVITE_EMAIL_REPLY_TO')) ??
+    normalizeText(Deno.env.get('DOCUMENT_EMAIL_REPLY_TO'))
+
+  if (!gmailClientId || !gmailClientSecret || !gmailRefreshToken || !gmailSenderEmail) {
+    throw new InviteFlowError(
+      'Invite email delivery requires Gmail API configuration. Set GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN, and GMAIL_SENDER_EMAIL.',
+      true,
+    )
+  }
+
+  const actionLink = await generateEmployeeAccessLink({
+    adminClient: params.adminClient,
+    email: params.recipientEmail,
+    deliveryType: params.deliveryType,
+    redirectTo: params.redirectTo,
+  })
+  const safeActionLink = applyRedirectToActionLink(actionLink, params.redirectTo)
+
+  await sendEmailViaGmail({
+    clientId: gmailClientId,
+    clientSecret: gmailClientSecret,
+    refreshToken: gmailRefreshToken,
+    senderEmail: gmailSenderEmail,
+    replyTo: inviteReplyTo,
+    recipientEmail: params.recipientEmail,
+    subject: buildInviteEmailSubject({
+      employee: params.employee,
+      deliveryType: params.deliveryType,
+    }),
+    html: renderInviteEmailHtml({
+      employee: params.employee,
+      actionLink: safeActionLink,
+      deliveryType: params.deliveryType,
+      redirectTo: params.redirectTo,
+    }),
+  })
 }
 
 function buildLoginRedirectUrl(baseUrl: string | null | undefined): string | null {
@@ -585,17 +840,17 @@ Deno.serve(async (request) => {
     const linkedMustChangePassword = readMustChangePasswordFlag(linkedAppMetadata.must_change_password)
     let auditLogged: boolean | undefined
     let warning: string | undefined
-    let emailSent = false
-    let emailDeliveryType: InviteEmailDeliveryType | undefined
+    const emailSent = true
+    const emailDeliveryType: InviteEmailDeliveryType = 'magiclink'
 
     try {
-      await sendExistingUserAccessEmail(
+      await sendEmployeeAccessEmail({
         adminClient,
-        normalizedEmail,
-        inviteRedirectTo,
-      )
-      emailSent = true
-      emailDeliveryType = 'magiclink'
+        recipientEmail: normalizedEmail,
+        employee,
+        deliveryType: emailDeliveryType,
+        redirectTo: inviteRedirectTo,
+      })
     } catch (error) {
       const failureMessage =
         error instanceof Error ? error.message : 'Unable to send account access email.'
@@ -661,10 +916,9 @@ Deno.serve(async (request) => {
 
   let inviteResolution: InviteResolutionResult
   try {
-    inviteResolution = await inviteOrResolveAuthUser(
+    inviteResolution = await createOrResolveAuthUser(
       adminClient,
       normalizedEmail,
-      inviteRedirectTo,
     )
   } catch (error) {
     if (error instanceof InviteFlowError && error.shouldLogEmailFailure) {
@@ -691,26 +945,8 @@ Deno.serve(async (request) => {
   }
 
   const authUserId = inviteResolution.userId
-  let auditLogged: boolean | undefined
-  let warning: string | undefined
-  let emailSent = inviteResolution.emailSent
-  let emailDeliveryType = inviteResolution.emailDeliveryType
-
-  if (inviteResolution.emailSent) {
-    const auditResult = await insertInviteAuditLog({
-      adminClient,
-      actorUserId: user.id,
-      action: 'EMPLOYEE_INVITE_SENT',
-      employee,
-      recipientEmail: normalizedEmail,
-      triggerSource,
-      emailDeliveryType,
-      authUserId,
-      mustChangePassword: true,
-    })
-    auditLogged = auditResult.logged
-    warning = auditResult.warning
-  }
+  const emailSent = true
+  const emailDeliveryType = inviteResolution.emailDeliveryType
 
   const { data: linkedElsewhereRows, error: linkedElsewhereError } = await adminClient
     .from('ProfilUtilisateur')
@@ -749,53 +985,48 @@ Deno.serve(async (request) => {
     })
   }
 
-  if (inviteResolution.requiresExistingUserAccessEmail) {
-    try {
-      await sendExistingUserAccessEmail(
-        adminClient,
-        normalizedEmail,
-        inviteRedirectTo,
-      )
-      emailSent = true
-      emailDeliveryType = 'magiclink'
-    } catch (error) {
-      const failureMessage =
-        error instanceof Error ? error.message : 'Unable to send account access email.'
-      const auditResult = await insertInviteAuditLog({
-        adminClient,
-        actorUserId: user.id,
-        action: 'EMPLOYEE_INVITE_FAILED',
-        employee,
-        recipientEmail: normalizedEmail,
-        triggerSource,
-        emailDeliveryType: 'magiclink',
-        authUserId,
-        mustChangePassword: true,
-        failureReason: failureMessage,
-      })
-
-      return jsonResponse(400, {
-        error: failureMessage,
-        audit_logged: auditResult.logged,
-        ...(auditResult.warning ? { warning: auditResult.warning } : {}),
-      })
-    }
-
+  try {
+    await sendEmployeeAccessEmail({
+      adminClient,
+      recipientEmail: normalizedEmail,
+      employee,
+      deliveryType: emailDeliveryType,
+      redirectTo: inviteRedirectTo,
+    })
+  } catch (error) {
+    const failureMessage =
+      error instanceof Error ? error.message : 'Unable to send account access email.'
     const auditResult = await insertInviteAuditLog({
       adminClient,
       actorUserId: user.id,
-      action: 'EMPLOYEE_INVITE_SENT',
+      action: 'EMPLOYEE_INVITE_FAILED',
       employee,
       recipientEmail: normalizedEmail,
       triggerSource,
       emailDeliveryType,
       authUserId,
       mustChangePassword: true,
+      failureReason: failureMessage,
     })
-    auditLogged = auditResult.logged
-    warning = auditResult.warning
+
+    return jsonResponse(400, {
+      error: failureMessage,
+      audit_logged: auditResult.logged,
+      ...(auditResult.warning ? { warning: auditResult.warning } : {}),
+    })
   }
 
+  const auditResult = await insertInviteAuditLog({
+    adminClient,
+    actorUserId: user.id,
+    action: 'EMPLOYEE_INVITE_SENT',
+    employee,
+    recipientEmail: normalizedEmail,
+    triggerSource,
+    emailDeliveryType,
+    authUserId,
+    mustChangePassword: true,
+  })
   return jsonResponse(200, {
     employe_id: employeId,
     user_id: authUserId,
@@ -804,7 +1035,7 @@ Deno.serve(async (request) => {
     email_sent: emailSent,
     ...(emailDeliveryType ? { email_delivery_type: emailDeliveryType } : {}),
     must_change_password: true,
-    ...(auditLogged !== undefined ? { audit_logged: auditLogged } : {}),
-    ...(warning ? { warning } : {}),
+    ...(auditResult.logged !== undefined ? { audit_logged: auditResult.logged } : {}),
+    ...(auditResult.warning ? { warning: auditResult.warning } : {}),
   })
 })
