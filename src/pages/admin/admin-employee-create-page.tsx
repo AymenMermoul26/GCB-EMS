@@ -19,6 +19,7 @@ import {
   PageHeader,
 } from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
+import { EmployeeDossierImportDialog } from '@/components/admin/employee-dossier-import-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,6 +48,10 @@ import {
   normalizeOptionalInteger,
   type EmployeeCreateFormValues,
 } from '@/schemas/employeeSchema'
+import {
+  type EmployeeDossierExtractionResponse,
+  type EmployeeDossierFormFieldKey,
+} from '@/types/employee-dossier-import'
 import {
   EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS,
   EMPLOYEE_DIPLOME_LABELS,
@@ -78,10 +83,40 @@ function isMatriculeConflict(message: string): boolean {
 
 const EMPTY_SELECT_VALUE = '__none__'
 
+interface AppliedDossierImportState {
+  extraction: EmployeeDossierExtractionResponse
+  appliedFields: EmployeeDossierFormFieldKey[]
+  skippedFields: EmployeeDossierFormFieldKey[]
+}
+
+interface ImportedFieldHint {
+  tone: 'success' | 'warning'
+  message: string
+}
+
+function isEmptyFormFieldValue(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return value.trim().length === 0
+  }
+
+  return value === null || value === undefined
+}
+
+function formatConfidencePercent(confidence: number | null): string {
+  if (confidence === null) {
+    return 'confidence unavailable'
+  }
+
+  return `${Math.round(confidence * 100)}% confidence`
+}
+
 export function AdminEmployeeCreatePage() {
   const navigate = useNavigate()
   const departmentsQuery = useDepartmentsQuery()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [dossierImportState, setDossierImportState] =
+    useState<AppliedDossierImportState | null>(null)
+  const [isDossierImportReviewed, setIsDossierImportReviewed] = useState(false)
 
   const form = useForm<EmployeeCreateFormValues>({
     resolver: zodResolver(employeeCreateSchema),
@@ -186,6 +221,125 @@ export function AdminEmployeeCreatePage() {
   }, [currentNom, currentPrenom])
   const isDepartmentSelectDisabled = isSubmitting || departmentsQuery.isError
 
+  const applyImportedDossier = (result: EmployeeDossierExtractionResponse) => {
+    const appliedFields: EmployeeDossierFormFieldKey[] = []
+    const skippedFields: EmployeeDossierFormFieldKey[] = []
+
+    ;(
+      Object.entries(result.draft) as [EmployeeDossierFormFieldKey, string | undefined][]
+    ).forEach(([fieldKey, importedValue]) => {
+      const nextValue = importedValue?.trim()
+      if (!nextValue) {
+        return
+      }
+
+      const currentValue = form.getValues(fieldKey)
+      const fieldState = form.getFieldState(fieldKey)
+      const shouldSkip = fieldState.isDirty && !isEmptyFormFieldValue(currentValue)
+
+      if (shouldSkip) {
+        skippedFields.push(fieldKey)
+        return
+      }
+
+      form.setValue(fieldKey, nextValue, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      })
+      appliedFields.push(fieldKey)
+    })
+
+    setDossierImportState({
+      extraction: result,
+      appliedFields,
+      skippedFields,
+    })
+    setIsDossierImportReviewed(appliedFields.length === 0)
+
+    if (appliedFields.length === 0) {
+      toast.error('No extracted values could be applied safely. Continue with manual entry.')
+      return
+    }
+
+    if (skippedFields.length > 0) {
+      toast.success(
+        `Applied ${appliedFields.length} imported field(s). ${skippedFields.length} existing field(s) were kept because they were already edited manually.`,
+      )
+      return
+    }
+
+    toast.success(`Applied ${appliedFields.length} imported field(s) to the employee form.`)
+  }
+
+  const importedFieldHints = useMemo<
+    Partial<Record<EmployeeDossierFormFieldKey, ImportedFieldHint>>
+  >(() => {
+    if (!dossierImportState) {
+      return {}
+    }
+
+    return Object.values(dossierImportState.extraction.fields).reduce<
+      Partial<Record<EmployeeDossierFormFieldKey, ImportedFieldHint>>
+    >((accumulator, field) => {
+      if (
+        !field.mappedFormField ||
+        !dossierImportState.appliedFields.includes(field.mappedFormField)
+      ) {
+        return accumulator
+      }
+
+      if (field.status === 'imported') {
+        accumulator[field.mappedFormField] = {
+          tone: 'success',
+          message: `Imported from dossier • ${formatConfidencePercent(field.confidence)}`,
+        }
+      }
+
+      if (field.status === 'low_confidence') {
+        accumulator[field.mappedFormField] = {
+          tone: 'warning',
+          message: `Review imported value • ${formatConfidencePercent(field.confidence)}`,
+        }
+      }
+
+      return accumulator
+    }, {})
+  }, [dossierImportState])
+
+  const dossierImportLowConfidenceFields = useMemo(
+    () =>
+      Object.values(dossierImportState?.extraction.fields ?? {}).filter(
+        (field) => field.status === 'low_confidence',
+      ),
+    [dossierImportState],
+  )
+
+  const dossierImportMissingFields = useMemo(
+    () =>
+      Object.values(dossierImportState?.extraction.fields ?? {}).filter(
+        (field) => field.status === 'missing',
+      ),
+    [dossierImportState],
+  )
+
+  const dossierImportUnmappedFields = useMemo(
+    () =>
+      Object.values(dossierImportState?.extraction.fields ?? {}).filter(
+        (field) => field.status === 'unmapped',
+      ),
+    [dossierImportState],
+  )
+
+  const requiresDossierImportReview =
+    dossierImportState !== null && dossierImportState.appliedFields.length > 0
+
+  const isCreateButtonDisabled =
+    isSubmitting ||
+    departmentsQuery.isPending ||
+    !form.formState.isValid ||
+    (requiresDossierImportReview && !isDossierImportReviewed)
+
   return (
     <DashboardLayout
       title="Create Employee"
@@ -210,6 +364,10 @@ export function AdminEmployeeCreatePage() {
         badges={<StatusBadge tone="neutral" emphasis="outline">Step 1 of 1</StatusBadge>}
         actions={
           <>
+            <EmployeeDossierImportDialog
+              disabled={isSubmitting || departmentsQuery.isPending}
+              onApply={applyImportedDossier}
+            />
             <Button
               type="button"
               variant="outline"
@@ -221,7 +379,7 @@ export function AdminEmployeeCreatePage() {
             <Button
               type="submit"
               form={formId}
-              disabled={isSubmitting || departmentsQuery.isPending || !form.formState.isValid}
+              disabled={isCreateButtonDisabled}
               className={BRAND_BUTTON_CLASS_NAME}
             >
               {isSubmitting ? (
@@ -249,6 +407,133 @@ export function AdminEmployeeCreatePage() {
           </Alert>
         ) : null}
 
+        {dossierImportState ? (
+          <Card className="rounded-2xl border border-slate-200/80 shadow-sm">
+            <CardHeader className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <ShieldCheck className="h-4 w-4 text-[#ff6b35]" />
+                Dossier import review
+              </CardTitle>
+              <CardDescription>
+                OCR values were applied to the existing create form only. Review the imported
+                fields before creating the employee record.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                    Applied
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-emerald-900">
+                    {dossierImportState.appliedFields.length}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                    Low confidence
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-amber-900">
+                    {dossierImportLowConfidenceFields.length}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
+                    Missing
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">
+                    {dossierImportMissingFields.length}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
+                    Kept manual values
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">
+                    {dossierImportState.skippedFields.length}
+                  </p>
+                </div>
+              </div>
+
+              {dossierImportState.extraction.warnings.length > 0 ? (
+                <Alert className="rounded-2xl border border-amber-200 bg-amber-50 text-amber-900">
+                  <AlertTitle>Import warnings</AlertTitle>
+                  <AlertDescription>
+                    {dossierImportState.extraction.warnings.join(' ')}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-900">Low-confidence fields</p>
+                  {dossierImportLowConfidenceFields.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {dossierImportLowConfidenceFields.map((field) => (
+                        <StatusBadge
+                          key={field.key}
+                          tone="warning"
+                          emphasis="outline"
+                        >
+                          {field.label}
+                        </StatusBadge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No low-confidence values were applied.
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-900">Missing or not applied</p>
+                  {dossierImportMissingFields.length > 0 ||
+                  dossierImportUnmappedFields.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {dossierImportMissingFields.map((field) => (
+                        <StatusBadge
+                          key={field.key}
+                          tone="neutral"
+                          emphasis="outline"
+                        >
+                          {field.label}
+                        </StatusBadge>
+                      ))}
+                      {dossierImportUnmappedFields.map((field) => (
+                        <StatusBadge
+                          key={field.key}
+                          tone="danger"
+                          emphasis="outline"
+                        >
+                          {field.label}
+                        </StatusBadge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Every extracted field was either applied or intentionally skipped.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-slate-300"
+                  checked={isDossierImportReviewed}
+                  onChange={(event) => setIsDossierImportReviewed(event.target.checked)}
+                />
+                <span>
+                  I reviewed the imported dossier values and I confirm the existing Add Employee
+                  form is ready for manual submission.
+                </span>
+              </label>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card className="overflow-hidden rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="h-1.5 w-full bg-gradient-to-br from-[#ff6b35] to-[#ffc947]" />
           <CardHeader className="space-y-1">
@@ -261,7 +546,10 @@ export function AdminEmployeeCreatePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            <FieldError message={form.formState.errors.prenom?.message}>
+            <FieldError
+              message={form.formState.errors.prenom?.message}
+              importHint={importedFieldHints.prenom}
+            >
               <Label htmlFor="prenom">
                 First Name <span className="text-destructive">*</span>
               </Label>
@@ -273,7 +561,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.nom?.message}>
+            <FieldError
+              message={form.formState.errors.nom?.message}
+              importHint={importedFieldHints.nom}
+            >
               <Label htmlFor="nom">
                 Last Name <span className="text-destructive">*</span>
               </Label>
@@ -285,7 +576,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.matricule?.message}>
+            <FieldError
+              message={form.formState.errors.matricule?.message}
+              importHint={importedFieldHints.matricule}
+            >
               <Label htmlFor="matricule">Employee ID</Label>
               <Input
                 id="matricule"
@@ -298,7 +592,10 @@ export function AdminEmployeeCreatePage() {
               </p>
             </FieldError>
 
-            <FieldError message={form.formState.errors.poste?.message}>
+            <FieldError
+              message={form.formState.errors.poste?.message}
+              importHint={importedFieldHints.poste}
+            >
               <Label htmlFor="poste">Job Title</Label>
               <Controller
                 control={form.control}
@@ -327,7 +624,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.departementId?.message}>
+            <FieldError
+              message={form.formState.errors.departementId?.message}
+              importHint={importedFieldHints.departementId}
+            >
               <Label htmlFor="departementId">
                 Department <span className="text-destructive">*</span>
               </Label>
@@ -417,7 +717,10 @@ export function AdminEmployeeCreatePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            <FieldError message={form.formState.errors.sexe?.message}>
+            <FieldError
+              message={form.formState.errors.sexe?.message}
+              importHint={importedFieldHints.sexe}
+            >
               <Label htmlFor="sexe">Sex</Label>
               <Controller
                 control={form.control}
@@ -446,7 +749,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.dateNaissance?.message}>
+            <FieldError
+              message={form.formState.errors.dateNaissance?.message}
+              importHint={importedFieldHints.dateNaissance}
+            >
               <Label htmlFor="dateNaissance">Birth Date</Label>
               <Input
                 id="dateNaissance"
@@ -456,7 +762,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.lieuNaissance?.message}>
+            <FieldError
+              message={form.formState.errors.lieuNaissance?.message}
+              importHint={importedFieldHints.lieuNaissance}
+            >
               <Label htmlFor="lieuNaissance">Birth Place</Label>
               <Input
                 id="lieuNaissance"
@@ -466,7 +775,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.nationalite?.message}>
+            <FieldError
+              message={form.formState.errors.nationalite?.message}
+              importHint={importedFieldHints.nationalite}
+            >
               <Label htmlFor="nationalite">Nationality</Label>
               <Controller
                 control={form.control}
@@ -508,7 +820,10 @@ export function AdminEmployeeCreatePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            <FieldError message={form.formState.errors.categorieProfessionnelle?.message}>
+            <FieldError
+              message={form.formState.errors.categorieProfessionnelle?.message}
+              importHint={importedFieldHints.categorieProfessionnelle}
+            >
               <Label htmlFor="categorieProfessionnelle">Professional Category</Label>
               <Controller
                 control={form.control}
@@ -537,7 +852,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.typeContrat?.message}>
+            <FieldError
+              message={form.formState.errors.typeContrat?.message}
+              importHint={importedFieldHints.typeContrat}
+            >
               <Label htmlFor="typeContrat">Contract Type</Label>
               <Controller
                 control={form.control}
@@ -566,7 +884,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.dateRecrutement?.message}>
+            <FieldError
+              message={form.formState.errors.dateRecrutement?.message}
+              importHint={importedFieldHints.dateRecrutement}
+            >
               <Label htmlFor="dateRecrutement">Hire Date</Label>
               <Input
                 id="dateRecrutement"
@@ -590,7 +911,10 @@ export function AdminEmployeeCreatePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
-              <FieldError message={form.formState.errors.diplome?.message}>
+              <FieldError
+                message={form.formState.errors.diplome?.message}
+                importHint={importedFieldHints.diplome}
+              >
                 <Label htmlFor="diplome">Degree / Diploma</Label>
                 <Controller
                   control={form.control}
@@ -619,7 +943,10 @@ export function AdminEmployeeCreatePage() {
                 />
               </FieldError>
 
-              <FieldError message={form.formState.errors.specialite?.message}>
+              <FieldError
+                message={form.formState.errors.specialite?.message}
+                importHint={importedFieldHints.specialite}
+              >
                 <Label htmlFor="specialite">Specialization</Label>
                 <Controller
                   control={form.control}
@@ -707,7 +1034,10 @@ export function AdminEmployeeCreatePage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <FieldError message={form.formState.errors.situationFamiliale?.message}>
+              <FieldError
+                message={form.formState.errors.situationFamiliale?.message}
+                importHint={importedFieldHints.situationFamiliale}
+              >
                 <Label htmlFor="situationFamiliale">Marital Status</Label>
                 <Controller
                   control={form.control}
@@ -736,7 +1066,10 @@ export function AdminEmployeeCreatePage() {
                 />
               </FieldError>
 
-              <FieldError message={form.formState.errors.nombreEnfants?.message}>
+              <FieldError
+                message={form.formState.errors.nombreEnfants?.message}
+                importHint={importedFieldHints.nombreEnfants}
+              >
                 <Label htmlFor="nombreEnfants">Number of Children</Label>
                 <Input
                   id="nombreEnfants"
@@ -749,7 +1082,10 @@ export function AdminEmployeeCreatePage() {
                 />
               </FieldError>
 
-              <FieldError message={form.formState.errors.numeroSecuriteSociale?.message}>
+              <FieldError
+                message={form.formState.errors.numeroSecuriteSociale?.message}
+                importHint={importedFieldHints.numeroSecuriteSociale}
+              >
                 <Label htmlFor="numeroSecuriteSociale">Social Security Number</Label>
                 <Input
                   id="numeroSecuriteSociale"
@@ -763,7 +1099,10 @@ export function AdminEmployeeCreatePage() {
               </FieldError>
             </div>
 
-            <FieldError message={form.formState.errors.adresse?.message}>
+            <FieldError
+              message={form.formState.errors.adresse?.message}
+              importHint={importedFieldHints.adresse}
+            >
               <Label htmlFor="adresse">Address</Label>
               <Textarea
                 id="adresse"
@@ -813,7 +1152,10 @@ export function AdminEmployeeCreatePage() {
             <CardDescription>Work contact details used for communication.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            <FieldError message={form.formState.errors.email?.message}>
+            <FieldError
+              message={form.formState.errors.email?.message}
+              importHint={importedFieldHints.email}
+            >
               <Label htmlFor="email">Work Email</Label>
               <Input
                 id="email"
@@ -824,7 +1166,10 @@ export function AdminEmployeeCreatePage() {
               />
             </FieldError>
 
-            <FieldError message={form.formState.errors.telephone?.message}>
+            <FieldError
+              message={form.formState.errors.telephone?.message}
+              importHint={importedFieldHints.telephone}
+            >
               <Label htmlFor="telephone">Work Phone</Label>
               <Input
                 id="telephone"
@@ -908,7 +1253,7 @@ export function AdminEmployeeCreatePage() {
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || departmentsQuery.isPending || !form.formState.isValid}
+              disabled={isCreateButtonDisabled}
               className="bg-gradient-to-br from-[#ff6b35] to-[#ffc947] text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md"
             >
               {isSubmitting ? (
@@ -928,12 +1273,24 @@ export function AdminEmployeeCreatePage() {
 interface FieldErrorProps {
   children: ReactNode
   message?: string
+  importHint?: ImportedFieldHint
 }
 
-function FieldError({ children, message }: FieldErrorProps) {
+function FieldError({ children, message, importHint }: FieldErrorProps) {
   return (
     <div className="space-y-2">
       {children}
+      {importHint ? (
+        <p
+          className={
+            importHint.tone === 'warning'
+              ? 'text-xs text-amber-700'
+              : 'text-xs text-emerald-700'
+          }
+        >
+          {importHint.message}
+        </p>
+      ) : null}
       {message ? <p className="text-xs text-destructive">{message}</p> : null}
     </div>
   )

@@ -413,8 +413,58 @@ function getEmployeeLabel<T extends string>(
   return labels[resolvedValue as T] ?? resolvedValue
 }
 
+function resolveEmployeeOptionValue<T extends string>(
+  value: string | null | undefined,
+  options: readonly T[],
+  aliases?: Partial<Record<string, T>>,
+  labels?: Partial<Record<T, string>>,
+): T | null {
+  const sanitizedValue = sanitizeEmployeeTextValue(value)
+
+  if (!sanitizedValue) {
+    return null
+  }
+
+  const resolvedValue = resolveEmployeeLookupValue(sanitizedValue, aliases)
+  if (options.includes(resolvedValue as T)) {
+    return resolvedValue as T
+  }
+
+  const normalizedResolvedValue = normalizeEmployeeLookupKey(resolvedValue)
+
+  const optionMatch = options.find(
+    (option) => normalizeEmployeeLookupKey(option) === normalizedResolvedValue,
+  )
+
+  if (optionMatch) {
+    return optionMatch
+  }
+
+  if (!labels) {
+    return null
+  }
+
+  return (
+    options.find(
+      (option) =>
+        normalizeEmployeeLookupKey(labels[option] ?? '') === normalizedResolvedValue,
+    ) ?? null
+  )
+}
+
 export function getEmployeeSexeLabel(value: string | null | undefined): string | null {
   return getEmployeeLabel<EmployeeSexe>(value, EMPLOYEE_SEXE_LABELS, EMPLOYEE_SEXE_ALIASES)
+}
+
+export function resolveEmployeeSexeValue(
+  value: string | null | undefined,
+): EmployeeSexe | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_SEXE_OPTIONS,
+    EMPLOYEE_SEXE_ALIASES,
+    EMPLOYEE_SEXE_LABELS,
+  )
 }
 
 export function getEmployeeCategorieProfessionnelleLabel(
@@ -427,6 +477,17 @@ export function getEmployeeCategorieProfessionnelleLabel(
   )
 }
 
+export function resolveEmployeeCategorieProfessionnelleValue(
+  value: string | null | undefined,
+): EmployeeCategorieProfessionnelle | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_CATEGORIE_PROFESSIONNELLE_OPTIONS,
+    EMPLOYEE_CATEGORIE_PROFESSIONNELLE_ALIASES,
+    EMPLOYEE_CATEGORIE_PROFESSIONNELLE_LABELS,
+  )
+}
+
 export function getEmployeeTypeContratLabel(value: string | null | undefined): string | null {
   return getEmployeeLabel<EmployeeTypeContrat>(
     value,
@@ -435,24 +496,90 @@ export function getEmployeeTypeContratLabel(value: string | null | undefined): s
   )
 }
 
+export function resolveEmployeeTypeContratValue(
+  value: string | null | undefined,
+): EmployeeTypeContrat | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_TYPE_CONTRAT_OPTIONS,
+    EMPLOYEE_TYPE_CONTRAT_ALIASES,
+    EMPLOYEE_TYPE_CONTRAT_LABELS,
+  )
+}
+
 export function getEmployeeNationaliteLabel(value: string | null | undefined): string | null {
   return getEmployeeLabel<EmployeeNationalite>(value, EMPLOYEE_NATIONALITE_LABELS)
+}
+
+export function resolveEmployeeNationaliteValue(
+  value: string | null | undefined,
+): EmployeeNationalite | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_NATIONALITE_OPTIONS,
+    undefined,
+    EMPLOYEE_NATIONALITE_LABELS,
+  )
 }
 
 export function getEmployeePosteLabel(value: string | null | undefined): string | null {
   return getEmployeeLabel<EmployeePoste>(value, EMPLOYEE_POSTE_LABELS)
 }
 
+export function resolveEmployeePosteValue(
+  value: string | null | undefined,
+): EmployeePoste | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_POSTE_OPTIONS,
+    undefined,
+    EMPLOYEE_POSTE_LABELS,
+  )
+}
+
 export function getEmployeeDiplomeLabel(value: string | null | undefined): string | null {
   return getEmployeeLabel<EmployeeDiplome>(value, EMPLOYEE_DIPLOME_LABELS)
+}
+
+export function resolveEmployeeDiplomeValue(
+  value: string | null | undefined,
+): EmployeeDiplome | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_DIPLOME_OPTIONS,
+    undefined,
+    EMPLOYEE_DIPLOME_LABELS,
+  )
 }
 
 export function getEmployeeSpecialiteLabel(value: string | null | undefined): string | null {
   return getEmployeeLabel<EmployeeSpecialite>(value, EMPLOYEE_SPECIALITE_LABELS)
 }
 
+export function resolveEmployeeSpecialiteValue(
+  value: string | null | undefined,
+): EmployeeSpecialite | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_SPECIALITE_OPTIONS,
+    undefined,
+    EMPLOYEE_SPECIALITE_LABELS,
+  )
+}
+
 export function getEmployeeUniversiteLabel(value: string | null | undefined): string | null {
   return getEmployeeLabel<EmployeeUniversite>(value, EMPLOYEE_UNIVERSITE_LABELS)
+}
+
+export function resolveEmployeeUniversiteValue(
+  value: string | null | undefined,
+): EmployeeUniversite | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_UNIVERSITE_OPTIONS,
+    undefined,
+    EMPLOYEE_UNIVERSITE_LABELS,
+  )
 }
 
 export function getEmployeeRegionalBranchLabel(
@@ -465,6 +592,17 @@ export function getEmployeeRegionalBranchLabel(
   )
 }
 
+export function resolveEmployeeRegionalBranchValue(
+  value: string | null | undefined,
+): EmployeeRegionalBranch | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_REGIONAL_BRANCH_OPTIONS,
+    EMPLOYEE_REGIONAL_BRANCH_ALIASES,
+    EMPLOYEE_REGIONAL_BRANCH_LABELS,
+  )
+}
+
 export function getEmployeeSituationFamilialeLabel(
   value: string | null | undefined,
 ): string | null {
@@ -472,6 +610,17 @@ export function getEmployeeSituationFamilialeLabel(
     value,
     EMPLOYEE_SITUATION_FAMILIALE_LABELS,
     EMPLOYEE_SITUATION_FAMILIALE_ALIASES,
+  )
+}
+
+export function resolveEmployeeSituationFamilialeValue(
+  value: string | null | undefined,
+): EmployeeSituationFamiliale | null {
+  return resolveEmployeeOptionValue(
+    value,
+    EMPLOYEE_SITUATION_FAMILIALE_OPTIONS,
+    EMPLOYEE_SITUATION_FAMILIALE_ALIASES,
+    EMPLOYEE_SITUATION_FAMILIALE_LABELS,
   )
 }
 

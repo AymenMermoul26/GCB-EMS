@@ -38,7 +38,29 @@ Copy `.env.example` to `.env` and set:
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_APP_NAME=GCB EMS
+VITE_PUBLIC_BASE_URL=https://your-app.vercel.app
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY=your-azure-document-intelligence-key
+AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID=prebuilt-layout
+AZURE_DOCUMENT_INTELLIGENCE_API_VERSION=2024-11-30
 ```
+
+## OCR dossier import
+
+The admin employee-create flow includes an `Import from dossier` action that:
+
+- uploads a PDF, JPG/JPEG, or PNG dossier
+- sends it to a server-side OCR endpoint on Vercel
+- uses Azure AI Document Intelligence for extraction
+- prefills the existing Add Employee form only after admin review
+
+Notes:
+
+- no employee is created automatically from OCR alone
+- the OCR endpoint requires an authenticated `ADMIN_RH` user
+- unsupported or oversized files fall back cleanly to manual entry
+- because the OCR endpoint lives under `api/`, test it with `vercel dev` or the deployed Vercel app rather than plain `vite` alone
 
 ## Run locally
 
