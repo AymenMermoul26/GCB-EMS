@@ -33,3 +33,5 @@ docs
 /playwright/.cache/
 /playwright/.auth/
 /tests/e2e/.auth/
+
+.vercel
